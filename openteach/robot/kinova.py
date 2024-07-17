@@ -1,4 +1,4 @@
-from openteach.ros_links.kinova_allegro_control import DexArmControl 
+from openteach.ros_links.kinova_allegro_control import DexArmControl
 from .robot import RobotWrapper
 
 class KinovaArm(RobotWrapper):
@@ -36,7 +36,7 @@ class KinovaArm(RobotWrapper):
 
     def get_joint_torque(self):
         return self._controller.get_arm_torque()
-    
+
     def get_cartesian_position(self):
         return self._controller.get_arm_cartesian_coords()
 
@@ -51,4 +51,4 @@ class KinovaArm(RobotWrapper):
         self._controller.move_arm_cartesian(cartesian_coords)
 
     def move_velocity(self, input_velocity_values, duration):
-        self._controller.move_arm_cartesian_velocity(input_velocity_values, duration) 
+        self._controller.move_arm_cartesian_velocity(input_velocity_values, duration)

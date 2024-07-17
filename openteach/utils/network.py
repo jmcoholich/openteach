@@ -155,14 +155,14 @@ class ZMQCameraSubscriber(threading.Thread):
         data = pickle.loads(data)
         encoded_data = np.fromstring(base64.b64decode(data['rgb_image']), np.uint8)
         return cv2.imdecode(encoded_data, 1), data['timestamp']
-        
+
     def recv_depth_image(self):
         raw_data = self.socket.recv()
         striped_data = raw_data.lstrip(b"depth_image ")
         data = pickle.loads(striped_data)
         depth_image = bl.unpack_array(data['depth_image'])
         return np.array(depth_image, dtype = np.int16), data['timestamp']
-        
+
     def stop(self):
         print('Closing the subscriber socket in {}:{}.'.format(self._host, self._port))
         self.socket.close()
@@ -218,7 +218,7 @@ class ZMQCompressedImageReciever(threading.Thread):
         encoded_data = np.fromstring(raw_data, np.uint8)
         decoded_frame = cv2.imdecode(encoded_data, 1)
         return decoded_frame
-        
+
     def stop(self):
         print('Closing the subscriber socket in {}:{}.'.format(self._host, self._port))
         self.socket.close()
@@ -247,7 +247,7 @@ class ZMQButtonFeedbackSubscriber(threading.Thread):
     def recv_keypoints(self):
         raw_data = self.socket.recv()
         return pickle.loads(raw_data)
-    
+
     def stop(self):
         print('Closing the subscriber socket in {}:{}.'.format(self._host, self._port))
         self.socket.close()

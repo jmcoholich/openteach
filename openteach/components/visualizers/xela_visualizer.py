@@ -1,5 +1,5 @@
 import hydra
-import numpy as np 
+import numpy as np
 from .plotters.xela_plotter import *
 from get_xela_values import XelaCurvedSensorControl # Python path is set to that directory
 from openteach.components import Component
@@ -30,9 +30,9 @@ class XelaVisualizer(Component):
             if  palm_sensor_values is not None or fingertip_sensor_values is not None or finger_sensor_values is not None:
 
                 # Get the xela sensor values
-                
+
                 self.plotter.draw(palm_sensor_values, fingertip_sensor_values, finger_sensor_values)
-            
+
         print('Stopping the XELA visualizer')
 
 class XelaCurvedVisualizer(Component):
@@ -48,7 +48,7 @@ class XelaCurvedVisualizer(Component):
 
     def stream(self):
         while True:
-            try: 
+            try:
                 # Get the xela sensor values
                 xela_state = self.sensor.get_sensor_state()
 
@@ -60,6 +60,6 @@ class XelaCurvedVisualizer(Component):
                 self.plotter.draw(palm_sensor_values, fingertip_sensor_values, finger_sensor_values)
 
             except:
-                break 
-            
+                break
+
         print('Stopping the XELA visualizer')

@@ -65,7 +65,7 @@ class OculusThumbBoundCalibrator(object):
 
         _ = input("Place the thumb in the ring top corner.")
         ring_top_coord = self._get_xy_coords()
-        
+
         _ = input("Stretch the thumb to get highest ring bound z value.")
         ring_high_z = self._get_z_coord()
 
@@ -142,14 +142,14 @@ class OculusThumbBoundCalibrator(object):
         thumb_bounds = [
             thumb_index_bounds[0],
             thumb_index_bounds[1],
-            thumb_ring_bounds[2], 
+            thumb_ring_bounds[2],
             thumb_ring_bounds[3],
             [low_z, high_z]
         ]
         #print(thumb_bounds)
         return thumb_bounds
-        
-    
+
+
     """top_right_coord[1] = top_right_coord[1]+0.02
         bottom_right_coord[1]=bottom_right_coord[1]-0.02
         index_bottom_coord[1]=index_bottom_coord[1]-0.03
@@ -159,5 +159,5 @@ class OculusThumbBoundCalibrator(object):
         middle_top_coord[1]=middle_top_coord[1]+0.02
         index_top_coord[1]=index_top_coord[1]+0.02
         index_high_z=index_high_z-0.01
-        index_low_z=index_low_z-0.01  
+        index_low_z=index_low_z-0.01
     """

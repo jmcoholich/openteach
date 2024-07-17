@@ -33,7 +33,7 @@ class Filter:
 			np.stack([self.ori_state, next_state[3:7]], axis=0)),)
 		self.ori_state = ori_interp([1 - self.comp_ratio])[0].as_quat()
 		return np.concatenate([self.pos_state, self.ori_state])
-	
+
 class LiberoSimOperator(Operator):
 	def __init__(
 		self,
@@ -105,7 +105,7 @@ class LiberoSimOperator(Operator):
 		self._timer = FrequencyTimer(VR_FREQ)
 		self._robot='Libero_Sim'
 		self.is_first_frame = True
-		
+
 		# Frequency timer
 		self._timer = FrequencyTimer(VR_FREQ)
 		self.direction_counter = 0
@@ -123,15 +123,15 @@ class LiberoSimOperator(Operator):
 	@property
 	def robot(self):
 		return self._robot
-	
+
 	@property
 	def transformed_hand_keypoint_subscriber(self):
 		return self._hand_transformed_keypoint_subscriber
-	
+
 	@property
 	def transformed_arm_keypoint_subscriber(self):
 		return self._arm_transformed_keypoint_subscriber
-	
+
 	#Calibrate the bounds
 	def _calibrate_bounds(self):
 		self.notify_component_start('calibration')
@@ -143,16 +143,16 @@ class LiberoSimOperator(Operator):
 	def _get_hand_frame(self):
 		for i in range(10):
 			data = self.transformed_arm_keypoint_subscriber.recv_keypoints(flags=zmq.NOBLOCK)
-			if not data is None: break 
+			if not data is None: break
 		if data is None: return None
 		return np.asanyarray(data).reshape(4, 3)
-	
+
 	# Get the resolution scale mode
 	def _get_resolution_scale_mode(self):
 		data = self._arm_resolution_subscriber.recv_keypoints()
 		res_scale = np.asanyarray(data).reshape(1)[0] # Make sure this data is one dimensional
 		return res_scale
-	
+
 	# Get Homogenous matrix from the frame
 	def _turn_frame_to_homo_mat(self, frame):
 		t = frame[0]
@@ -165,7 +165,7 @@ class LiberoSimOperator(Operator):
 
 		return homo_mat
 
-	# Convert Homogenous matrix to cartesian vector 
+	# Convert Homogenous matrix to cartesian vector
 	def _homo2cart(self, homo_mat):
 		# Here we will use the resolution scale to set the translation resolution
 		t = homo_mat[:3, 3]
@@ -176,7 +176,7 @@ class LiberoSimOperator(Operator):
 			[t, R], axis=0
 		)
 		return cart
-	
+
 	# convert cartesian vector to homogenous matrix
 	def cart2homo(self, cart):
 		homo=np.zeros((4,4))
@@ -188,7 +188,7 @@ class LiberoSimOperator(Operator):
 		homo[3,:] = np.array([0,0,0,1])
 		return homo
 
-	# Get the scaled cartesian pose	
+	# Get the scaled cartesian pose
 	def _get_scaled_cart_pose(self, moving_robot_homo_mat):
 		# Get the cart pose without the scaling
 		unscaled_cart_pose = self._homo2cart(moving_robot_homo_mat)
@@ -200,17 +200,17 @@ class LiberoSimOperator(Operator):
 		# Get the difference in translation between these two cart poses
 		diff_in_translation = unscaled_cart_pose[:3] - current_cart_pose[:3]
 		scaled_diff_in_translation = diff_in_translation * self.resolution_scale
-		
+
 		scaled_cart_pose = np.zeros(7)
 		scaled_cart_pose[3:] = unscaled_cart_pose[3:] # Get the rotation directly
 		scaled_cart_pose[:3] = current_cart_pose[:3] + scaled_diff_in_translation # Get the scaled translation only
 
 		return scaled_cart_pose
-	 
+
 	# Check if it is real robot or simulation
 	def return_real(self):
 		return False
-			
+
 	# Reset Teleoperation
 	def _reset_teleop(self):
 		# Just updates the beginning position of the arm
@@ -228,34 +228,34 @@ class LiberoSimOperator(Operator):
 		self.is_first_frame = False
 
 		return first_hand_frame
-	
-	# Get ARm Teleop state from Hand keypoints 
+
+	# Get ARm Teleop state from Hand keypoints
 	def _get_arm_teleop_state_from_hand_keypoints(self):
 		pause_state ,pause_status,pause_right =self.get_pause_state_from_hand_keypoints()
-		pause_status =np.asanyarray(pause_status).reshape(1)[0] 
+		pause_status =np.asanyarray(pause_status).reshape(1)[0]
 		return pause_state,pause_status,pause_right
-	
-	# Get Pause State from Hand Keypoints 
+
+	# Get Pause State from Hand Keypoints
 	def get_pause_state_from_hand_keypoints(self):
 		transformed_hand_coords= self.transformed_hand_keypoint_subscriber.recv_keypoints()
 		ring_distance = np.linalg.norm(transformed_hand_coords[OCULUS_JOINTS['ring'][-1]]- transformed_hand_coords[OCULUS_JOINTS['thumb'][-1]])
 		middle_distance = np.linalg.norm(transformed_hand_coords[OCULUS_JOINTS['middle'][-1]]- transformed_hand_coords[OCULUS_JOINTS['thumb'][-1]])
-		thresh = 0.04 
+		thresh = 0.04
 		pause_right= True
 		if ring_distance < thresh or middle_distance < thresh:
 			self.pause_cnt+=1
 			if self.pause_cnt==1:
 				self.prev_pause_flag=self.pause_flag
-				self.pause_flag = not self.pause_flag       
+				self.pause_flag = not self.pause_flag
 		else:
 			self.pause_cnt=0
 		pause_state = np.asanyarray(self.pause_flag).reshape(1)[0]
-		pause_status= False  
+		pause_status= False
 		if pause_state!= self.prev_pause_flag:
-			pause_status= True 
+			pause_status= True
 		return pause_state , pause_status , pause_right
-	
-	# Get Gripper State from Hand Keypoints 
+
+	# Get Gripper State from Hand Keypoints
 	def get_gripper_state_from_hand_keypoints(self):
 		transformed_hand_coords= self.transformed_hand_keypoint_subscriber.recv_keypoints()
 		pinky_distance = np.linalg.norm(transformed_hand_coords[OCULUS_JOINTS['pinky'][-1]]- transformed_hand_coords[OCULUS_JOINTS['thumb'][-1]])
@@ -265,13 +265,13 @@ class LiberoSimOperator(Operator):
 			self.gripper_cnt+=1
 			if self.gripper_cnt==1:
 				self.prev_gripper_flag = self.gripper_flag
-				self.gripper_flag = not self.gripper_flag 
+				self.gripper_flag = not self.gripper_flag
 				gripper_fl=True
-		else: 
+		else:
 			self.gripper_cnt=0
 
 		gripper_state = np.asanyarray(self.gripper_flag).reshape(1)[0]
-		status= False  
+		status= False
 		if gripper_state!= self.prev_gripper_flag:
 			status= True
 		return gripper_state , status , gripper_fr
@@ -297,9 +297,9 @@ class LiberoSimOperator(Operator):
 		elif self.gripper_correct_state == GRIPPER_CLOSE:
 			gripper_state = 1
 
-		if moving_hand_frame is None: 
+		if moving_hand_frame is None:
 			return # It means we are not on the arm mode yet instead of blocking it is directly returning
-		
+
 		self.hand_moving_H = self._turn_frame_to_homo_mat(moving_hand_frame)
 
 		# Transformation code
@@ -308,9 +308,9 @@ class LiberoSimOperator(Operator):
 		H_RI_RH = copy(self.robot_init_H) # Homo matrix that takes P_RI to P_RH
 
 		H_HT_HI = np.linalg.pinv(H_HI_HH) @ H_HT_HH # Homo matrix that takes P_HT to P_HI
-		
+
 		#####################################################################################
-		H_R_V= np.array([[0 , 0, 1, 0], 
+		H_R_V= np.array([[0 , 0, 1, 0],
 						[0 , 1, 0, 0],
 						[-1, 0, 0, 0],
 						[0, 0 ,0 , 1]])
@@ -318,20 +318,20 @@ class LiberoSimOperator(Operator):
 						 [0 ,1, 0, 0],
 						 [-1, 0, 0, 0],
 						[0, 0, 0, 1]])
-	
+
 		H_HT_HI_r=(np.linalg.pinv(H_R_V) @ H_HT_HI @ H_R_V)[:3,:3]
 		H_HT_HI_t=(np.linalg.pinv(H_T_V) @ H_HT_HI @ H_T_V)[:3,3]
-		
+
 		relative_affine = np.block(
 		[[ H_HT_HI_r,  H_HT_HI_t.reshape(3, 1)], [0, 0, 0, 1]])
-		
+
 		target_translation = H_RI_RH[:3,3] + relative_affine[:3,3]
 		target_rotation = H_RI_RH[:3, :3] @ relative_affine[:3,:3]
 		H_RT_RH = np.block(
 					[[target_rotation, target_translation.reshape(-1, 1)], [0, 0, 0, 1]])
 
 		curr_robot_pose = self.robot_moving_H
-		translation_scale = 50.0 
+		translation_scale = 50.0
 		T_togo = H_RT_RH[:3, 3] #* translation_scale
 		R_togo = H_RT_RH[:3, :3]
 		# To use simulation arm with position control use T_togo, R_togo and convert this as a pose and publish as end effector pose and gripper state
@@ -343,8 +343,8 @@ class LiberoSimOperator(Operator):
 		rel_pos = (T_togo - T_curr) * translation_scale
 		rel_rot = np.linalg.pinv(R_curr) @ R_togo
 		rel_axis_angle = R.from_matrix(rel_rot).as_rotvec()
-		rel_axis_angle = rel_axis_angle * 5.0 
-		
+		rel_axis_angle = rel_axis_angle * 5.0
+
 		self.robot_moving_H = copy(H_RT_RH)
 		action = np.concatenate([rel_pos, rel_axis_angle, [gripper_state]])
 
@@ -360,4 +360,3 @@ class LiberoSimOperator(Operator):
 			self.end_eff_position_publisher.pub_keypoints(np.concatenate([np.zeros(6),[gripper_state]]),"endeff_coords")
 
 
-	

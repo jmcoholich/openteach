@@ -35,13 +35,13 @@ class MonitoringApplication(object):
         self.port_offset = configs.cam_port_offset
         self.num_cams = len(configs.robot_cam_serial_numbers)
 
-        # Initializing the streamers        
+        # Initializing the streamers
         self._init_cam_streamers()
         self._init_graph_streamer()
 
         # Initializing frequency checkers
         self._init_frequency_checkers()
-        
+
     def _init_graph_streamer(self):
         # TODO
         pass

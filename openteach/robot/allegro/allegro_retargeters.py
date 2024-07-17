@@ -41,7 +41,7 @@ class AllegroJointControl(AllegroKinematicControl):
 
     def _get_filtered_angles(self, finger_type, calc_finger_angles, curr_angles, moving_avg_arr):
         curr_finger_angles = self._get_curr_finger_angles(curr_angles, finger_type)
-        avg_finger_angles = moving_average(calc_finger_angles, moving_avg_arr, self.time_steps)       
+        avg_finger_angles = moving_average(calc_finger_angles, moving_avg_arr, self.time_steps)
         desired_angles = np.array(copy(curr_angles))
 
         # Applying angular bounds
@@ -57,7 +57,7 @@ class AllegroJointControl(AllegroKinematicControl):
             for idx in range(self.hand_configs['joints_per_finger']):
                 desired_angles[self.finger_configs['links_info'][finger_type]['offset'] + idx] = avg_finger_angles[idx]
 
-        return desired_angles 
+        return desired_angles
 
     def calculate_finger_angles(self, finger_type, finger_joint_coords, curr_angles, moving_avg_arr):
         translatory_angles = []
@@ -69,7 +69,7 @@ class AllegroJointControl(AllegroKinematicControl):
             )
             translatory_angles.append(angle * self.linear_scaling_factors[idx])
 
-        rotatory_angle = [self.calculate_finger_rotation(finger_joint_coords) * self.rotatory_scaling_factors[finger_type]] 
+        rotatory_angle = [self.calculate_finger_rotation(finger_joint_coords) * self.rotatory_scaling_factors[finger_type]]
         calc_finger_angles = rotatory_angle + translatory_angles
         filtered_angles = self._get_filtered_angles(finger_type, calc_finger_angles, curr_angles, moving_avg_arr)
         return filtered_angles
@@ -77,7 +77,7 @@ class AllegroJointControl(AllegroKinematicControl):
 
     def calculate_finger_rotation(self, finger_joint_coords):
         angle = calculate_angle(finger_joint_coords[0][:1], finger_joint_coords[1][:1], finger_joint_coords[-1][:1])
-        
+
         # Checking if the finger tip is on the left side or the right side of the knuckle
         knuckle_vector = finger_joint_coords[1] - finger_joint_coords[0]
         tip_vector = finger_joint_coords[-1] - finger_joint_coords[0]
@@ -96,16 +96,16 @@ class AllegroKDLControl(AllegroKinematicControl):
         self.solver = AllegroKDL()
 
     def calculate_desired_angles(
-        self, 
-        finger_type, 
-        transformed_coords, 
-        moving_avg_arr, 
+        self,
+        finger_type,
+        transformed_coords,
+        moving_avg_arr,
         curr_angles
     ):
-        curr_finger_angles = self._get_curr_finger_angles(curr_angles, finger_type)        
-        avg_finger_coords = moving_average(transformed_coords, moving_avg_arr, self.time_steps)    
+        curr_finger_angles = self._get_curr_finger_angles(curr_angles, finger_type)
+        avg_finger_coords = moving_average(transformed_coords, moving_avg_arr, self.time_steps)
         calc_finger_angles = self.solver.finger_inverse_kinematics(finger_type, avg_finger_coords, curr_finger_angles)
-        
+
 
         desired_angles = np.array(copy(curr_angles))
 
@@ -120,17 +120,17 @@ class AllegroKDLControl(AllegroKinematicControl):
                 desired_angles[self.finger_configs['links_info'][finger_type]['offset'] + idx] = calc_finger_angles[idx]
 
 
-        return desired_angles 
+        return desired_angles
 
     def finger_1D_motion(
-        self, 
-        finger_type, 
-        hand_y_val, 
-        robot_x_val, 
-        robot_y_val, 
-        y_hand_bound, 
-        z_robot_bound, 
-        moving_avg_arr, 
+        self,
+        finger_type,
+        hand_y_val,
+        robot_x_val,
+        robot_y_val,
+        y_hand_bound,
+        z_robot_bound,
+        moving_avg_arr,
         curr_angles
     ):
         '''
@@ -145,16 +145,16 @@ class AllegroKDLControl(AllegroKinematicControl):
         return desired_angles
 
     def finger_2D_motion(
-        self, 
-        finger_type, 
-        hand_x_val, 
-        hand_y_val, 
-        robot_x_val, 
-        x_hand_bound, 
-        y_hand_bound, 
-        y_robot_bound, 
-        z_robot_bound, 
-        moving_avg_arr, 
+        self,
+        finger_type,
+        hand_x_val,
+        hand_y_val,
+        robot_x_val,
+        x_hand_bound,
+        y_hand_bound,
+        y_robot_bound,
+        z_robot_bound,
+        moving_avg_arr,
         curr_angles
     ):
         '''
@@ -169,16 +169,16 @@ class AllegroKDLControl(AllegroKinematicControl):
         return desired_angles
 
     def finger_2D_depth_motion(
-        self, 
-        finger_type, 
-        hand_y_val, 
-        robot_y_val, 
-        hand_z_val, 
-        y_hand_bound, 
-        z_hand_bound, 
-        x_robot_bound, 
-        z_robot_bound, 
-        moving_avg_arr, 
+        self,
+        finger_type,
+        hand_y_val,
+        robot_y_val,
+        hand_z_val,
+        y_hand_bound,
+        z_hand_bound,
+        x_robot_bound,
+        z_robot_bound,
+        moving_avg_arr,
         curr_angles
     ):
         '''
@@ -193,18 +193,18 @@ class AllegroKDLControl(AllegroKinematicControl):
         return desired_angles
 
     def finger_3D_motion(
-        self, 
-        finger_type, 
-        hand_x_val, 
-        hand_y_val, 
-        hand_z_val, 
-        x_hand_bound, 
-        y_hand_bound, 
-        z_hand_bound, 
-        x_robot_bound, 
-        y_robot_bound, 
-        z_robot_bound, 
-        moving_avg_arr, 
+        self,
+        finger_type,
+        hand_x_val,
+        hand_y_val,
+        hand_z_val,
+        x_hand_bound,
+        y_hand_bound,
+        z_hand_bound,
+        x_robot_bound,
+        y_robot_bound,
+        z_robot_bound,
+        moving_avg_arr,
         curr_angles
     ):
         '''
@@ -219,45 +219,45 @@ class AllegroKDLControl(AllegroKinematicControl):
         return desired_angles
 
     def thumb_motion_2D(
-        self, 
-        hand_coordinates, 
-        xy_hand_bounds, 
-        yz_robot_bounds, 
-        robot_x_val, 
-        moving_avg_arr, 
+        self,
+        hand_coordinates,
+        xy_hand_bounds,
+        yz_robot_bounds,
+        robot_x_val,
+        moving_avg_arr,
         curr_angles
     ):
         '''
         For 2D control in Y and Z directions - human bounds are mapped to robot bounds
         '''
         y_robot_coord, z_robot_coord = persperctive_transform(
-            (hand_coordinates[0], hand_coordinates[1]), 
-            xy_hand_bounds, 
+            (hand_coordinates[0], hand_coordinates[1]),
+            xy_hand_bounds,
             yz_robot_bounds
         )
 
-        x_robot_coord = robot_x_val        
+        x_robot_coord = robot_x_val
         transformed_coords = [x_robot_coord, y_robot_coord, z_robot_coord]
-        
+
         desired_angles = self.calculate_desired_angles('thumb', transformed_coords, moving_avg_arr, curr_angles)
         return desired_angles
 
     def thumb_motion_3D(
-        self, 
-        hand_coordinates, 
-        xy_hand_bounds, 
-        yz_robot_bounds, 
-        z_hand_bound, 
-        x_robot_bound, 
-        moving_avg_arr, 
+        self,
+        hand_coordinates,
+        xy_hand_bounds,
+        yz_robot_bounds,
+        z_hand_bound,
+        x_robot_bound,
+        moving_avg_arr,
         curr_angles
     ):
         '''
         For 3D control in all directions - human bounds are mapped to robot bounds with varied depth
         '''
         y_robot_coord, z_robot_coord = persperctive_transform(
-            (hand_coordinates[0], hand_coordinates[1]), 
-            xy_hand_bounds, 
+            (hand_coordinates[0], hand_coordinates[1]),
+            xy_hand_bounds,
             yz_robot_bounds
         )
 

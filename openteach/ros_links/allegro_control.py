@@ -16,7 +16,7 @@ ALLEGRO_COMMANDED_JOINT_STATE_TOPIC = '/allegroHand/commanded_joint_states'
 ALLEGRO_ORIGINAL_HOME_VALUES = [
     0, -0.17453293, 0.78539816, 0.78539816,           # Index
     0, -0.17453293,  0.78539816,  0.78539816,         # Middle
-    0.08726646, -0.08726646, 0.87266463,  0.78539816, # Ring 
+    0.08726646, -0.08726646, 0.87266463,  0.78539816, # Ring
     1.04719755,  0.43633231,  0.26179939, 0.78539816  # Thumb
 ]
 
@@ -31,7 +31,7 @@ class DexArmControl():
             rospy.init_node("dex_arm", disable_signals = True, anonymous = True)
         except:
             pass
-    
+
         if robot_type == 'allegro':
             self._init_allegro_hand_control()
     # Controller initializers
@@ -40,21 +40,21 @@ class DexArmControl():
 
         self.allegro_joint_state = None
         rospy.Subscriber(
-            ALLEGRO_JOINT_STATE_TOPIC, 
-            JointState, 
-            self._callback_allegro_joint_state, 
+            ALLEGRO_JOINT_STATE_TOPIC,
+            JointState,
+            self._callback_allegro_joint_state,
             queue_size = 1
         )
 
         self.allegro_commanded_joint_state = None
         rospy.Subscriber(
-            ALLEGRO_COMMANDED_JOINT_STATE_TOPIC, 
-            JointState, 
-            self._callback_allegro_commanded_joint_state, 
+            ALLEGRO_COMMANDED_JOINT_STATE_TOPIC,
+            JointState,
+            self._callback_allegro_commanded_joint_state,
             queue_size = 1
         )
 
-   
+
 
     # Rostopic callback functions
     def _callback_allegro_joint_state(self, joint_state):
@@ -91,7 +91,7 @@ class DexArmControl():
             timestamp = raw_joint_state.header.stamp.secs + (raw_joint_state.header.stamp.nsecs * 1e-9)
         )
         return joint_state
-        
+
     def get_hand_position(self):
         if self.allegro_joint_state is None:
             return None
@@ -116,7 +116,7 @@ class DexArmControl():
 
         return np.array(self.allegro_commanded_joint_state.position, dtype = np.float32)
 
-    
+
     # Movement functions
     def move_hand(self, allegro_angles):
         self.allegro.hand_pose(allegro_angles)
@@ -127,7 +127,7 @@ class DexArmControl():
     def reset_hand(self):
         self.home_hand()
 
-    
+
     # Full robot commands
     def move_robot(self, allegro_angles, arm_angles):
         self.allegro.hand_pose(allegro_angles)

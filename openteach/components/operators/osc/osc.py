@@ -13,7 +13,7 @@ from gym.spaces import Box
 
 
 import cv2
-from plots.data_logging import Log, ListOfLogs, NoLog, SimpleLog 
+from plots.data_logging import Log, ListOfLogs, NoLog, SimpleLog
 from isaacgym import gymtorch
 from isaacgym.torch_utils import *
 import time

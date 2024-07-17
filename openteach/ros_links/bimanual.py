@@ -55,16 +55,16 @@ class DexArmControl():
         #     rospy.init_node("dex_arm", disable_signals = True, anonymous = True)
         # except:
         #     pass
-    
-       
+
+
         #self._init_franka_arm_control(record)
-        self.robot =Robot(ip, is_radian=True) 
+        self.robot =Robot(ip, is_radian=True)
 
     # Controller initializers
     def _init_xarm_control(self):
-       
+
         self.robot.reset()
-        
+
         status, home_pose = self.robot.get_position_aa()
         assert status == 0, "Failed to get robot position"
         home_affine = self.robot_pose_aa_to_affine(home_pose)
@@ -72,15 +72,15 @@ class DexArmControl():
         last_sent_msg_ts = time.time()
 
         # Initialize the environment state action tuple.
-        
-    
 
-   
+
+
+
 
     # Rostopic callback functions
-   
+
     # State information functions
-   
+
     def get_arm_pose(self):
         status, home_pose = self.robot.get_position_aa()
         home_affine = self.robot_pose_aa_to_affine(home_pose)
@@ -121,7 +121,7 @@ class DexArmControl():
             self.robot.set_mode_and_state(1)
         self.robot.set_servo_cartesian_aa(
                     cartesian_pose, wait=False, relative=False, mvacc=200, speed=50)
-        
+
     def get_arm_joint_state(self):
         joint_positions =np.array(self.robot.get_servo_angle()[1])
         joint_state = dict(
@@ -129,9 +129,9 @@ class DexArmControl():
             timestamp = time.time()
         )
         return joint_state
-        
+
     def get_cartesian_state(self):
-        status,current_pos=self.robot.get_position_aa() 
+        status,current_pos=self.robot.get_position_aa()
         cartesian_state = dict(
             position = np.array(current_pos[0:3], dtype=np.float32).flatten(),
             orientation = np.array(current_pos[3:], dtype=np.float32).flatten(),
@@ -149,7 +149,7 @@ class DexArmControl():
     # Full robot commands
     def move_robot(self,arm_angles):
         self.robot.set_servo_angle(angle=arm_angles,is_radian=True)
-        
+
     def home_robot(self):
         self.home_arm() # For now we're using cartesian values
 

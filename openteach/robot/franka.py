@@ -1,4 +1,4 @@
-from openteach.ros_links.franka_allegro_control import DexArmControl 
+from openteach.ros_links.franka_allegro_control import DexArmControl
 from .robot import RobotWrapper
 
 class FrankaArm(RobotWrapper):
@@ -24,7 +24,7 @@ class FrankaArm(RobotWrapper):
     # State information functions
     def get_joint_state(self):
         return self._controller.get_arm_joint_state()
-    
+
     def get_joint_velocity(self):
         pass
 
@@ -36,13 +36,13 @@ class FrankaArm(RobotWrapper):
 
     def get_joint_position(self):
         return self._controller.get_arm_position()
-    
+
     def get_cartesian_position(self):
         return self._controller.get_arm_cartesian_coords()
 
     def get_osc_position(self):
         return self._controller.get_arm_osc_position()
-    
+
     def get_pose(self):
         return self._controller.get_arm_pose()
 

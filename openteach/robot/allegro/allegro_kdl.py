@@ -16,25 +16,25 @@ class AllegroKDL(object):
         self.chains = {}
         for finger in self.hand_configs['fingers'].keys():
             self.chains[finger] = chain.Chain.from_urdf_file(
-                urdf_path, 
+                urdf_path,
                 base_elements = [
-                    self.finger_configs['links_info']['base']['link'], 
+                    self.finger_configs['links_info']['base']['link'],
                     self.finger_configs['links_info'][finger]['link']
-                ], 
+                ],
                 name = finger
             )
-    
+
     def finger_forward_kinematics(self, finger_type, input_angles):
         # Checking if the number of angles is equal to 4
         if len(input_angles) != self.hand_configs['joints_per_finger']:
             print('Incorrect number of angles')
-            return 
+            return
 
         # Checking if the input finger type is a valid one
         if finger_type not in self.hand_configs['fingers'].keys():
             print('Finger type does not exist')
             return
-        
+
         # Clipping the input angles based on the finger type
         finger_info = self.finger_configs['links_info'][finger_type]
         for iterator in range(len(input_angles)):
@@ -48,7 +48,7 @@ class AllegroKDL(object):
         input_angles.insert(0, 0)
         input_angles.append(0)
 
-        # Performing Forward Kinematics 
+        # Performing Forward Kinematics
         output_frame = self.chains[finger_type].forward_kinematics(input_angles)
         return output_frame[:3, 3], output_frame[:3, :3]
 
@@ -57,12 +57,12 @@ class AllegroKDL(object):
         if finger_type not in self.hand_configs['fingers'].keys():
             print('Finger type does not exist')
             return
-        
+
         if seed is not None:
             # Checking if the number of angles is equal to 4
             if len(seed) != self.hand_configs['joints_per_finger']:
                 print('Incorrect seed array length')
-                return 
+                return
 
             # Clipping the input angles based on the finger type
             finger_info = self.finger_configs['links_info'][finger_type]
@@ -96,7 +96,7 @@ class AllegroKDL(object):
         thumb_joint_angles = self.finger_inverse_kinematics('thumb', thumb_tip_coord, seed[12:16])
 
         desired_joint_angles = copy(seed)
-        
+
         for idx in range(4):
             desired_joint_angles[idx] = index_joint_angles[idx]
             desired_joint_angles[4 + idx] = middle_joint_angles[idx]

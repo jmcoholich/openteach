@@ -70,11 +70,11 @@ class FishEyeCameras(ProcessInstantiator):
             stream_configs = dict(
                 host = self.configs.host_address,
                 port = self.configs.fish_eye_cam_port_offset+ cam_idx,
-                set_port_offset = self.configs.fish_eye_cam_port_offset 
+                set_port_offset = self.configs.fish_eye_cam_port_offset
             ),
-            
+
             stream_oculus = True if self.configs.stream_oculus and self.configs.oculus_cam == cam_idx else False,
-            
+
         )
         component.stream()
 
@@ -88,12 +88,12 @@ class FishEyeCameras(ProcessInstantiator):
 
 class TeleOperator(ProcessInstantiator):
     """
-    Returns all the teleoperation processes. Start the list of processes 
+    Returns all the teleoperation processes. Start the list of processes
     to run the teleop.
     """
     def __init__(self, configs):
         super().__init__(configs)
-      
+
         # For Simulation environment start the environment as well
         if configs.sim_env:
             self._init_sim_environment()
@@ -104,11 +104,11 @@ class TeleOperator(ProcessInstantiator):
         self._init_visualizers()
 
 
-        if configs.operate: 
+        if configs.operate:
             self._init_operator()
-        
+
     #Function to start the components
-    def _start_component(self, configs):    
+    def _start_component(self, configs):
         component = hydra.utils.instantiate(configs)
         component.stream()
 
@@ -137,7 +137,7 @@ class TeleOperator(ProcessInstantiator):
 
     #Function to start the visualizers
     def _init_visualizers(self):
-       
+
         for visualizer_config in self.configs.robot.visualizers:
             self.processes.append(Process(
                 target = self._start_component,
@@ -154,28 +154,28 @@ class TeleOperator(ProcessInstantiator):
     #Function to start the operator
     def _init_operator(self):
         for operator_config in self.configs.robot.operators:
-            
+
             self.processes.append(Process(
                 target = self._start_component,
                 args = (operator_config, )
 
             ))
 
-    
+
 # Data Collector Class
 class Collector(ProcessInstantiator):
     """
-    Returns all the recorder processes. Start the list of processes 
+    Returns all the recorder processes. Start the list of processes
     to run the record data.
     """
     def __init__(self, configs, demo_num):
         super().__init__(configs)
         self.demo_num = demo_num
         self._storage_path = os.path.join(
-            self.configs.storage_path, 
+            self.configs.storage_path,
             'demonstration_{}'.format(self.demo_num)
         )
-       
+
         self._create_storage_dir()
         self._init_camera_recorders()
         # Initializing the recorders
@@ -184,14 +184,14 @@ class Collector(ProcessInstantiator):
         else:
             print("Initialising robot recorders")
             self._init_robot_recorders()
-        
-        
+
+
         if self.configs.is_xela is True:
             self._init_sensor_recorders()
 
     def _create_storage_dir(self):
         if os.path.exists(self._storage_path):
-            return 
+            return
         else:
             os.makedirs(self._storage_path)
 
@@ -256,7 +256,7 @@ class Collector(ProcessInstantiator):
                     args = (cam_idx, )
                 ))
         else:
-          
+
             for cam_idx in range(self.configs.num_cams):
                 self.processes.append(Process(
                     target = self._start_rgb_component,
@@ -309,8 +309,8 @@ class Collector(ProcessInstantiator):
 
     #Function to start the robot recorders
     def _start_robot_component(
-        self, 
-        robot_configs, 
+        self,
+        robot_configs,
         recorder_function_key):
         component = RobotInformationRecord(
             robot_configs = robot_configs,
@@ -340,6 +340,5 @@ class Collector(ProcessInstantiator):
                 ))
 
 
-    
 
-   
+

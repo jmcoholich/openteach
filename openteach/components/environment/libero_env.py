@@ -14,7 +14,7 @@ from robosuite import load_controller_config
 import libero.libero.envs.bddl_utils as BDDLUtils
 from libero.libero.envs import *
 
-# Libero Environment class 
+# Libero Environment class
 class LiberoEnv(Arm_Env):
 	def __init__(self,
 			 host,
@@ -27,7 +27,7 @@ class LiberoEnv(Arm_Env):
 			 suite_name,
 			 task_name,
 	):
-		  
+
 		self._timer=FrequencyTimer(VR_FREQ)
 		self.host=host
 		self.camport=camport
@@ -46,7 +46,7 @@ class LiberoEnv(Arm_Env):
 			host = host,
 			port = camport + 1
 		)
-		
+
 		#Publishing the stream into the oculus.
 		if self._stream_oculus:
 			self.rgb_viz_publisher = ZMQCompressedImageTransmitter(
@@ -56,15 +56,15 @@ class LiberoEnv(Arm_Env):
 		#Publisher for Depth data
 		self.depth_publisher = ZMQCameraPublisher(
 			host = host,
-			port = camport + DEPTH_PORT_OFFSET 
+			port = camport + DEPTH_PORT_OFFSET
 		)
 		# for ego-centric view
 		self.depth_publisher_ego = ZMQCameraPublisher(
 			host = host,
-			port = camport + 1 + DEPTH_PORT_OFFSET 
+			port = camport + 1 + DEPTH_PORT_OFFSET
 		)
 
-		#Publisher for endeffector Positions 
+		#Publisher for endeffector Positions
 		self.endeff_publisher = ZMQKeypointPublisher(
 			host = host,
 			port = endeff_publish_port
@@ -133,11 +133,11 @@ class LiberoEnv(Arm_Env):
 		self.env.seed(seed)
 		position = self.reset()
 		self.robot_pose_publisher.pub_keypoints(position, 'robot_pose')
-		
+
 	# Reset the environment
 	def reset(self):
 		self.obs = self.env.reset()
-		return self.env.get_robot_state_vector(self.obs) 
+		return self.env.get_robot_state_vector(self.obs)
 
 	# Get the RGB and Depth Images
 	def get_rgb_depth_images(self, camera_name=None):
@@ -148,31 +148,31 @@ class LiberoEnv(Arm_Env):
 		depth = depth[::-1, :].astype(np.uint8)
 		time = self.get_time()
 		return rgb, depth, time
-	
+
 	# Get the time
 	def get_time(self):
 		return time.time()
-	
+
 	# Get the endeffector position
 	def get_endeff_position(self):
 		return self.env.get_robot_state_vector(self.obs) # [gripper_pos, eef_pos, eef_quat]
-			
-	@property              
+
+	@property
 	def timer(self):
 		return self._timer
-	   			
+
 	# Take action
 	def take_action(self):
 		action = self.endeff_pos_subscriber.recv_keypoints()
-		self.obs, _, _, _ = self.env.step(action)                   
+		self.obs, _, _, _ = self.env.step(action)
 
 	# Stream the environment
 	def stream(self):
 		self.notify_component_start('{} environment'.format(self.name))
-		
+
 		while True:
 			#try:
-			self.timer.start_loop() 
+			self.timer.start_loop()
 			#Get RGB Images and Depth Images
 			color_image,depth_image,timestamp=self.get_rgb_depth_images()
 			color_image_ego, depth_image_ego, timestamp_ego=self.get_rgb_depth_images(camera_name='robot0_eye_in_hand')
@@ -180,15 +180,15 @@ class LiberoEnv(Arm_Env):
 			self.rgb_publisher.pub_rgb_image(color_image, timestamp)
 			self.rgb_publisher_ego.pub_rgb_image(color_image_ego, timestamp_ego)
 			self.timestamp_publisher.pub_keypoints(timestamp,'timestamps')
-			#Set this to True        
+			#Set this to True
 			if self._stream_oculus:
 				self.rgb_viz_publisher.send_image(rescale_image(color_image, 2)) # 128 * 128
 
 			# Publishing the depth images
 			self.depth_publisher.pub_depth_image(depth_image, timestamp)
 			self.depth_publisher_ego.pub_depth_image(depth_image_ego, timestamp_ego)
-			
-			#Gets the endeffector position       
+
+			#Gets the endeffector position
 			position=self.get_endeff_position()
 			#Publishes the endeffector position so that Operator can use.
 			self.endeff_publisher.pub_keypoints(position,'endeff_coords')
@@ -203,6 +203,6 @@ class LiberoEnv(Arm_Env):
 
 			self.timer.end_loop()
 
-	
 
-			
+
+

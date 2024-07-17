@@ -42,12 +42,12 @@ class PlotHand2D(Plotter):
     def _draw_thumb_bounds(self):
         for idx in range(VR_THUMB_BOUND_VERTICES):
             plot_line(
-                self.thumb_bounds[idx][0], 
-                self.thumb_bounds[(idx + 1) % VR_THUMB_BOUND_VERTICES][0], 
-                self.thumb_bounds[idx][1], 
+                self.thumb_bounds[idx][0],
+                self.thumb_bounds[(idx + 1) % VR_THUMB_BOUND_VERTICES][0],
+                self.thumb_bounds[idx][1],
                 self.thumb_bounds[(idx + 1) % VR_THUMB_BOUND_VERTICES][1]
             )
-        
+
     def draw_hand(self, X, Y):
         plt.plot(X, Y, 'ro')
 
@@ -62,9 +62,9 @@ class PlotHand2D(Plotter):
         for key in ['knuckles', 'thumb', 'index', 'middle', 'ring', 'pinky']:
             for idx in range(len(OCULUS_JOINTS[key]) - 1):
                 plot_line(
-                    X[OCULUS_JOINTS[key][idx]], 
-                    X[OCULUS_JOINTS[key][idx + 1]], 
-                    Y[OCULUS_JOINTS[key][idx]], 
+                    X[OCULUS_JOINTS[key][idx]],
+                    X[OCULUS_JOINTS[key][idx + 1]],
+                    Y[OCULUS_JOINTS[key][idx]],
                     Y[OCULUS_JOINTS[key][idx + 1]]
                 )
 

@@ -1,10 +1,10 @@
-import cv2 
+import cv2
 import numpy as np
 
-import matplotlib 
-import matplotlib.pyplot as plt 
+import matplotlib
+import matplotlib.pyplot as plt
 
-from .plotter import Plotter 
+from .plotter import Plotter
 from openteach.constants import *
 
 class XelaPlotter(Plotter):
@@ -14,14 +14,14 @@ class XelaPlotter(Plotter):
 
         # Create the figures and self.axs
         self.fig, self.axs = plt.subplots(figsize=(15,15), nrows=4, ncols=4, dpi=60)
-        
+
         # Blank images to be used since cv2 images is used
         # NOTE: Not sure if these are needed
         self.blank_image = np.zeros((240,240,3))
         self.imgs = []
         for i in range(4):
             self.imgs.append([self.axs[i,j].imshow(self.blank_image.copy()) for j in range(4)])
-        
+
         for i in range(4):
             for j in range(4):
                 self.axs[i,j].set_title("Finger: {} Sensor: {}".format(i,j))
@@ -34,13 +34,13 @@ class XelaPlotter(Plotter):
     def _set_circle_coordinates(self):
         self.circle_coords_in_one_circle = []
         for j in range(48, 192+1, 48): # Y
-            for i in range(48, 192+1, 48): # X - It goes from top left to bottom right row first 
-                self.circle_coords_in_one_circle.append([i,j]) 
+            for i in range(48, 192+1, 48): # X - It goes from top left to bottom right row first
+                self.circle_coords_in_one_circle.append([i,j])
 
     def _draw_one_sensor(self, ax, sensor_values, img=None):
         # sensor_values: (16,3) - 3 values for each taxel
         img_shape = (240,240,3)
-        blank_image = np.ones(img_shape, np.uint8) * 255 
+        blank_image = np.ones(img_shape, np.uint8) * 255
         if img is None:
             img = ax.imshow(blank_image.copy())
 
@@ -53,7 +53,7 @@ class XelaPlotter(Plotter):
             )
             radius = max(10 + int(sensor_values[i,2]/10), 0)
 
-            if i == 0: 
+            if i == 0:
                 frame_axis = cv2.circle(blank_image.copy(), center_coordinates, radius, color=(0,255,0), thickness=-1)
             else:
                 frame_axis = cv2.circle(frame_axis.copy(), center_coordinates, radius, color=(0,255,0), thickness=-1)
@@ -112,7 +112,7 @@ class XelaCurvedPlotter(Plotter):
 
         hand = [[thumb, index, middle, ring],
                 ['palm', 'palm', 'palm', 'palm']]
-        
+
         fig, self.axs = plt.subplot_mosaic(hand, figsize=(10,20))
 
     def _set_limits(self):
@@ -122,24 +122,24 @@ class XelaCurvedPlotter(Plotter):
     # sensor_values: (16, 3) - 3 values for each tactile - x and y represents the position, z represents the pressure on the tactile point
         img_shape = (240, 240, 3) # For one sensor
         blank_image = np.ones(img_shape, np.uint8) * 255
-        if use_img == False: 
+        if use_img == False:
             img = ax.imshow(blank_image.copy())
         ax.set_title(title)
 
         # Set the coordinates for each circle
         tactile_coordinates = []
         for j in range(60, 180+1, 40): # Y
-            for i in range(60, 180+1, 40): # X - It goes from top left to bottom right row first 
+            for i in range(60, 180+1, 40): # X - It goes from top left to bottom right row first
                 tactile_coordinates.append([i,j])
 
-        # Plot the circles 
+        # Plot the circles
         for i in range(sensor_values.shape[0]):
             center_coordinates = (
                 tactile_coordinates[i][0] + int(sensor_values[i,0]/20), # NOTE: Change this
                 tactile_coordinates[i][1] + int(sensor_values[i,1]/20)
             )
             radius = max(10 + int(sensor_values[i,2]/10), 2)
-        
+
             if i == 0:
                 frame_axis = cv2.circle(blank_image.copy(), center_coordinates, radius, color=(0,255,0), thickness=-1)
             else:
@@ -153,7 +153,7 @@ class XelaCurvedPlotter(Plotter):
         # sensor_values: (16, 3) - 3 values for each tactile - x and y represents the position, z represents the pressure on the tactile point
         img_shape = (240, 240, 3) # For one sensor
         blank_image = np.ones(img_shape, np.uint8) * 255
-        if use_img == False: 
+        if use_img == False:
             img = ax.imshow(blank_image.copy())
         ax.set_title(title)
 
@@ -166,17 +166,17 @@ class XelaCurvedPlotter(Plotter):
                     tactile_coordinates.append([i,j])
                 elif (j > 20 and j < 100) and (i > 20 and i < 220):
                     tactile_coordinates.append([i,j])
-                elif j >= 100: 
+                elif j >= 100:
                     tactile_coordinates.append([i,j])
-        
-        # Plot the circles 
+
+        # Plot the circles
         for i in range(sensor_values.shape[0]):
             center_coordinates = (
                 tactile_coordinates[i][0] + int(sensor_values[i,0]/20),
                 tactile_coordinates[i][1] + int(sensor_values[i,1]/20)
             )
             radius = max(10 + int(sensor_values[i,2]/10), 2)
-        
+
             if i == 0:
                 frame_axis = cv2.circle(blank_image.copy(), center_coordinates, radius, color=(0,255,0), thickness=-1)
             else:
@@ -191,7 +191,7 @@ class XelaCurvedPlotter(Plotter):
         # sensor_values: (16, 3) - 3 values for each tactile - x and y represents the position, z represents the pressure on the tactile point
         img_shape = (480, 960, 3) # For one sensor
         blank_image = np.ones(img_shape, np.uint8) * 255
-        if use_img == False: 
+        if use_img == False:
             img = ax.imshow(blank_image.copy())
         ax.set_title(title)
 
@@ -221,7 +221,7 @@ class XelaCurvedPlotter(Plotter):
 
         #print(len(tactile_coordinates))
 
-        # Plot the circles 
+        # Plot the circles
         for i in range(sensor_values.shape[0]):
             #print(sensor_values[i,0])
             center_coordinates = (
@@ -229,7 +229,7 @@ class XelaCurvedPlotter(Plotter):
                 tactile_coordinates[i][1] + int(sensor_values[i,1]/20)
             )
             radius = max(10 + int(sensor_values[i,2]/10), 2)
-        
+
             if i == 0:
                 frame_axis = cv2.circle(blank_image.copy(), center_coordinates, radius, color=(0,255,0), thickness=-1)
             else:
@@ -269,6 +269,5 @@ class XelaCurvedPlotter(Plotter):
         # Resetting and pausing the plot - NOTE: Make sure this works as well
         plt.pause(0.01)
         plt.cla()
-        
 
-    
+

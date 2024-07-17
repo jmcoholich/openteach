@@ -15,5 +15,5 @@ def rotate_image(image, angle):
             image = cv2.rotate(image, cv2.ROTATE_180)
         elif angle == 270:
             image = cv2.rotate(image, cv2.ROTATE_270)
-        
+
         return image

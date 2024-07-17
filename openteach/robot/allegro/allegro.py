@@ -1,7 +1,7 @@
 import numpy as np
 from copy import deepcopy as copy
 from .allegro_kdl import AllegroKDL
-from openteach.ros_links.allegro_control import DexArmControl 
+from openteach.ros_links.allegro_control import DexArmControl
 from openteach.constants import *
 from openteach.utils.files import get_yaml_data, get_path_in_package
 from openteach.robot.robot import RobotWrapper
@@ -23,7 +23,7 @@ class AllegroHand(RobotWrapper):
     @property
     def recorder_functions(self):
         return {
-            'joint_states': self.get_joint_state, 
+            'joint_states': self.get_joint_state,
             'commanded_joint_states': self.get_commanded_joint_state
         }
 
@@ -93,9 +93,9 @@ class AllegroHand(RobotWrapper):
 
     def _get_joint_state_from_coord(self, index_tip_coord, middle_tip_coord, ring_tip_coord, thumb_tip_coord):
         return self._kdl_solver.get_joint_state_from_coord(
-            index_tip_coord, 
-            middle_tip_coord, 
-            ring_tip_coord, 
+            index_tip_coord,
+            middle_tip_coord,
+            ring_tip_coord,
             thumb_tip_coord,
             seed = self.get_joint_position()
         )

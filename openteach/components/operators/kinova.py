@@ -1,7 +1,7 @@
 import zmq
 import time
 import numpy as np
-import matplotlib.pyplot as plt 
+import matplotlib.pyplot as plt
 
 from copy import deepcopy as copy
 from .operator import Operator
@@ -54,8 +54,8 @@ class KinovaArmOperator(Operator):
 
         # Initalizing the robot controller
         self._robot = KinovaArm()
-        
-       
+
+
         self.resolution_scale = 1 # NOTE: Get this from a socket
         self.arm_teleop_state = ARM_TELEOP_STOP # We will start as the cont
 
@@ -66,11 +66,11 @@ class KinovaArmOperator(Operator):
         )
 
         self._arm_teleop_state_subscriber = ZMQKeypointSubscriber(
-            host = host, 
+            host = host,
             port = teleoperation_reset_port,
             topic = 'pause'
         )
-        
+
         time.sleep(1)
         robot_coords = self.robot.get_cartesian_position()
         self.robot_init_H =  self.cartesian_to_homo(robot_coords)
@@ -105,11 +105,11 @@ class KinovaArmOperator(Operator):
     @property
     def transformed_arm_keypoint_subscriber(self):
         return self._transformed_arm_keypoint_subscriber
-    
+
     @property
     def transformed_hand_keypoint_subscriber(self):
         return self._transformed_hand_keypoint_subscriber
-    
+
 
     # Converts cartesian to Homogenous matrix
     def cartesian_to_homo(self,pose_aa: np.ndarray) -> np.ndarray:
@@ -119,39 +119,39 @@ class KinovaArmOperator(Operator):
             x, y, z are in mm and ax, ay, az are in radians.
         Returns:
             np.ndarray: 4x4 affine matrix [[R, t],[0, 1]]
-        """        
+        """
         rotation = R.from_quat(pose_aa[3:]).as_matrix()
         translation = np.array(pose_aa[:3])
         return np.block([[rotation, translation[:, np.newaxis]],
                         [0, 0, 0, 1]])
-    
+
     # Get the hand frame
     def _get_hand_frame(self):
         for i in range(10):
             data = self.transformed_arm_keypoint_subscriber.recv_keypoints(flags=zmq.NOBLOCK)
-            if not data is None: break 
+            if not data is None: break
         if data is None: return None
         return np.asanyarray(data).reshape(4, 3)
-    
+
     # Get the resolution scale mode (High or Low)
     def _get_resolution_scale_mode(self):
         data = self._arm_resolution_subscriber.recv_keypoints()
         res_scale = np.asanyarray(data).reshape(1)[0] # Make sure this data is one dimensional
-        return res_scale  
+        return res_scale
 
     # Get the teleop state (Pause or Continue)
     def _get_arm_teleop_state(self):
         reset_stat = self._arm_teleop_state_subscriber.recv_keypoints()
         reset_stat = np.asanyarray(reset_stat).reshape(1)[0] # Make sure this data is one dimensional
         return reset_stat
-    
+
     # get the translation vector
     def _get_translation_vector(self,commanded_robot_position, current_robot_position):
         return commanded_robot_position - current_robot_position
-    
+
     # Get the rotation angular displacement
     def _get_rotation_angles(self, robot_target_orientation,current_robot_rotation_values):
-        # Calculating the angular displacement between the target hand frame and the current robot frame# 
+        # Calculating the angular displacement between the target hand frame and the current robot frame#
         target_rotation_state = Rotation.from_quat(robot_target_orientation)
         robot_rotation_state = Rotation.from_quat(current_robot_rotation_values)
 
@@ -160,7 +160,7 @@ class KinovaArmOperator(Operator):
             np.matmul(robot_rotation_state.inv().as_matrix(),target_rotation_state.as_matrix())
         ).as_rotvec()
 
-        return angular_displacement 
+        return angular_displacement
 
     # Get the displacement vector
     def _get_displacement_vector(self, commanded_robot_position, current_robot_position):
@@ -175,7 +175,7 @@ class KinovaArmOperator(Operator):
         commanded_robot_pose[3:] = self._get_rotation_angles(
             robot_target_orientation=commanded_robot_position[3:],
             current_robot_rotation_values = current_robot_position[3:]
-        ) 
+        )
         return commanded_robot_pose
 
     # Converts a frame to a homogenous transformation matrix
@@ -201,13 +201,13 @@ class KinovaArmOperator(Operator):
         )
 
         return cart
-    
+
     # Get the scaled resolution cartesian pose
     def _get_scaled_cart_pose(self, moving_robot_homo_mat):
         # Get the cart pose without the scaling
         unscaled_cart_pose = self._homo2cart(moving_robot_homo_mat)
 
-       
+
         robot_coords = self.robot.get_cartesian_position()
         current_homo_mat =  copy(self.cartesian_to_homo(robot_coords))
         current_cart_pose = self._homo2cart(current_homo_mat)
@@ -215,13 +215,13 @@ class KinovaArmOperator(Operator):
         # Get the difference in translation between these two cart poses
         diff_in_translation = unscaled_cart_pose[:3] - current_cart_pose[:3]
         scaled_diff_in_translation = diff_in_translation * self.resolution_scale
-        
+
         scaled_cart_pose = np.zeros(7)
         scaled_cart_pose[3:] = unscaled_cart_pose[3:] # Get the rotation directly
         scaled_cart_pose[:3] = current_cart_pose[:3] + scaled_diff_in_translation # Get the scaled translation only
 
         return scaled_cart_pose
-     
+
     # Reset the teleoperation
     def _reset_teleop(self):
         print('****** RESETTING TELEOP ****** ')
@@ -236,7 +236,7 @@ class KinovaArmOperator(Operator):
         self.is_first_frame = False
 
         return first_hand_frame
-    
+
 
     # Apply retargeted angles
     def _apply_retargeted_angles(self, log=False):
@@ -247,7 +247,7 @@ class KinovaArmOperator(Operator):
             moving_hand_frame = self._reset_teleop() # Should get the moving hand frame only once
         else:
             moving_hand_frame = self._get_hand_frame()
-        if moving_hand_frame is None: 
+        if moving_hand_frame is None:
             if new_arm_teleop_state == ARM_TELEOP_STOP:
                 self.arm_teleop_state = new_arm_teleop_state
             return # It means we are not on the arm mode yet instead of blocking it is directly returning
@@ -257,7 +257,7 @@ class KinovaArmOperator(Operator):
             if new_arm_teleop_state == ARM_TELEOP_STOP:
                 self.arm_teleop_state = new_arm_teleop_state
             return
-        
+
         self.arm_teleop_state = new_arm_teleop_state
 
         arm_teleoperation_scale_mode = self._get_resolution_scale_mode()
@@ -266,7 +266,7 @@ class KinovaArmOperator(Operator):
             self.resolution_scale = 1
         elif arm_teleoperation_scale_mode == ARM_LOW_RESOLUTION:
             self.resolution_scale = 0.6
-        
+
         # Find the moving hand frame
         self.hand_moving_H = self._turn_frame_to_homo_mat(moving_hand_frame)
 
@@ -283,7 +283,7 @@ class KinovaArmOperator(Operator):
                 [-1,0,0,0],
                 [0,0,1,0],
                 [0,0,0,1]]
-        
+
         # Find the relative transform and apply it to robot initial position
         H_R_R= (np.linalg.pinv(H_R_V)@H_HT_HI@H_R_V)[:3,:3]
         H_R_T= (np.linalg.pinv(H_R_V)@H_HT_HI@H_R_V)[:3,3]

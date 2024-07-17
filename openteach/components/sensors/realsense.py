@@ -21,7 +21,7 @@ class RealsenseCamera(Component):
             host = stream_configs['host'],
             port = stream_configs['port']
         )
-        
+
         if self._stream_oculus:
             self.rgb_viz_publisher = ZMQCompressedImageTransmitter(
                 host = stream_configs['host'],
@@ -45,17 +45,17 @@ class RealsenseCamera(Component):
 
         # Enabling camera streams
         config.enable_stream(
-            rs.stream.color, 
-            self.cam_configs.width, 
-            self.cam_configs.height, 
-            rs.format.bgr8, 
+            rs.stream.color,
+            self.cam_configs.width,
+            self.cam_configs.height,
+            rs.format.bgr8,
             self.cam_configs.fps
         )
         config.enable_stream(
-            rs.stream.depth, 
-            self.cam_configs.width, 
-            self.cam_configs.height, 
-            rs.format.z16, 
+            rs.stream.depth,
+            self.cam_configs.width,
+            self.cam_configs.height,
+            rs.format.z16,
             self.cam_configs.fps
         )
 
@@ -74,7 +74,7 @@ class RealsenseCamera(Component):
         intrinsics = color_profile.get_intrinsics()
         self.intrinsics_matrix = np.array([
             [intrinsics.fx, 0, intrinsics.ppx],
-            [0, intrinsics.fy, intrinsics.ppy], 
+            [0, intrinsics.fy, intrinsics.ppy],
             [0, 0, 1]
         ])
 
@@ -103,7 +103,7 @@ class RealsenseCamera(Component):
         self.notify_component_start('realsense')
         print(f"Started the Realsense pipeline for camera: {self._cam_serial_num}!")
         print("Starting stream on {}:{}...\n".format(self._stream_configs['host'], self._stream_configs['port']))
-        
+
         if self._stream_oculus:
             print('Starting oculus stream on port: {}\n'.format(self._stream_configs['port'] + VIZ_PORT_OFFSET))
 
@@ -128,7 +128,7 @@ class RealsenseCamera(Component):
                 self.timer.end_loop()
             # except KeyboardInterrupt:
             #     break
-        
+
         print('Shutting down realsense pipeline for camera {}.'.format(self.cam_id))
         self.rgb_publisher.stop()
         if self._stream_oculus:

@@ -2,7 +2,7 @@ from copy import deepcopy as copy
 from openteach.utils.network import ZMQKeypointSubscriber, ZMQKeypointPublisher
 from .operator import Operator
 
-from shapely.geometry import Point, Polygon 
+from shapely.geometry import Point, Polygon
 from shapely.ops import nearest_points
 from .calibrators.allegro import OculusThumbBoundCalibrator
 from openteach.robot.allegro.allegro import AllegroHand
@@ -30,7 +30,7 @@ class AllegroHandOperator(Operator):
         )
         # Initializing the  finger configs
         self.finger_configs = finger_configs
-        
+
         #Initializing the solvers for allegro hand
         self.fingertip_solver = AllegroKDLControl()
         self.finger_joint_solver = AllegroJointControl()
@@ -72,11 +72,11 @@ class AllegroHandOperator(Operator):
     @property
     def transformed_arm_keypoint_subscriber(self):
         return self._transformed_arm_keypoint_subscriber
-    
+
     @property
     def transformed_hand_keypoint_subscriber(self):
         return self._transformed_hand_keypoint_subscriber
-    
+
     # This function differentiates between the real robot and simulation
     def return_real(self):
         return True
@@ -103,14 +103,14 @@ class AllegroHandOperator(Operator):
         for idx, thumb_bounds in enumerate(self.hand_thumb_bounds):
             if coord_in_bound(thumb_bounds[:4], thumb_keypoints[:2]) > -1:
                 return self.fingertip_solver.thumb_motion_2D(
-                    hand_coordinates = thumb_keypoints, 
+                    hand_coordinates = thumb_keypoints,
                     xy_hand_bounds = thumb_bounds[:4],
                     yz_robot_bounds = self.allegro_bounds['thumb_bounds'][idx]['projective_bounds'],
                     robot_x_val = self.allegro_bounds['x_coord'],
-                    moving_avg_arr = self.moving_average_queues['thumb'], 
+                    moving_avg_arr = self.moving_average_queues['thumb'],
                     curr_angles = curr_angles
                 )
-        
+
         return curr_angles
 
     # Get robot thumb angles when moving in 3D motion
@@ -127,10 +127,10 @@ class AllegroHandOperator(Operator):
             yz_robot_bounds = self.allegro_bounds['thumb_bounds'][0]['projective_bounds'], # NOTE: We assume there is only one bound now
             z_hand_bound = self.hand_thumb_bounds[4],
             x_robot_bound = self.allegro_bounds['thumb_bounds'][0]['x_bounds'],
-            moving_avg_arr = self.moving_average_queues['thumb'], 
+            moving_avg_arr = self.moving_average_queues['thumb'],
             curr_angles = curr_angles
         )
-        
+
     # Generate frozen angles for the fingers
     def _generate_frozen_angles(self, joint_angles, finger_type):
         for idx in range(ALLEGRO_JOINTS_PER_FINGER):
@@ -140,7 +140,7 @@ class AllegroHandOperator(Operator):
                 joint_angles[idx + ALLEGRO_JOINT_OFFSETS[finger_type]] = 0
 
         return joint_angles
-    
+
     # Apply the retargeted angles to the robot
     def _apply_retargeted_angles(self):
         hand_keypoints = self._get_finger_coords()
@@ -184,7 +184,7 @@ class AllegroHandOperator(Operator):
             )
         elif self.finger_configs['freeze_ring']:
             self._generate_frozen_angles(desired_joint_angles, 'ring')
-        else: 
+        else:
             print("No ring")
             pass
 
@@ -196,6 +196,6 @@ class AllegroHandOperator(Operator):
         else:
             print("No thumb")
             pass
-        
+
         # Move the robot
         self.robot.move(desired_joint_angles)

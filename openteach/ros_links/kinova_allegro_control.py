@@ -30,7 +30,7 @@ class DexArmControl():
         elif robot_type == 'kinova':
             self._init_kinova_arm_control()
 
-        
+
 
     # Controller initializers
     def _init_allegro_hand_control(self):
@@ -38,17 +38,17 @@ class DexArmControl():
 
         self.allegro_joint_state = None
         rospy.Subscriber(
-            ALLEGRO_JOINT_STATE_TOPIC, 
-            JointState, 
-            self._callback_allegro_joint_state, 
+            ALLEGRO_JOINT_STATE_TOPIC,
+            JointState,
+            self._callback_allegro_joint_state,
             queue_size = 1
         )
 
         self.allegro_commanded_joint_state = None
         rospy.Subscriber(
-            ALLEGRO_COMMANDED_JOINT_STATE_TOPIC, 
-            JointState, 
-            self._callback_allegro_commanded_joint_state, 
+            ALLEGRO_COMMANDED_JOINT_STATE_TOPIC,
+            JointState,
+            self._callback_allegro_commanded_joint_state,
             queue_size = 1
         )
 
@@ -57,9 +57,9 @@ class DexArmControl():
 
         self.kinova_joint_state = None
         rospy.Subscriber(
-            KINOVA_JOINT_STATE_TOPIC, 
-            JointState, 
-            self._callback_kinova_joint_state, 
+            KINOVA_JOINT_STATE_TOPIC,
+            JointState,
+            self._callback_kinova_joint_state,
             queue_size = 1
         )
 
@@ -115,7 +115,7 @@ class DexArmControl():
             timestamp = raw_joint_state.header.stamp.secs + (raw_joint_state.header.stamp.nsecs * 1e-9)
         )
         return joint_state
-        
+
     def get_hand_position(self):
         if self.allegro_joint_state is None:
             return None
@@ -174,13 +174,13 @@ class DexArmControl():
     def get_arm_position(self):
         if self.kinova_joint_state is None:
             return None
-        
+
         return np.array(self.kinova_joint_state.position, dtype = np.float32)
 
     def get_arm_velocity(self):
         if self.kinova_joint_state is None:
             return None
-        
+
         return np.array(self.kinova_joint_state.velocity, dtype = np.float32)
 
     def get_arm_torque(self):

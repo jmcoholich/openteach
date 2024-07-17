@@ -1,6 +1,6 @@
 import os.path as path
 
-# VR detector 
+# VR detector
 # Arm movement
 WRIST_HOME_STATE = {
     'translation': [0, 0, 0],
@@ -40,13 +40,13 @@ LIBERO_FREQ = 20
 
 # XELA Sensor parameters
 XELA_FPS = 100
-XELA_NUM_SENSORS = 18 # 3 in thumb 4 in other 3 fingers 
+XELA_NUM_SENSORS = 18 # 3 in thumb 4 in other 3 fingers
 XELA_PALM_NUM_SENSORS = 3
 XELA_FINGERTIP_NUM_SENSORS = 4
 XELA_FINGER_NUM_SENSORS = 11
 XELA_PALM_NUM_TAXELS = 24
 XELA_FINGERTIP_NUM_TAXELS= 30
-XELA_FINGER_NUM_TAXELS= 16 
+XELA_FINGER_NUM_TAXELS= 16
 XELA_NUM_TAXELS = 16
 # Robot parameters
 
@@ -69,7 +69,7 @@ KINOVA_HOME_CARTESIAN_INFO = {
     'rotation_matrix': [
          0,  1,  0,
          0,  0, -1,
-        -1,  0,  0 
+        -1,  0,  0
     ]
 }
 
@@ -93,7 +93,7 @@ XELA_PLOT_SAVE_PATH = path.join(CALIBRATION_FILES_PATH, 'xela_plot.png')
 
 
 # Data recording parameters - Images are recorded at CAM_FPS rate
-IMAGE_RECORD_RESOLUTION = (1280, 720) 
+IMAGE_RECORD_RESOLUTION = (1280, 720)
 IMAGE_RECORD_RESOLUTION_SIM = (480, 480)
 DEPTH_RECORD_FPS = 30
 ALLEGRO_SAMPLE_OFFSET = 10 # For sampling states
@@ -101,7 +101,7 @@ SAMPLE_WRITER_FPS = 5
 
 # Deployment
 DEPLOY_REACH_THRESHOLD = 0.35
-DEPLOY_FREQ = 3 
+DEPLOY_FREQ = 3
 
 #RESOLUTION SPECIFIC parameters
 
@@ -121,7 +121,7 @@ RIGHT_ARM_IP = "192.168.86.230" # For Right XArm
 LEFT_ARM_IP = "192.168.86.216" # For Left XArm
 
 BIMANUAL_LEFT_HOME = [206,0,475,3.142,0,0]
-BIMANUAL_RIGHT_HOME = [206,0,475,3.142,0,0] 
+BIMANUAL_RIGHT_HOME = [206,0,475,3.142,0,0]
 
 ROBOT_HOME_POSE_AA = [206.0, -0.0, 475, 3.142, 0.0, 0.0]
 ROBOT_HOME_JS = [0.072358, -0.95536, -0.040176,

@@ -1,9 +1,9 @@
-import numpy as np 
+import numpy as np
 
 from copy import deepcopy as copy
 
-from get_xela_values import XelaSensorControl , XelaCurvedSensorControl 
-from openteach.components import Component 
+from get_xela_values import XelaSensorControl , XelaCurvedSensorControl
+from openteach.components import Component
 from openteach.utils.timer import FrequencyTimer
 from openteach.constants import *
 
@@ -21,15 +21,15 @@ class XelaSensors(Component):
 
         self.notify_component_start('XELA sensors - receiving bias')
         loop_index = 0
-        while True: 
+        while True:
             try:
                 self.timer.start_loop()
-                
+
                 xela_state = self._controller.get_sensor_state()
                 if xela_state is None:
                     self.timer.end_loop()
                     continue
-                
+
                 bias_values = xela_state['sensor_values']
                 # bias_values, _ = self.get_sensor_values()
                 if bias_values is not None:
@@ -43,7 +43,7 @@ class XelaSensors(Component):
                     break
 
             except KeyboardInterrupt:
-                break 
+                break
 
         # self._bias_values /= loop_index # Take the average
 
@@ -62,17 +62,17 @@ class XelaSensors(Component):
         self.notify_component_start('XELA sensors')
         print(f"Started the XELA sensor pipeline for the hand")
 
-        while True: 
+        while True:
             try:
                 self.timer.start_loop()
-                
+
                 xela_state = self.get_sensor_state()
-                
+
 
                 self.timer.end_loop()
 
             except KeyboardInterrupt:
-                break 
+                break
 
 class XelaCurvedSensors(Component):
     def __init__(self, init_duration):
@@ -90,17 +90,17 @@ class XelaCurvedSensors(Component):
 
         self.notify_component_start('XELA sensors - receiving bias')
         loop_index = 0
-        while True: 
+        while True:
             try:
                 self.timer.start_loop()
-                
+
                 sensor_state = self._controller.get_sensor_state()
                 if not sensor_state is None:
                     curr_sensor_palm_values,curr_sensor_fingertip_values, curr_sensor_finger_values, timestamp = sensor_state
                     if curr_sensor_palm_values is None and curr_sensor_finger_values is None and curr_sensor_fingertip_values is None:
                         self.timer.end_loop()
                         continue
-                
+
                     palm_bias_values= curr_sensor_palm_values
                     finger_bias_values= curr_sensor_finger_values
                     fingertip_bias_values = curr_sensor_fingertip_values
@@ -119,7 +119,7 @@ class XelaCurvedSensors(Component):
                         break
 
             except KeyboardInterrupt:
-                break 
+                break
 
         # self._bias_values /= loop_index # Take the average
 
@@ -140,13 +140,13 @@ class XelaCurvedSensors(Component):
         self.notify_component_start('XELA sensors')
         print(f"Started the XELA sensor pipeline for the hand")
 
-        while True: 
+        while True:
            # try:
                 self.timer.start_loop()
-                
+
                 xela_state = self.get_sensor_state()
-                
+
                 self.timer.end_loop()
 
             #except KeyboardInterrupt:
-                #break 
+                #break

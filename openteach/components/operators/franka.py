@@ -68,7 +68,7 @@ class FrankaArmOperator(Operator):
         )
 
         self._arm_teleop_state_subscriber = ZMQKeypointSubscriber(
-            host = host, 
+            host = host,
             port = teleoperation_reset_port,
             topic = 'pause'
         )
@@ -94,7 +94,7 @@ class FrankaArmOperator(Operator):
     @property
     def transformed_hand_keypoint_subscriber(self):
         return self._transformed_hand_keypoint_subscriber
-    
+
     @property
     def transformed_arm_keypoint_subscriber(self):
         return self._transformed_arm_keypoint_subscriber
@@ -103,15 +103,15 @@ class FrankaArmOperator(Operator):
     def _get_hand_frame(self):
         for i in range(10):
             data = self.transformed_arm_keypoint_subscriber.recv_keypoints(flags=zmq.NOBLOCK)
-            if not data is None: break 
+            if not data is None: break
         if data is None: return None
         return np.asanyarray(data).reshape(4, 3)
-    
+
     # Get the resolution scale mode (High or Low)
     def _get_resolution_scale_mode(self):
         data = self._arm_resolution_subscriber.recv_keypoints()
         res_scale = np.asanyarray(data).reshape(1)[0] # Make sure this data is one dimensional
-        return res_scale  
+        return res_scale
 
     # Get the teleop state (Pause or Continue)
     def _get_arm_teleop_state(self):
@@ -130,10 +130,10 @@ class FrankaArmOperator(Operator):
         homo_mat[3, 3] = 1
 
         return homo_mat
-    
+
     # Converts Homogenous Transformation Matrix to Cartesian Coords
     def _homo2cart(self, homo_mat):
-        
+
         t = homo_mat[:3, 3]
         R = Rotation.from_matrix(
             homo_mat[:3, :3]).as_quat()
@@ -143,7 +143,7 @@ class FrankaArmOperator(Operator):
         )
 
         return cart
-    
+
     # Gets the Scaled Resolution pose
     def _get_scaled_cart_pose(self, moving_robot_homo_mat):
         # Get the cart pose without the scaling
@@ -157,7 +157,7 @@ class FrankaArmOperator(Operator):
         diff_in_translation = unscaled_cart_pose[:3] - current_cart_pose[:3]
         scaled_diff_in_translation = diff_in_translation * self.resolution_scale
         # print('SCALED_DIFF_IN_TRANSLATION: {}'.format(scaled_diff_in_translation))
-        
+
         scaled_cart_pose = np.zeros(7)
         scaled_cart_pose[3:] = unscaled_cart_pose[3:] # Get the rotation directly
         scaled_cart_pose[:3] = current_cart_pose[:3] + scaled_diff_in_translation # Get the scaled translation only
@@ -185,8 +185,8 @@ class FrankaArmOperator(Operator):
         if self.is_first_frame or (self.arm_teleop_state == ARM_TELEOP_STOP and new_arm_teleop_state == ARM_TELEOP_CONT):
             moving_hand_frame = self._reset_teleop() # Should get the moving hand frame only once
         else:
-            moving_hand_frame = self._get_hand_frame() # Should get the hand frame 
-        self.arm_teleop_state = new_arm_teleop_state 
+            moving_hand_frame = self._get_hand_frame() # Should get the hand frame
+        self.arm_teleop_state = new_arm_teleop_state
 
         # Get the arm resolution
         arm_teleoperation_scale_mode = self._get_resolution_scale_mode()
@@ -195,9 +195,9 @@ class FrankaArmOperator(Operator):
         elif arm_teleoperation_scale_mode == ARM_LOW_RESOLUTION:
             self.resolution_scale = 0.6
 
-        if moving_hand_frame is None: 
+        if moving_hand_frame is None:
             return # It means we are not on the arm mode yet instead of blocking it is directly returning
-        
+
         # Get the moving hand frame
         self.hand_moving_H = self._turn_frame_to_homo_mat(moving_hand_frame)
 
@@ -207,11 +207,11 @@ class FrankaArmOperator(Operator):
         H_RI_RH = copy(self.robot_init_H) # Homo matrix that takes P_RI to P_RH
 
         # Rotation from allegro to franka
-        H_A_R = np.array( 
+        H_A_R = np.array(
             [[1/np.sqrt(2), 1/np.sqrt(2), 0, 0],
              [-1/np.sqrt(2), 1/np.sqrt(2), 0, 0],
              [0, 0, 1, -0.06], # The height of the allegro mount is 6cm
-             [0, 0, 0, 1]])  
+             [0, 0, 0, 1]])
 
         H_HT_HI = np.linalg.pinv(H_HI_HH) @ H_HT_HH # Homo matrix that takes P_HT to P_HI
         H_RT_RH = H_RI_RH @ H_A_R @ H_HT_HI @ np.linalg.pinv(H_A_R) # Homo matrix that takes P_RT to P_RH

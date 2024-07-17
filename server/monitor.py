@@ -18,7 +18,7 @@ def index():
 @app.route('/cam_<int:id>_feed')
 def video_feed(id):
     return Response(
-        monitor_info.get_cam_streamer(id).yield_frames(), 
+        monitor_info.get_cam_streamer(id).yield_frames(),
         mimetype = 'multipart/x-mixed-replace; boundary=frame'
     )
 

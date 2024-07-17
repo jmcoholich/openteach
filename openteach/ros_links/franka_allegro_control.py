@@ -23,7 +23,7 @@ FRANKA_HOME = [-1.5208185 ,  1.5375434 ,  1.4714179 , -1.8101345 ,  0.01227421, 
 ALLEGRO_ORIGINAL_HOME_VALUES = [
     0, -0.17453293, 0.78539816, 0.78539816,           # Index
     0, -0.17453293,  0.78539816,  0.78539816,         # Middle
-    0.08726646, -0.08726646, 0.87266463,  0.78539816, # Ring 
+    0.08726646, -0.08726646, 0.87266463,  0.78539816, # Ring
     1.04719755,  0.43633231,  0.26179939, 0.78539816  # Thumb
 ]
 ALLEGRO_HOME_VALUES = ALLEGRO_ORIGINAL_HOME_VALUES
@@ -38,7 +38,7 @@ class DexArmControl():
             rospy.init_node("dex_arm", disable_signals = True, anonymous = True)
         except:
             pass
-    
+
         if robot_type == 'both':
             self._init_allegro_hand_control()
             self._init_franka_arm_control(record_type)
@@ -53,17 +53,17 @@ class DexArmControl():
 
         self.allegro_joint_state = None
         rospy.Subscriber(
-            ALLEGRO_JOINT_STATE_TOPIC, 
-            JointState, 
-            self._callback_allegro_joint_state, 
+            ALLEGRO_JOINT_STATE_TOPIC,
+            JointState,
+            self._callback_allegro_joint_state,
             queue_size = 1
         )
 
         self.allegro_commanded_joint_state = None
         rospy.Subscriber(
-            ALLEGRO_COMMANDED_JOINT_STATE_TOPIC, 
-            JointState, 
-            self._callback_allegro_commanded_joint_state, 
+            ALLEGRO_COMMANDED_JOINT_STATE_TOPIC,
+            JointState,
+            self._callback_allegro_commanded_joint_state,
             queue_size = 1
         )
 
@@ -106,7 +106,7 @@ class DexArmControl():
             timestamp = raw_joint_state.header.stamp.secs + (raw_joint_state.header.stamp.nsecs * 1e-9)
         )
         return joint_state
-        
+
     def get_hand_position(self):
         if self.allegro_joint_state is None:
             return None
@@ -140,7 +140,7 @@ class DexArmControl():
             [current_pos, current_axis_angle],
             axis=0
         )
-        
+
         return osc_position
 
     def get_arm_cartesian_state(self):
@@ -165,7 +165,7 @@ class DexArmControl():
         )
 
         return joint_state
-    
+
     def get_arm_pose(self):
         pose = copy(self.franka.get_pose())
 
@@ -219,8 +219,8 @@ class DexArmControl():
         # Moving
         start_pose = self.get_arm_cartesian_coords()
         poses = generate_cartesian_space_min_jerk(
-            start = start_pose, 
-            goal = cartesian_pos, 
+            start = start_pose,
+            goal = cartesian_pos,
             time_to_go = duration,
             hz = self.franka.control_freq
         )
@@ -228,7 +228,7 @@ class DexArmControl():
         for pose in poses:
             self.arm_control(pose)
 
-        # Debugging the pose difference 
+        # Debugging the pose difference
         last_pose = self.get_arm_cartesian_coords()
         pose_error = cartesian_pos - last_pose
         debug_quat_diff = transform_utils.quat_multiply(last_pose[3:], transform_utils.quat_inverse(cartesian_pos[3:]))

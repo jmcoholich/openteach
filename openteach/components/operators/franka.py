@@ -8,7 +8,7 @@ from tqdm import tqdm
 from copy import deepcopy as copy
 from openteach.constants import *
 from openteach.utils.timer import FrequencyTimer
-from openteach.utils.network import ZMQKeypointSubscriber
+from openteach.utils.network import ZMQKeypointSubscriber, ZMQKeypointPublisher
 from openteach.utils.vectorops import *
 from openteach.utils.files import *
 from openteach.robot.franka import FrankaArm
@@ -82,6 +82,12 @@ class FrankaArmOperator(Operator):
             self.comp_filter = Filter(robot_init_cart, comp_ratio=0.8)
 
         self._timer = FrequencyTimer(VR_FREQ)
+
+        # Class variables
+        self.gripper_flag=1
+        self.gripper_cnt=0
+        self.prev_gripper_flag=0
+        self.gripper_correct_state=1
 
     @property
     def timer(self):
@@ -225,6 +231,13 @@ class FrankaArmOperator(Operator):
         # Move the robot arm
         self.robot.arm_control(final_pose)
 
+        ## Add Gripper control. Gripper cmd should be in [-1, 1]
+        gripper_state,status_change, gripper_flag =self.get_gripper_state_from_hand_keypoints()
+        if gripper_flag ==1 and status_change:
+            print("GRIPPER STATUS CHANGE")
+            self.gripper_correct_state=gripper_state
+            self.robot.set_gripper_state(self.gripper_correct_state * 2 - 1)
+
     def stream(self):
         self.notify_component_start('{} control'.format(self.robot.name))
         print("Start controlling the robot hand using the Oculus Headset.\n")
@@ -244,3 +257,29 @@ class FrankaArmOperator(Operator):
 
         self.transformed_arm_keypoint_subscriber.stop()
         print('Stopping the teleoperator!')
+
+
+###############################################################################
+# Add gripper control
+###############################################################################
+
+    # Function to get gripper state from hand keypoints
+    def get_gripper_state_from_hand_keypoints(self):
+        transformed_hand_coords= self._transformed_hand_keypoint_subscriber.recv_keypoints()
+        distance = np.linalg.norm(transformed_hand_coords[OCULUS_JOINTS['middle'][-1]]- transformed_hand_coords[OCULUS_JOINTS['thumb'][-1]])
+        thresh = 0.05
+        gripper_fl =False
+        if distance < thresh:
+            print("distance less than thresh" * 10)
+            self.gripper_cnt+=1
+            if self.gripper_cnt==1:
+                self.prev_gripper_flag = self.gripper_flag
+                self.gripper_flag = not self.gripper_flag
+                gripper_fl=True
+        else:
+            self.gripper_cnt=0
+        gripper_state = np.asanyarray(self.gripper_flag).reshape(1)[0]
+        status= False
+        if gripper_state!= self.prev_gripper_flag:
+            status= True
+        return gripper_state , status , gripper_fl

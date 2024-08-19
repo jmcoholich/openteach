@@ -13,7 +13,7 @@ detector:
 
 # Transformation classes used to transform the keypoints
 transforms:
-  - 
+  -
     _target_: openteach.components.detector.keypoint_transform.TransformHandPositionCoords
     host: ${host_address}
     keypoint_port: ${keypoint_port}
@@ -31,23 +31,24 @@ visualizers:
 
 # Operators used to retarget the keypoints
 operators:
-  - 
+  -
     _target_: openteach.components.operators.franka.FrankaArmOperator
     host: ${host_address}
     transformed_keypoints_port: ${transformed_position_keypoint_port}
-    arm_resolution_port: ${resolution_button_publish_port} 
+    arm_resolution_port: ${resolution_button_publish_port}
     use_filter: False
     teleoperation_reset_port: ${teleop_reset_publish_port}
+    # gripper_port: ${gripper_publish_port_right}
 
 # List of controller classes used
 controllers:
   -
     _target_: openteach.robot.franka.FrankaArm
-    record: False
+    record_type: False
 
 
-# Information to be recorded by the robot 
+# Information to be recorded by the robot
 recorded_data:
-  - 
+  -
     - joint_states
     - cartesian_states

@@ -88,5 +88,5 @@ class PlotHand2D(Plotter):
         self.socket.send_image(plot)
 
         # Resetting and pausing the 3D plot
-        plt.pause(0.001) # This make the graph show up if matplotlib is in Tkinter mode
+        # plt.pause(0.001) # This make the graph show up if matplotlib is in Tkinter mode
         plt.cla()

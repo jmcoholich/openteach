@@ -69,7 +69,7 @@ class DexArmControl():
 
     def _init_franka_arm_control(self, record_type=None):
 
-        self.franka = FrankaController(record_type)
+        self.franka = FrankaController(record=record_type)
 
     # Rostopic callback functions
     def _callback_allegro_joint_state(self, joint_state):
@@ -254,3 +254,6 @@ class DexArmControl():
     def home_robot(self):
         self.home_hand()
         self.home_arm() # For now we're using cartesian values
+
+    def set_gripper_status(self, position):
+        self.franka.set_gripper_position(position)

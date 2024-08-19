@@ -30,8 +30,8 @@ resolution_button_port: 8095
 resolution_button_publish_port: 8093
 teleop_reset_port: 8100
 teleop_reset_publish_port: 8102
-gripper_publish_port_right: 8108
-gripper_publish_port_left: 8115
+# gripper_publish_port_right: 8108
+# gripper_publish_port_left: 8115
 
 cartesian_publisher_port: 8118
 joint_publisher_port: 8119

@@ -4,7 +4,7 @@ from .robot import RobotWrapper
 class FrankaArm(RobotWrapper):
     def __init__(self, record_type=None):
         self._controller = DexArmControl(record_type=record_type, robot_type='franka')
-        self._data_frequency = 50
+        self._data_frequency = 15
 
     @property
     def recorder_functions(self):
@@ -61,3 +61,6 @@ class FrankaArm(RobotWrapper):
 
     def move_velocity(self, input_velocity_values, duration):
         pass
+
+    def set_gripper_state(self , gripper_state):
+        self._controller.set_gripper_status(gripper_state)

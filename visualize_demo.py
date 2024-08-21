@@ -26,12 +26,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("demo_number", type=int, help="The number of the demonstration to visualize")
     args = parser.parse_args()
-    # make_depth_videos(demo_number)
-    gripper_timestamps = plot_gripper_pose(args.demo_number)
-    make_combined_video(args.demo_number, gripper_timestamps)
+    make_combined_video(args.demo_number)
 
 
-def make_combined_video(demo_number, gripper_timestamps):
+def make_combined_video(demo_number):
     demo_path = f"/home/ripl/openteach/extracted_data/demonstration_{demo_number}"
     depth_timestamps = []
     rgb_timestamps = []
@@ -79,14 +77,18 @@ def make_combined_video(demo_number, gripper_timestamps):
     # max_depth_value = max([np.max(x) for x in depth_frames]) * 0.5
     max_depth_value = np.percentile(np.concatenate([x.flatten() for x in depth_frames]), 98)  # get rid of outliers
 
-    # gripper frames (just load from gripper_frames dir)
-    gripper_frames = []
-    print("Loading gripper frames...")
-    # see how many gripper frames there are:
-    num_gripper_frames = len(os.listdir(f"{demo_path}/gripper_frames"))
-    for i in range(num_gripper_frames):
-        gripper_frames.append(plt.imread(f"{demo_path}/gripper_frames/frame_{i:03d}.png"))
-
+    print("Loading gripper cartesion position data...")
+    fname = "franka_cartesian_states.h5"
+    with h5py.File(f"{demo_path}/{fname}", "r") as f:
+        gripper_quats = np.array(f["orientations"])
+        gripper_pos = np.array(f["positions"])
+        for key in f.keys():
+            if key in ["orientations", "positions", "timestamps"]:
+                continue
+            print(key.ljust(25), f[key][()])
+        print()
+        gripper_timestamps = np.array(f["timestamps"])
+    num_gripper_frames = gripper_quats.shape[0]
 
     # Print number of frames for each component. I want all the numbers to start at the same place when printed though
     print("\nNumber of frames for each component:")
@@ -103,31 +105,45 @@ def make_combined_video(demo_number, gripper_timestamps):
     # print(max([x[0] for x in all_timestamps]) - min([x[0] for x in all_timestamps]))
     # print(max([x[-1] for x in all_timestamps]) - min([x[-1] for x in all_timestamps]))
 
-    futures = []
+    joint_futures = []
+    gripper_futures = []
     workers = 8
     num_frames = end_idcs[0] - start_idcs[0]
-    print("Generating joint state plots...")
+    print("\nGenerating joint state plots and gripper plots...\n")
     # split the range up into equal parts equal to the number of workers
     with ProcessPoolExecutor(max_workers=workers) as executor:
         chunk_size = num_frames // (workers - 1)
         for i in range(workers - 1):
             start = i * chunk_size
             end = (i + 1) * chunk_size
-            futures.append(executor.submit(
+            joint_futures.append(executor.submit(
                 make_joint_state_plots,
                 angles,
                 np.arange(start, end)
                 ))
+            gripper_futures.append(executor.submit(
+                make_gripper_frame,
+                gripper_pos[start_idcs[6] + start: start_idcs[6] + end],
+                gripper_quats[start_idcs[6] + start: start_idcs[6] + end],
+                ))
         # add the remainder
-        futures.append(executor.submit(
+        joint_futures.append(executor.submit(
             make_joint_state_plots,
             angles,
             np.arange(end, num_frames)
             ))
+        gripper_futures.append(executor.submit(
+            make_gripper_frame,
+            gripper_pos[start_idcs[6] + end: end_idcs[6]],
+            gripper_quats[start_idcs[6] + end: end_idcs[6]],
+            ))
 
         joint_state_plots = []
-        for future in futures: # needs to be in order
+        gripper_frames = []
+        for future in joint_futures: # needs to be in order
             joint_state_plots.extend(future.result())
+        for future in gripper_futures:
+            gripper_frames.extend(future.result())
 
 
     idcs = []
@@ -274,7 +290,7 @@ def make_combined_frame(depth_frames, rgb_frames, gripper_frames, joint_state_pl
         frame[0:360, j*640:(j+1)*640] = x[:, :, ::-1]
 
     # add gripper frames
-    frame[360*2:, :640] = (gripper_frames[:, :, :3] * 255).astype(np.uint8)
+    frame[360*2:, :640] = (gripper_frames[:, :, :3]).astype(np.uint8)
 
     # add joint state_frame
     frame[360*2:, 640:] = (joint_state_plot[..., :3]).astype(np.uint8)
@@ -356,50 +372,59 @@ def load_video_to_numpy_array(video_path):
     return frames_np
 
 
-def plot_gripper_pose(demo_number):
-    demo_path = f"/home/ripl/openteach/extracted_data/demonstration_{demo_number}"
-    fname = "franka_cartesian_states.h5"
-    with h5py.File(f"{demo_path}/{fname}", "r") as f:
-        quats = np.array(f["orientations"])
-        pos = np.array(f["positions"])
-        for key in f.keys():
-            if key in ["orientations", "positions", "timestamps"]:
-                continue
-            print(key.ljust(25), f[key][()])
-        print()
-        timestamps = np.array(f["timestamps"])
+# def plot_gripper_pose(demo_number):
+#     demo_path = f"/home/ripl/openteach/extracted_data/demonstration_{demo_number}"
+#     fname = "franka_cartesian_states.h5"
+#     with h5py.File(f"{demo_path}/{fname}", "r") as f:
+#         quats = np.array(f["orientations"])
+#         pos = np.array(f["positions"])
+#         for key in f.keys():
+#             if key in ["orientations", "positions", "timestamps"]:
+#                 continue
+#             print(key.ljust(25), f[key][()])
+#         print()
+#         timestamps = np.array(f["timestamps"])
 
-    # save frames that show position and orientation of gripper
-    frames_dir = f"{demo_path}/gripper_frames"
-    if not os.path.exists(frames_dir):
-        os.makedirs(frames_dir)
-    futures = []
-    progress_bar = tqdm(total=quats.shape[0], desc="Saving gripper frames...")
-    with ProcessPoolExecutor(max_workers=8) as executor:
-    # with ThreadPoolExecutor(max_workers=1) as executor:
-        for i in range(quats.shape[0]):
-            futures.append(executor.submit(save_gripper_frame, frames_dir, pos[i], quats[i], i))
-
-
-        for future in as_completed(futures):
-            future.result()
-            progress_bar.update(1)
+#     # save frames that show position and orientation of gripper
+#     frames_dir = f"{demo_path}/gripper_frames"
+#     if not os.path.exists(frames_dir):
+#         os.makedirs(frames_dir)
+#     futures = []
+#     progress_bar = tqdm(total=quats.shape[0], desc="Saving gripper frames...")
+#     with ProcessPoolExecutor(max_workers=8) as executor:
+#     # with ThreadPoolExecutor(max_workers=1) as executor:
+#         for i in range(quats.shape[0]):
+#             futures.append(executor.submit(save_gripper_frame, frames_dir, pos[i], quats[i], i))
 
 
-    # compile video
-    compile_video("gripper_pose", frames_dir, demo_path)
-    return timestamps
+#         for future in as_completed(futures):
+#             future.result()
+#             progress_bar.update(1)
+
+#     # compile video
+#     # compile_video("gripper_pose", frames_dir, demo_path)
+#     return timestamps
 
 
-def save_gripper_frame(frames_dir, pos, quats, i):
+def make_gripper_frame(pos, quats):
+    gripper_frames = []
     fig = plt.figure()
+    canvas = FigureCanvas(fig)
     ax = fig.add_subplot(111, projection='3d')
+    ax.set_xlim(-0.75, 0.75)
+    ax.set_ylim(-0.75, 0.75)
+    ax.set_zlim(-0.75, 0.75)
+    ax.set_aspect('equal')
+    # tight layout
+    plt.tight_layout()
+    # add title
+    # label axes
+    ax.set_xlabel('X', antialiased=True)
+    ax.set_ylabel('Y', antialiased=True)
+    ax.set_zlabel('Z', antialiased=True)
+    plt.title(f"Gripper Pose", antialiased=True)
     # calculate end point of gripper. Multiple x unit vector by quaternion
     # for base_vec in [np.array([0.0, 0.0, 0.1]),np.array([0.0, 0.1, 0.0]),np.array([0.1, 0.0, 0.0])]:
-    base_vec = np.array([0.0, 0.0, -0.23])
-    end = qv_mult(quats, base_vec)
-    # rotate 90 deg about z-axis
-    end = np.array([-end[1], end[0], end[2]])
     # zdiff = end[2] - pos[2]  # I want the largest negative z -diff
     # print(zdiff)
     # breakpoint()
@@ -417,39 +442,47 @@ def save_gripper_frame(frames_dir, pos, quats, i):
     # end *= -1
 
     # arrow = end - pos
-    ax.quiver(pos[0], pos[1], pos[2], end[0], end[1], end[2], color='r')
-    alpha = 0.3
-    for vec, color in zip([pos, pos + end], ['g', 'r']):
-        # plot the z-plane transparently
-        ax.plot_surface(
-            np.array([[-0.75, -0.75], [0.75, 0.75]]),
-            np.array([[-0.75, 0.75], [-0.75, 0.75]]),
-            np.array([[vec[2], vec[2]], [vec[2], vec[2]]]),
-            color=color,
-            alpha=alpha,
+    items = None
+    for i in range(pos.shape[0]):
+        base_vec = np.array([0.0, 0.0, -0.23])
+        end = qv_mult(quats[i], base_vec)
+        # rotate 90 deg about z-axis
+        end = np.array([-end[1], end[0], end[2]])
+
+        if items is not None:
+            for item in items:
+                item.remove()
+        items = []
+        items.append(ax.quiver(pos[i, 0], pos[i, 1], pos[i, 2], end[0], end[1], end[2], color='r'))
+        alpha = 0.3
+        for vec, color in zip([pos[i], pos[i] + end], ['g', 'r']):
+            # plot the z-plane transparently
+            items.append(
+                ax.plot_surface(
+                np.array([[-0.75, -0.75], [0.75, 0.75]]),
+                np.array([[-0.75, 0.75], [-0.75, 0.75]]),
+                np.array([[vec[2], vec[2]], [vec[2], vec[2]]]),
+                color=color,
+                alpha=alpha,
+                )
             )
-        # plot the x-plane transparently
-        ax.plot_surface(
-            np.array([[vec[0], vec[0]], [vec[0], vec[0]]]),
-            np.array([[-0.75, 0.75], [-0.75, 0.75]]),
-            np.array([[-0.75, -0.75], [0.75, 0.75]]),
-            color=color,
-            alpha=alpha,
+            # plot the x-plane transparently
+            items.append(
+            ax.plot_surface(
+                np.array([[vec[0], vec[0]], [vec[0], vec[0]]]),
+                np.array([[-0.75, 0.75], [-0.75, 0.75]]),
+                np.array([[-0.75, -0.75], [0.75, 0.75]]),
+                color=color,
+                alpha=alpha,
+                )
             )
-    ax.set_xlim(-0.75, 0.75)
-    ax.set_ylim(-0.75, 0.75)
-    ax.set_zlim(-0.75, 0.75)
-    ax.set_aspect('equal')
-    # tight layout
-    plt.tight_layout()
-    # add title
-    # label axes
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Z')
-    plt.title(f"Gripper Pose")
-    plt.savefig(f"{frames_dir}/frame_{i:03d}.png")
+        canvas.draw()
+        image = np.frombuffer(canvas.tostring_rgb(), dtype='uint8')
+        image = image.reshape(canvas.get_width_height()[::-1] + (3,))
+        gripper_frames.append(image)
     plt.close(fig)
+
+    return gripper_frames
 
 
 def q_mult(q1, q2):

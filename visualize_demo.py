@@ -372,40 +372,6 @@ def load_video_to_numpy_array(video_path):
     return frames_np
 
 
-# def plot_gripper_pose(demo_number):
-#     demo_path = f"/home/ripl/openteach/extracted_data/demonstration_{demo_number}"
-#     fname = "franka_cartesian_states.h5"
-#     with h5py.File(f"{demo_path}/{fname}", "r") as f:
-#         quats = np.array(f["orientations"])
-#         pos = np.array(f["positions"])
-#         for key in f.keys():
-#             if key in ["orientations", "positions", "timestamps"]:
-#                 continue
-#             print(key.ljust(25), f[key][()])
-#         print()
-#         timestamps = np.array(f["timestamps"])
-
-#     # save frames that show position and orientation of gripper
-#     frames_dir = f"{demo_path}/gripper_frames"
-#     if not os.path.exists(frames_dir):
-#         os.makedirs(frames_dir)
-#     futures = []
-#     progress_bar = tqdm(total=quats.shape[0], desc="Saving gripper frames...")
-#     with ProcessPoolExecutor(max_workers=8) as executor:
-#     # with ThreadPoolExecutor(max_workers=1) as executor:
-#         for i in range(quats.shape[0]):
-#             futures.append(executor.submit(save_gripper_frame, frames_dir, pos[i], quats[i], i))
-
-
-#         for future in as_completed(futures):
-#             future.result()
-#             progress_bar.update(1)
-
-#     # compile video
-#     # compile_video("gripper_pose", frames_dir, demo_path)
-#     return timestamps
-
-
 def make_gripper_frame(pos, quats):
     gripper_frames = []
     fig = plt.figure()

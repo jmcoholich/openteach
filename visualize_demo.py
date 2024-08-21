@@ -19,7 +19,7 @@ def main():
     args = parser.parse_args()
     # make_depth_videos(demo_number)
     gripper_timestamps = plot_gripper_pose(args.demo_number)
-    # make_combined_video(args.demo_number, gripper_timestamps)
+    make_combined_video(args.demo_number, gripper_timestamps)
 
 
 def make_combined_video(demo_number, gripper_timestamps):
@@ -36,7 +36,6 @@ def make_combined_video(demo_number, gripper_timestamps):
             print(key.ljust(25), f[key][()])
         print()
         joint_state_timestamps = np.array(f["timestamps"])
-    joint_state_plot = make_joint_state_plot(angles, demo_path)
 
     # depth frames
     depth_frames = []
@@ -89,13 +88,13 @@ def make_combined_video(demo_number, gripper_timestamps):
     print("gripper:".ljust(just_val), num_gripper_frames)
     print( "joint positions:".ljust(just_val), angles.shape[0], '\n')
 
-
-
     # breakpoint()
     all_timestamps = rgb_timestamps + depth_timestamps + [gripper_timestamps, joint_state_timestamps]
     start_idcs, end_idcs = tstamp_syncing(all_timestamps)
     # print(max([x[0] for x in all_timestamps]) - min([x[0] for x in all_timestamps]))
     # print(max([x[-1] for x in all_timestamps]) - min([x[-1] for x in all_timestamps]))
+
+    joint_state_plots = make_joint_state_plots(angles[start_idcs[-1]: end_idcs[-1]], demo_path)
 
     # for i in range(-1, -400, -1):
     #     temp = []
@@ -128,7 +127,7 @@ def make_combined_video(demo_number, gripper_timestamps):
                 [depth_frames[0][idcs[3][i]], depth_frames[1][idcs[4][i]], depth_frames[2][idcs[5][i]]],
                 [rgb_frames[0][idcs[0][i]], rgb_frames[1][idcs[1][i]], rgb_frames[2][idcs[2][i]]],
                 gripper_frames[idcs[6][i]],
-                joint_state_plot,
+                joint_state_plots[i],
                 i,
                 max_depth_value,
                 frames_dir,
@@ -211,7 +210,7 @@ def tstamp_syncing(all_tstamps):
         start_idcs.append(start_idx)
         end_idcs.append(end_idx)
         min_errors.append(min_error)
-    breakpoint()
+
     for i in range(8):
         assert start_idcs[i] >= 0
         assert end_idcs[i] > 0
@@ -262,8 +261,9 @@ def make_combined_frame(depth_frames, rgb_frames, gripper_frames, joint_state_pl
     # add depth frames. Depth frames are single channel, so need to use a colormap to convert them to rgb
     for j, x in enumerate(depth_frames):
         frame[360:720, j*640:(j+1)*640] = (plt.cm.viridis(x / max_depth_value)[:, :, :3] * 255).astype(np.uint8)
-
-        # frame[0:360, j*640:(j+1)*640, :] = x[i]
+        if j == 2:
+            # add a "2x" label to the bottom right corner with cv2
+            cv2.putText(frame, "2x", (640*3 - 50, 720 - 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
 
     # add rgb frames
     for j, x in enumerate(rgb_frames):
@@ -279,18 +279,56 @@ def make_combined_frame(depth_frames, rgb_frames, gripper_frames, joint_state_pl
     plt.imsave(f"{frames_dir}/frame_{i:03d}.png", frame)
 
 
-def make_joint_state_plot(angles, demo_path):
+def make_joint_state_plots(angles, demo_path):
     # make 2 x 4 subplots for 7 joints. Figure size should have a height of 480 and width of 1280. Return fig as an np array.
+    # make dir joint_state_plots
+    if not os.path.exists(f"{demo_path}/joint_state_plots"):
+        os.makedirs(f"{demo_path}/joint_state_plots")
+    else:
+        run_cmd(f"rm -r {demo_path}/joint_state_plots")
+        os.makedirs(f"{demo_path}/joint_state_plots")
+
     fig, axs = plt.subplots(2, 4, figsize=(1280/100, 480/100))
+    vlines = []
     for i in range(7):
         ax = axs[i // 4, i % 4]
         ax.plot(angles[:, i])
+        ax.grid()
         ax.set_title(f"Joint {i+1}")
+        # draw a vertical red line corresponding to the timestep
+        vlines.append(ax.axvline(0, color='r'))
     plt.tight_layout()
-    plt.savefig(os.path.join(demo_path, "joint_state_plot.png"))
-    plt.close(fig)
-    return plt.imread(os.path.join(demo_path, "joint_state_plot.png"))
+    plt.savefig(f"{demo_path}/joint_state_plots/frame_{0:03d}.png")
+    futures = []
+    # with ProcessPoolExecutor() as executor:
+    for j in tqdm(range(1, angles.shape[0])):
+        for i in range(7):
+            # erase previous red line
+            ax = axs[i // 4, i % 4]
+            # ax.lines.pop(1)
+            vlines[i].remove()
+        vlines = []
+        for i in range(7):
+            # draw a vertical red line corresponding to the timestep
+            ax = axs[i // 4, i % 4]
+            vlines.append(ax.axvline(j, color='r'))
+        plt.savefig(f"{demo_path}/joint_state_plots/frame_{j:03d}.png")
+        # futures.append(executor.submit(save_joint_state_plot, f"{demo_path}/joint_state_plots/frame_{j:03d}.png"))
+    # progress_bar = tqdm(total=angles.shape[0], desc="Saving joint state plots...")
+    # for future in as_completed(futures):
+    #     future.result()
+    #     progress_bar.update(1)
 
+    plt.close(fig)
+
+    # load joint state plots
+    joint_state_plots = []
+    for i in range(angles.shape[0]):
+        joint_state_plots.append(plt.imread(f"{demo_path}/joint_state_plots/frame_{i:03d}.png"))
+    return joint_state_plots
+
+# def save_joint_state_plot(path):
+#     plt.savefig(path)
 
 def load_video_to_numpy_array(video_path):
     # Open the video file
@@ -336,6 +374,7 @@ def plot_gripper_pose(demo_number):
     futures = []
     progress_bar = tqdm(total=quats.shape[0], desc="Saving gripper frames...")
     with ProcessPoolExecutor(max_workers=8) as executor:
+    # with ThreadPoolExecutor(max_workers=1) as executor:
         for i in range(quats.shape[0]):
             futures.append(executor.submit(save_gripper_frame, frames_dir, pos[i], quats[i], i))
 
@@ -354,10 +393,47 @@ def save_gripper_frame(frames_dir, pos, quats, i):
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
     # calculate end point of gripper. Multiple x unit vector by quaternion
-    base_vec = np.array([0.0, 0.1, 0.0])
-    end = qv_mult(quats, base_vec) + pos
+    # for base_vec in [np.array([0.0, 0.0, 0.1]),np.array([0.0, 0.1, 0.0]),np.array([0.1, 0.0, 0.0])]:
+    base_vec = np.array([0.0, 0.0, -0.23])
+    end = qv_mult(quats, base_vec)
+    # rotate 90 deg about z-axis
+    end = np.array([-end[1], end[0], end[2]])
+    # zdiff = end[2] - pos[2]  # I want the largest negative z -diff
+    # print(zdiff)
+    # breakpoint()
 
+    # breakpoint()
+
+    # permute axes
+    # pos = pos[[2, 0, 1]]
+    # end = end[[2, 0, 1]]
+    # pos = pos[[0, 1, 2]]
+    # end = end[[0, 1, 2]]
+    # pos = pos[[1, 2, 0]]
+    # end = end[[1, 2, 0]]
+    # pos *= -1
+    # end *= -1
+
+    # arrow = end - pos
     ax.quiver(pos[0], pos[1], pos[2], end[0], end[1], end[2], color='r')
+    alpha = 0.3
+    for vec, color in zip([pos, pos + end], ['g', 'r']):
+        # plot the z-plane transparently
+        ax.plot_surface(
+            np.array([[-0.75, -0.75], [0.75, 0.75]]),
+            np.array([[-0.75, 0.75], [-0.75, 0.75]]),
+            np.array([[vec[2], vec[2]], [vec[2], vec[2]]]),
+            color=color,
+            alpha=alpha,
+            )
+        # plot the x-plane transparently
+        ax.plot_surface(
+            np.array([[vec[0], vec[0]], [vec[0], vec[0]]]),
+            np.array([[-0.75, 0.75], [-0.75, 0.75]]),
+            np.array([[-0.75, -0.75], [0.75, 0.75]]),
+            color=color,
+            alpha=alpha,
+            )
     ax.set_xlim(-0.75, 0.75)
     ax.set_ylim(-0.75, 0.75)
     ax.set_zlim(-0.75, 0.75)

@@ -10,7 +10,16 @@ from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_compl
 import cv2
 import pickle as pkl
 
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+# Set global matplotlib settings for better quality
+plt.rcParams['text.antialiased'] = True
+plt.rcParams['lines.antialiased'] = True
+plt.rcParams['patch.antialiased'] = True
+
 import argparse
+import warnings
+warnings.filterwarnings( "ignore")
+
 
 # demo numer is the first argument
 def main():
@@ -94,17 +103,33 @@ def make_combined_video(demo_number, gripper_timestamps):
     # print(max([x[0] for x in all_timestamps]) - min([x[0] for x in all_timestamps]))
     # print(max([x[-1] for x in all_timestamps]) - min([x[-1] for x in all_timestamps]))
 
-    joint_state_plots = make_joint_state_plots(angles[start_idcs[-1]: end_idcs[-1]], demo_path)
-
-    # for i in range(-1, -400, -1):
-    #     temp = []
-    #     for x in all_timestamps:
-    #         temp.append(x[i])
-    #     print([temp[0] - x for x in temp])
-    #     # print("i:", max(temp) - min(temp))
-    # breakpoint()
-
+    futures = []
+    workers = 8
     num_frames = end_idcs[0] - start_idcs[0]
+    print("Generating joint state plots...")
+    # split the range up into equal parts equal to the number of workers
+    with ProcessPoolExecutor(max_workers=workers) as executor:
+        chunk_size = num_frames // (workers - 1)
+        for i in range(workers - 1):
+            start = i * chunk_size
+            end = (i + 1) * chunk_size
+            futures.append(executor.submit(
+                make_joint_state_plots,
+                angles,
+                np.arange(start, end)
+                ))
+        # add the remainder
+        futures.append(executor.submit(
+            make_joint_state_plots,
+            angles,
+            np.arange(end, num_frames)
+            ))
+
+        joint_state_plots = []
+        for future in futures: # needs to be in order
+            joint_state_plots.extend(future.result())
+
+
     idcs = []
     for i in range(8):
         idcs.append(range(start_idcs[i], end_idcs[i]))
@@ -132,27 +157,6 @@ def make_combined_video(demo_number, gripper_timestamps):
                 max_depth_value,
                 frames_dir,
                 ))
-            # # create a new frame
-            # frame = np.zeros((360 * 2 + 480, 640 * 3, 3), dtype=np.uint8)
-
-            # # add depth frames. Depth frames are single channel, so need to use a colormap to convert them to rgb
-            # for j, x in enumerate(depth_frames):
-            #     frame[360:720, j*640:(j+1)*640] = (plt.cm.viridis(x[i] / max_depth_value)[:, :, :3] * 255).astype(np.uint8)
-
-            #     # frame[0:360, j*640:(j+1)*640, :] = x[i]
-
-            # # add rgb frames
-            # for j, x in enumerate(rgb_frames):
-            #     frame[0:360, j*640:(j+1)*640] = x[i, :, :, ::-1]
-
-            # # add gripper frames
-            # frame[360*2:, :640] = (gripper_frames[i][:, :, :3] * 255).astype(np.uint8)
-
-            # # add joint state_frame
-            # frame[360*2:, 640:] = (joint_state_plot[..., :3] * 255).astype(np.uint8)
-
-            # # save_combined frames
-            # futures.append(executor.submit(plt.imsave, f"{frames_dir}/frame_{i:03d}.png", frame))
 
         for future in as_completed(futures):
             future.result()
@@ -273,35 +277,35 @@ def make_combined_frame(depth_frames, rgb_frames, gripper_frames, joint_state_pl
     frame[360*2:, :640] = (gripper_frames[:, :, :3] * 255).astype(np.uint8)
 
     # add joint state_frame
-    frame[360*2:, 640:] = (joint_state_plot[..., :3] * 255).astype(np.uint8)
+    frame[360*2:, 640:] = (joint_state_plot[..., :3]).astype(np.uint8)
 
     # save_combined frames
     plt.imsave(f"{frames_dir}/frame_{i:03d}.png", frame)
 
 
-def make_joint_state_plots(angles, demo_path):
+def make_joint_state_plots(angles, idcs):
     # make 2 x 4 subplots for 7 joints. Figure size should have a height of 480 and width of 1280. Return fig as an np array.
     # make dir joint_state_plots
-    if not os.path.exists(f"{demo_path}/joint_state_plots"):
-        os.makedirs(f"{demo_path}/joint_state_plots")
-    else:
-        run_cmd(f"rm -r {demo_path}/joint_state_plots")
-        os.makedirs(f"{demo_path}/joint_state_plots")
+    joint_state_plots = []
 
     fig, axs = plt.subplots(2, 4, figsize=(1280/100, 480/100))
     vlines = []
+    canvas = FigureCanvas(fig)
     for i in range(7):
         ax = axs[i // 4, i % 4]
-        ax.plot(angles[:, i])
+        ax.plot(angles[:, i], antialiased=True)
         ax.grid()
-        ax.set_title(f"Joint {i+1}")
+        ax.set_title(f"Joint {i+1}", antialiased=True)
         # draw a vertical red line corresponding to the timestep
-        vlines.append(ax.axvline(0, color='r'))
+        vlines.append(ax.axvline(idcs[0], color='r'))
     plt.tight_layout()
-    plt.savefig(f"{demo_path}/joint_state_plots/frame_{0:03d}.png")
-    futures = []
-    # with ProcessPoolExecutor() as executor:
-    for j in tqdm(range(1, angles.shape[0])):
+    # Convert the plot to a NumPy array
+    canvas.draw()
+    image = np.frombuffer(canvas.tostring_rgb(), dtype='uint8')
+    image = image.reshape(canvas.get_width_height()[::-1] + (3,))
+    joint_state_plots.append(image)
+    # plt.savefig(f"{demo_path}/joint_state_plots/frame_{0:03d}.png")
+    for j in range(1, idcs.shape[0]):
         for i in range(7):
             # erase previous red line
             ax = axs[i // 4, i % 4]
@@ -311,20 +315,18 @@ def make_joint_state_plots(angles, demo_path):
         for i in range(7):
             # draw a vertical red line corresponding to the timestep
             ax = axs[i // 4, i % 4]
-            vlines.append(ax.axvline(j, color='r'))
-        plt.savefig(f"{demo_path}/joint_state_plots/frame_{j:03d}.png")
-        # futures.append(executor.submit(save_joint_state_plot, f"{demo_path}/joint_state_plots/frame_{j:03d}.png"))
-    # progress_bar = tqdm(total=angles.shape[0], desc="Saving joint state plots...")
-    # for future in as_completed(futures):
-    #     future.result()
-    #     progress_bar.update(1)
+            vlines.append(ax.axvline(idcs[j], color='r'))
+            # Draw the canvas to update the figure
+
+        # Convert the plot to a NumPy array
+        canvas.draw()
+        # Convert the plot to a NumPy array using ARGB
+        image = np.frombuffer(canvas.tostring_rgb(), dtype='uint8')
+        image = image.reshape(canvas.get_width_height()[::-1] + (3,))
+        joint_state_plots.append(image)
 
     plt.close(fig)
 
-    # load joint state plots
-    joint_state_plots = []
-    for i in range(angles.shape[0]):
-        joint_state_plots.append(plt.imread(f"{demo_path}/joint_state_plots/frame_{i:03d}.png"))
     return joint_state_plots
 
 # def save_joint_state_plot(path):

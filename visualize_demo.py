@@ -24,7 +24,7 @@ warnings.filterwarnings( "ignore")
 # demo numer is the first argument
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("demo_number", type=int, help="The number of the demonstration to visualize")
+    parser.add_argument("demo_number", type=str, help="The number of the demonstration to visualize")
     args = parser.parse_args()
     make_combined_video(args.demo_number)
 
@@ -33,6 +33,16 @@ def make_combined_video(demo_number):
     demo_path = f"/home/ripl/openteach/extracted_data/demonstration_{demo_number}"
     depth_timestamps = []
     rgb_timestamps = []
+
+    print("Loading gripper states...")
+    with h5py.File(f"{demo_path}/franka_gripper_state.h5", "r") as f:
+        gripper_pos = np.array(f["positions"])
+        for key in f.keys():
+            if key in ["orientations", "positions", "timestamps"]:
+                continue
+            print(key.ljust(25), f[key][()])
+        print()
+        gripper_timestamps = np.array(f["timestamps"])
 
     print("Loading joint states...")
     with h5py.File(f"{demo_path}/franka_joint_states.h5", "r") as f:
@@ -77,18 +87,18 @@ def make_combined_video(demo_number):
     # max_depth_value = max([np.max(x) for x in depth_frames]) * 0.5
     max_depth_value = np.percentile(np.concatenate([x.flatten() for x in depth_frames]), 98)  # get rid of outliers
 
-    print("Loading gripper cartesion position data...")
+    print("Loading cartesion position data...")
     fname = "franka_cartesian_states.h5"
     with h5py.File(f"{demo_path}/{fname}", "r") as f:
-        gripper_quats = np.array(f["orientations"])
-        gripper_pos = np.array(f["positions"])
+        cartesian_quats = np.array(f["orientations"])
+        cartesian_pos = np.array(f["positions"])
         for key in f.keys():
             if key in ["orientations", "positions", "timestamps"]:
                 continue
             print(key.ljust(25), f[key][()])
         print()
-        gripper_timestamps = np.array(f["timestamps"])
-    num_gripper_frames = gripper_quats.shape[0]
+        cartesian_timestamps = np.array(f["timestamps"])
+    num_cartesian_frames = cartesian_quats.shape[0]
 
     # Print number of frames for each component. I want all the numbers to start at the same place when printed though
     print("\nNumber of frames for each component:")
@@ -96,54 +106,56 @@ def make_combined_video(demo_number):
     for i in range(3):
         print(f"rgb cam_{i}: ".ljust(just_val) , f"{rgb_frames[i].shape[0]}")
         print(f"depth cam_{i}:".ljust(just_val) , f"{depth_frames[i].shape[0]}")
-    print("gripper:".ljust(just_val), num_gripper_frames)
+    print("cartesian:".ljust(just_val), num_cartesian_frames)
     print( "joint positions:".ljust(just_val), angles.shape[0], '\n')
 
     # breakpoint()
-    all_timestamps = rgb_timestamps + depth_timestamps + [gripper_timestamps, joint_state_timestamps]
+    all_timestamps = rgb_timestamps + depth_timestamps + [cartesian_timestamps, joint_state_timestamps, gripper_timestamps]
     start_idcs, end_idcs = tstamp_syncing(all_timestamps)
-    # print(max([x[0] for x in all_timestamps]) - min([x[0] for x in all_timestamps]))
-    # print(max([x[-1] for x in all_timestamps]) - min([x[-1] for x in all_timestamps]))
 
     joint_futures = []
-    gripper_futures = []
+    cartesian_futures = []
     workers = 8
     num_frames = end_idcs[0] - start_idcs[0]
-    print("\nGenerating joint state plots and gripper plots...\n")
+    print("\nGenerating joint state plots and cartesian plots...\n")
     # split the range up into equal parts equal to the number of workers
     with ProcessPoolExecutor(max_workers=workers) as executor:
         chunk_size = num_frames // (workers - 1)
+        remainder = num_frames % (workers - 1)
         for i in range(workers - 1):
             start = i * chunk_size
             end = (i + 1) * chunk_size
             joint_futures.append(executor.submit(
                 make_joint_state_plots,
-                angles,
+                angles[start_idcs[7]: end_idcs[7]],
+                gripper_pos[start_idcs[8]: end_idcs[8]],
                 np.arange(start, end)
                 ))
-            gripper_futures.append(executor.submit(
-                make_gripper_frame,
-                gripper_pos[start_idcs[6] + start: start_idcs[6] + end],
-                gripper_quats[start_idcs[6] + start: start_idcs[6] + end],
+            cartesian_futures.append(executor.submit(
+                make_cartesian_frame,
+                cartesian_pos[start_idcs[6] + start: start_idcs[6] + end],
+                cartesian_quats[start_idcs[6] + start: start_idcs[6] + end],
                 ))
-        # add the remainder
-        joint_futures.append(executor.submit(
-            make_joint_state_plots,
-            angles,
-            np.arange(end, num_frames)
-            ))
-        gripper_futures.append(executor.submit(
-            make_gripper_frame,
-            gripper_pos[start_idcs[6] + end: end_idcs[6]],
-            gripper_quats[start_idcs[6] + end: end_idcs[6]],
-            ))
+        if remainder > 0:
+            # add the remainder
+            joint_futures.append(executor.submit(
+                make_joint_state_plots,
+                angles[start_idcs[7]: end_idcs[7]],
+                gripper_pos[start_idcs[8]: end_idcs[8]],
+                np.arange(end, num_frames)
+                ))
+            cartesian_futures.append(executor.submit(
+                make_cartesian_frame,
+                cartesian_pos[start_idcs[6] + end: end_idcs[6]],
+                cartesian_quats[start_idcs[6] + end: end_idcs[6]],
+                ))
 
         joint_state_plots = []
-        gripper_frames = []
+        cartesian_frames = []
         for future in joint_futures: # needs to be in order
             joint_state_plots.extend(future.result())
-        for future in gripper_futures:
-            gripper_frames.extend(future.result())
+        for future in cartesian_futures:
+            cartesian_frames.extend(future.result())
 
 
     idcs = []
@@ -167,7 +179,7 @@ def make_combined_video(demo_number):
                 make_combined_frame,
                 [depth_frames[0][idcs[3][i]], depth_frames[1][idcs[4][i]], depth_frames[2][idcs[5][i]]],
                 [rgb_frames[0][idcs[0][i]], rgb_frames[1][idcs[1][i]], rgb_frames[2][idcs[2][i]]],
-                gripper_frames[idcs[6][i]],
+                cartesian_frames[i],
                 joint_state_plots[i],
                 i,
                 max_depth_value,
@@ -196,7 +208,7 @@ def tstamp_syncing(all_tstamps):
     start_idcs = []
     end_idcs = []
     min_errors = []
-    labels = ["rgb0", "rgb1", "rgb2", "depth0", "depth1", "depth2", "gripper", "joint_state"]
+    labels = ["rgb0", "rgb1", "rgb2", "depth0", "depth1", "depth2", "cartesian", "joint_state"]
     for x in all_tstamps:
         min_error = float("inf")
         # compute average error
@@ -274,7 +286,7 @@ def tstamp_syncing(all_tstamps):
 def get_err(a, b):
     return np.abs(a - b).mean()
 
-def make_combined_frame(depth_frames, rgb_frames, gripper_frames, joint_state_plot, i, max_depth_value, frames_dir):
+def make_combined_frame(depth_frames, rgb_frames, cartesian_frames, joint_state_plot, i, max_depth_value, frames_dir):
     # create a new frame
     frame = np.zeros((360 * 2 + 480, 640 * 3, 3), dtype=np.uint8)
 
@@ -289,8 +301,8 @@ def make_combined_frame(depth_frames, rgb_frames, gripper_frames, joint_state_pl
     for j, x in enumerate(rgb_frames):
         frame[0:360, j*640:(j+1)*640] = x[:, :, ::-1]
 
-    # add gripper frames
-    frame[360*2:, :640] = (gripper_frames[:, :, :3]).astype(np.uint8)
+    # add cartesian frames
+    frame[360*2:, :640] = (cartesian_frames[:, :, :3]).astype(np.uint8)
 
     # add joint state_frame
     frame[360*2:, 640:] = (joint_state_plot[..., :3]).astype(np.uint8)
@@ -299,7 +311,7 @@ def make_combined_frame(depth_frames, rgb_frames, gripper_frames, joint_state_pl
     plt.imsave(f"{frames_dir}/frame_{i:03d}.png", frame)
 
 
-def make_joint_state_plots(angles, idcs):
+def make_joint_state_plots(angles, gripper_pos, idcs):
     # make 2 x 4 subplots for 7 joints. Figure size should have a height of 480 and width of 1280. Return fig as an np array.
     # make dir joint_state_plots
     joint_state_plots = []
@@ -307,11 +319,15 @@ def make_joint_state_plots(angles, idcs):
     fig, axs = plt.subplots(2, 4, figsize=(1280/100, 480/100))
     vlines = []
     canvas = FigureCanvas(fig)
-    for i in range(7):
+    for i in range(8):
         ax = axs[i // 4, i % 4]
-        ax.plot(angles[:, i], antialiased=True)
+        if i ==7:
+            ax.plot(gripper_pos, antialiased=True)
+            ax.set_title(f"Gripper", antialiased=True)
+        else:
+            ax.plot(angles[:, i], antialiased=True)
+            ax.set_title(f"Joint {i+1}", antialiased=True)
         ax.grid()
-        ax.set_title(f"Joint {i+1}", antialiased=True)
         # draw a vertical red line corresponding to the timestep
         vlines.append(ax.axvline(idcs[0], color='r'))
     plt.tight_layout()
@@ -321,14 +337,15 @@ def make_joint_state_plots(angles, idcs):
     image = image.reshape(canvas.get_width_height()[::-1] + (3,))
     joint_state_plots.append(image)
     # plt.savefig(f"{demo_path}/joint_state_plots/frame_{0:03d}.png")
+    # the eight plot is for gripper state
     for j in range(1, idcs.shape[0]):
-        for i in range(7):
+        for i in range(8):
             # erase previous red line
             ax = axs[i // 4, i % 4]
             # ax.lines.pop(1)
             vlines[i].remove()
         vlines = []
-        for i in range(7):
+        for i in range(8):
             # draw a vertical red line corresponding to the timestep
             ax = axs[i // 4, i % 4]
             vlines.append(ax.axvline(idcs[j], color='r'))
@@ -372,8 +389,8 @@ def load_video_to_numpy_array(video_path):
     return frames_np
 
 
-def make_gripper_frame(pos, quats):
-    gripper_frames = []
+def make_cartesian_frame(pos, quats):
+    cartesian_frames = []
     fig = plt.figure()
     canvas = FigureCanvas(fig)
     ax = fig.add_subplot(111, projection='3d')
@@ -388,8 +405,8 @@ def make_gripper_frame(pos, quats):
     ax.set_xlabel('X', antialiased=True)
     ax.set_ylabel('Y', antialiased=True)
     ax.set_zlabel('Z', antialiased=True)
-    plt.title(f"Gripper Pose", antialiased=True)
-    # calculate end point of gripper. Multiple x unit vector by quaternion
+    plt.title(f"cartesian Pose", antialiased=True)
+    # calculate end point of cartesian. Multiple x unit vector by quaternion
     # for base_vec in [np.array([0.0, 0.0, 0.1]),np.array([0.0, 0.1, 0.0]),np.array([0.1, 0.0, 0.0])]:
     # zdiff = end[2] - pos[2]  # I want the largest negative z -diff
     # print(zdiff)
@@ -445,10 +462,10 @@ def make_gripper_frame(pos, quats):
         canvas.draw()
         image = np.frombuffer(canvas.tostring_rgb(), dtype='uint8')
         image = image.reshape(canvas.get_width_height()[::-1] + (3,))
-        gripper_frames.append(image)
+        cartesian_frames.append(image)
     plt.close(fig)
 
-    return gripper_frames
+    return cartesian_frames
 
 
 def q_mult(q1, q2):

@@ -257,3 +257,12 @@ class DexArmControl():
 
     def set_gripper_status(self, position):
         self.franka.set_gripper_position(position)
+
+    def get_gripper_status(self):
+        state = self.franka.get_gripper_position()
+
+        gripper_state = dict(
+            position = np.array(state, dtype=np.float32),
+            timestamp = time.time()
+        )
+        return gripper_state

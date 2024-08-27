@@ -10,7 +10,8 @@ class FrankaArm(RobotWrapper):
     def recorder_functions(self):
         return {
             'joint_states': self.get_joint_state,
-            'cartesian_states': self.get_cartesian_state
+            'cartesian_states': self.get_cartesian_state,
+            'gripper_state': self.get_gripper_state,
         }
 
     @property
@@ -64,3 +65,6 @@ class FrankaArm(RobotWrapper):
 
     def set_gripper_state(self , gripper_state):
         self._controller.set_gripper_status(gripper_state)
+
+    def get_gripper_state(self):
+        return self._controller.get_gripper_status()

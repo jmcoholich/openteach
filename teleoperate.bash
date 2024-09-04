@@ -40,7 +40,7 @@ sleep 0.25
 
 xdotool key ctrl+shift+o
 sleep 0.25
-xdotool type 'conda activate openteach && cd openteach'
+xdotool type 'conda activate openteach'
 sleep 0.25
 xdotool key Return
 sleep 0.25

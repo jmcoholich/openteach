@@ -156,12 +156,12 @@ class DexArmControl():
 
 
     def get_arm_joint_state(self):
-        joint_positions = copy(self.franka.get_joint_position())
-        # print('joint_position: {}'.format(joint_positions))
+        joint_positions, action = copy(self.franka.get_joint_position())
 
         joint_state = dict(
             position = np.array(joint_positions, dtype=np.float32),
-            timestamp = time.time()
+            command = np.array(action, dtype=np.float32),
+            timestamp = time.time(),
         )
 
         return joint_state
@@ -259,10 +259,11 @@ class DexArmControl():
         self.franka.set_gripper_position(position)
 
     def get_gripper_status(self):
-        state = self.franka.get_gripper_position()
+        state, action = self.franka.get_gripper_position()
 
         gripper_state = dict(
             position = np.array(state, dtype=np.float32),
-            timestamp = time.time()
+            command = np.array(action, dtype=np.float32),
+            timestamp = time.time(),
         )
         return gripper_state

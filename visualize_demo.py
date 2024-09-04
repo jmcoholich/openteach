@@ -37,6 +37,7 @@ def make_combined_video(demo_number):
     print("Loading gripper states...")
     with h5py.File(f"{demo_path}/franka_gripper_state.h5", "r") as f:
         gripper_pos = np.array(f["positions"])
+        gripper_cmd = np.array(f["commands"])
         for key in f.keys():
             if key in ["orientations", "positions", "timestamps"]:
                 continue
@@ -47,6 +48,7 @@ def make_combined_video(demo_number):
     print("Loading joint states...")
     with h5py.File(f"{demo_path}/franka_joint_states.h5", "r") as f:
         angles = np.array(f["positions"])
+        cmds = np.array(f["commands"])
         for key in f.keys():
             if key in ["orientations", "positions", "timestamps"]:
                 continue
@@ -128,7 +130,9 @@ def make_combined_video(demo_number):
             joint_futures.append(executor.submit(
                 make_joint_state_plots,
                 angles[start_idcs[7]: end_idcs[7]],
+                cmds[start_idcs[7]: end_idcs[7]],
                 gripper_pos[start_idcs[8]: end_idcs[8]],
+                gripper_cmd[start_idcs[8]: end_idcs[8]],
                 np.arange(start, end)
                 ))
             cartesian_futures.append(executor.submit(
@@ -141,7 +145,9 @@ def make_combined_video(demo_number):
             joint_futures.append(executor.submit(
                 make_joint_state_plots,
                 angles[start_idcs[7]: end_idcs[7]],
+                cmds[start_idcs[7]: end_idcs[7]],
                 gripper_pos[start_idcs[8]: end_idcs[8]],
+                gripper_cmd[start_idcs[8]: end_idcs[8]],
                 np.arange(end, num_frames)
                 ))
             cartesian_futures.append(executor.submit(
@@ -311,7 +317,7 @@ def make_combined_frame(depth_frames, rgb_frames, cartesian_frames, joint_state_
     plt.imsave(f"{frames_dir}/frame_{i:03d}.png", frame)
 
 
-def make_joint_state_plots(angles, gripper_pos, idcs):
+def make_joint_state_plots(angles, cmds, gripper_pos, gripper_cmd, idcs):
     # make 2 x 4 subplots for 7 joints. Figure size should have a height of 480 and width of 1280. Return fig as an np array.
     # make dir joint_state_plots
     joint_state_plots = []
@@ -323,9 +329,11 @@ def make_joint_state_plots(angles, gripper_pos, idcs):
         ax = axs[i // 4, i % 4]
         if i ==7:
             ax.plot(gripper_pos, antialiased=True)
+            ax.plot(gripper_cmd, antialiased=True)
             ax.set_title(f"Gripper", antialiased=True)
         else:
             ax.plot(angles[:, i], antialiased=True)
+            ax.plot(cmds[:, i], antialiased=True)
             ax.set_title(f"Joint {i+1}", antialiased=True)
         ax.grid()
         # draw a vertical red line corresponding to the timestep

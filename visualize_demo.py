@@ -333,7 +333,7 @@ def make_joint_state_plots(angles, cmds, gripper_pos, gripper_cmd, idcs):
             ax.set_title(f"Gripper", antialiased=True)
         else:
             ax.plot(angles[:, i], antialiased=True)
-            ax.plot(cmds[:, i], antialiased=True)
+            # ax.plot(cmds[:, i], antialiased=True) # CMDs are cartesian space deltas, don't visualize for now
             ax.set_title(f"Joint {i+1}", antialiased=True)
         ax.grid()
         # draw a vertical red line corresponding to the timestep

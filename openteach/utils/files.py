@@ -16,7 +16,7 @@ def get_path_in_package(relative_path):
     return os.path.join(list(openteach.__path__)[0], relative_path)
 
 def store_pickle_data(path, dictionary):
-    with open(path, 'ab') as file:
+    with open(path, 'wb') as file:
         pickle.dump(dictionary, file)
 
 def get_pickle_data(path):

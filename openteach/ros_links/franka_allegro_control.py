@@ -156,13 +156,33 @@ class DexArmControl():
 
 
     def get_arm_joint_state(self):
-        joint_positions, action = copy(self.franka.get_joint_position())
+        data = copy(self.franka.get_joint_position())
+        names = [
+            "position",
+            "dq",
+            "q_d",
+            "dq_d",
+            "ddq_d",
+            "tau_J",
+            "dtau_J",
+            "tau_J_d",
+            "tau_ext_hat_filtered",
+            "eef_pose",
+            "eef_pose_d",
+            "F_T_EE",
+            "F_T_NE",
+            # "command",
+        ]
+        joint_state = {}
+        for i, name in enumerate(names):
+            joint_state[name] = np.array(data[i], dtype=np.float32)
 
-        joint_state = dict(
-            position = np.array(joint_positions, dtype=np.float32),
-            command = np.array(action, dtype=np.float32),
-            timestamp = time.time(),
-        )
+        # joint_state = dict(
+        #     position = np.array(joint_positions, dtype=np.float32),
+        #     command = np.array(action, dtype=np.float32),
+        #     timestamp = time.time(),
+        # )
+        joint_state['timestamp'] = time.time()
 
         return joint_state
 

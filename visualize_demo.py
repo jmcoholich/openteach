@@ -1,4 +1,10 @@
-"""Make video from depth images"""
+"""
+Combines and cleans data from franka arm and realsense cameras.
+
+Outputs
+- A video of the demonstration including joint angle plots and rgb and depth cams
+- A .pkl file containing all processed data
+"""
 
 import h5py
 import numpy as np
@@ -41,7 +47,7 @@ def make_combined_video(demo_number):
         gripper_pos = np.array(f["positions"])
         gripper_cmd = np.array(f["commands"])
         for key in f.keys():
-            if key in ["orientations", "positions", "timestamps"]:
+            if key in ["positions", "timestamps"]:
                 continue
             if DEBUG: print(key.ljust(25), f[key][()])
         if DEBUG: print()
@@ -51,12 +57,30 @@ def make_combined_video(demo_number):
 
     print("Loading joint states...")
     cmd_metadata = {}
+    more_data = {}
     with h5py.File(f"{demo_path}/franka_joint_states.h5", "r") as f:
         angles = np.array(f["positions"])
-        cmds = np.array(f["commands"])
+        # cmds = np.copy(angles)
+        # cmds = np.array(f["commands"])
+        more_data_keys = [
+            "dq",
+            "q_d",
+            "dq_d",
+            "ddq_d",
+            "tau_J",
+            "dtau_J",
+            "tau_J_d",
+            "tau_ext_hat_filtered",
+            "eef_pose",
+            "eef_pose_d",
+            "F_T_EE",
+            "F_T_NE",
+        ]
         for key in f.keys():
-            if key in ["orientations", "positions", "timestamps"]:
+            if key in ["positions", "timestamps"]:
                 continue
+            elif key[:-1] in more_data_keys:  # so annoying how the script adds an "s" to the end of the key
+                more_data[key[:-1]] = np.array(f[key])
             if DEBUG: print(key.ljust(25), f[key][()])
             cmd_metadata[key] = f[key][()]
         if DEBUG: print()
@@ -123,7 +147,6 @@ def make_combined_video(demo_number):
         print("cartesian:".ljust(just_val), num_cartesian_frames)
         print( "joint positions:".ljust(just_val), angles.shape[0], '\n')
 
-    # breakpoint()
     all_timestamps = (
         rgb_timestamps
         + depth_timestamps
@@ -139,7 +162,7 @@ def make_combined_video(demo_number):
         [depth_frames[1]], # "depth_timestamp_1"
         [depth_frames[2]], # "depth_timestamp_2"
         [cartesian_quats, cartesian_pos], # "cartesian_timestamps"
-        [angles, cmds], # "joint_state_timestamps"
+        [angles] + [more_data[key] for key in more_data_keys], # "joint_state_timestamps"
         [gripper_pos, gripper_cmd], # "gripper_state_timestamps"
     ]
     assert len(series_list) == len(all_timestamps), "Number of series and timestamps must be the same"
@@ -174,15 +197,19 @@ def make_combined_video(demo_number):
     assert num_missing < 50, "Many missing timestamps, consider rerecording demo"
     assert num_duplicates < 50, "Many duplicate timestamps, consider rerecording demo"
 
-    # TODO reassign the series_list to the correct variables
+    # reassign cleaned data back to original variables
     rgb_frames = [x[0] for x in series_list[:3]]
     depth_frames = [x[0] for x in series_list[3:6]]
     cartesian_quats = series_list[6][0]
     cartesian_pos = series_list[6][1]
     angles = series_list[7][0]
-    cmds = series_list[7][1]
+    # cmds = series_list[7][1]
     gripper_pos = series_list[8][0]
     gripper_cmd = series_list[8][1]
+
+    more_data = {}
+    for i, key in enumerate(more_data_keys):  # reassign the more_data dict with cleaned data
+        more_data[key] = series_list[7][i + 1]
 
     start_idcs, end_idcs = tstamp_syncing(all_timestamps, demo_path, freq)
 
@@ -202,7 +229,7 @@ def make_combined_video(demo_number):
             joint_futures.append(executor.submit(
                 make_joint_state_plots,
                 angles[start_idcs[7]: end_idcs[7]],
-                cmds[start_idcs[7]: end_idcs[7]],
+                more_data["q_d"][start_idcs[7]: end_idcs[7]],
                 gripper_pos[start_idcs[8]: end_idcs[8]],
                 gripper_cmd[start_idcs[8]: end_idcs[8]],
                 np.arange(start, end)
@@ -217,7 +244,7 @@ def make_combined_video(demo_number):
             joint_futures.append(executor.submit(
                 make_joint_state_plots,
                 angles[start_idcs[7]: end_idcs[7]],
-                cmds[start_idcs[7]: end_idcs[7]],
+                more_data["q_d"][start_idcs[7]: end_idcs[7]],
                 gripper_pos[start_idcs[8]: end_idcs[8]],
                 gripper_cmd[start_idcs[8]: end_idcs[8]],
                 np.arange(end, num_frames)
@@ -268,9 +295,8 @@ def make_combined_video(demo_number):
             future.result()
             progress_bar.update(1)
 
-
     # compile video
-    compile_video("combined", frames_dir, demo_path)
+    compile_video(f"demo_{demo_number}", frames_dir, demo_path)
 
     # save all processed data to a .pkl file
     data = {
@@ -281,10 +307,12 @@ def make_combined_video(demo_number):
         "joint_angles": angles[start_idcs[7]: end_idcs[7]],
         "gripper_state": gripper_pos[start_idcs[8]: end_idcs[8]],
         "gripper_cmd": gripper_cmd[start_idcs[8]: end_idcs[8]],
-        "arm_cmd": cmds[start_idcs[7]: end_idcs[7]],
+        # "arm_cmd": cmds[start_idcs[7]: end_idcs[7]],
         "cmd_metadata": cmd_metadata,
         "timestamps": all_timestamps[0][start_idcs[0]: end_idcs[0]],  # arbitrary choice of zero-idx timestamps
         }
+    for key, val in more_data.items():
+        data[key] = val[start_idcs[7]: end_idcs[7]]
     for key, val in data.items():
         if isinstance(val, list):
             for x in val:
@@ -315,7 +343,7 @@ def tstamp_syncing(all_tstamps, demo_path, freq):
     labels = ["rgb0", "rgb1", "rgb2", "depth0", "depth1", "depth2", "cartesian", "joint_state", "gripper_state"]
     assert len(all_tstamps) == len(labels), "Number of timestamps and labels must be the same"
     if DEBUG: plot_timestamps(all_tstamps, labels, demo_path)
-    for x in all_tstamps:
+    for counter, x in enumerate(all_tstamps):
         min_error = float("inf")
         # compute average error
         min_length = min(ref_len, len(x))
@@ -481,7 +509,7 @@ def make_combined_frame(depth_frames, rgb_frames, cartesian_frames, joint_state_
     plt.imsave(f"{frames_dir}/frame_{i:03d}.png", frame)
 
 
-def make_joint_state_plots(angles, cmds, gripper_pos, gripper_cmd, idcs):
+def make_joint_state_plots(angles, q_d, gripper_pos, gripper_cmd, idcs):
     # make 2 x 4 subplots for 7 joints. Figure size should have a height of 480 and width of 1280. Return fig as an np array.
     # make dir joint_state_plots
     joint_state_plots = []
@@ -497,13 +525,15 @@ def make_joint_state_plots(angles, cmds, gripper_pos, gripper_cmd, idcs):
             ax.set_title(f"Gripper", antialiased=True)
         else:
             ax.plot(angles[:, i], antialiased=True)
-            # ax.plot(cmds[:, i], antialiased=True) # CMDs are cartesian space deltas, don't visualize for now
+            ax.plot(q_d[:, i], antialiased=True)
             ax.set_title(f"Joint {i+1}", antialiased=True)
         ax.grid()
         # draw a vertical red line corresponding to the timestep
         vlines.append(ax.axvline(idcs[0], color='r'))
     plt.tight_layout()
     # Convert the plot to a NumPy array
+    # make a super legend for the whole figure: ["actual", "commanded"]
+    fig.legend(["pos", "cmd pos"], loc='upper right')
     canvas.draw()
     image = np.frombuffer(canvas.tostring_rgb(), dtype='uint8')
     image = image.reshape(canvas.get_width_height()[::-1] + (3,))
@@ -580,9 +610,6 @@ def make_cartesian_frame(pos, quats):
     # for base_vec in [np.array([0.0, 0.0, 0.1]),np.array([0.0, 0.1, 0.0]),np.array([0.1, 0.0, 0.0])]:
     # zdiff = end[2] - pos[2]  # I want the largest negative z -diff
     # print(zdiff)
-    # breakpoint()
-
-    # breakpoint()
 
     # permute axes
     # pos = pos[[2, 0, 1]]

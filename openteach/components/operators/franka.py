@@ -267,7 +267,7 @@ class FrankaArmOperator(Operator):
     def get_gripper_state_from_hand_keypoints(self):
         transformed_hand_coords= self._transformed_hand_keypoint_subscriber.recv_keypoints()
         distance = np.linalg.norm(transformed_hand_coords[OCULUS_JOINTS['middle'][-1]]- transformed_hand_coords[OCULUS_JOINTS['thumb'][-1]])
-        thresh = 0.05
+        thresh = 0.07
         gripper_fl =False
         if distance < thresh:
             print("distance less than thresh" * 10)

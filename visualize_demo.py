@@ -15,6 +15,7 @@ import os
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 import cv2
 import pickle as pkl
+from copy import copy
 
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 # Set global matplotlib settings for better quality
@@ -42,6 +43,17 @@ def make_combined_video(demo_number):
 
     freq = 15.0
 
+    print("Loading logged tcp commands...")
+    with h5py.File(f"{demo_path}/franka_arm_tcp_commands.h5", "r") as f:
+        tcp_cmds = np.array(f["arm_tcp_commands"])
+        for key in f.keys():
+            if key in ["commands", "timestamps"]:
+                continue
+            if DEBUG: print(key.ljust(25), f[key][()])
+        if DEBUG: print()
+        tcp_cmd_timestamps = np.array(f["timestamps"])
+        assert round(f['record_frequency'][()]) == freq
+
     print("Loading gripper states...")
     with h5py.File(f"{demo_path}/franka_gripper_state.h5", "r") as f:
         gripper_pos = np.array(f["positions"])
@@ -53,7 +65,6 @@ def make_combined_video(demo_number):
         if DEBUG: print()
         gripper_timestamps = np.array(f["timestamps"])
         assert round(f['record_frequency'][()]) == freq
-
 
     print("Loading joint states...")
     cmd_metadata = {}
@@ -146,11 +157,13 @@ def make_combined_video(demo_number):
             print(f"depth cam_{i}:".ljust(just_val) , f"{depth_frames[i].shape[0]}")
         print("cartesian:".ljust(just_val), num_cartesian_frames)
         print( "joint positions:".ljust(just_val), angles.shape[0], '\n')
+        print("gripper:".ljust(just_val), gripper_pos.shape[0])
+        print("tcp cmds:".ljust(just_val), tcp_cmds.shape[0])
 
     all_timestamps = (
         rgb_timestamps
         + depth_timestamps
-        + [cartesian_timestamps, joint_state_timestamps, gripper_timestamps]
+        + [cartesian_timestamps, joint_state_timestamps, gripper_timestamps, tcp_cmd_timestamps]
         )
     # to avoid referencing these old unchanged variables after changes are made to all_timestamps
     del rgb_timestamps, depth_timestamps, cartesian_timestamps, joint_state_timestamps, gripper_timestamps
@@ -164,6 +177,7 @@ def make_combined_video(demo_number):
         [cartesian_quats, cartesian_pos], # "cartesian_timestamps"
         [angles] + [more_data[key] for key in more_data_keys], # "joint_state_timestamps"
         [gripper_pos, gripper_cmd], # "gripper_state_timestamps"
+        [tcp_cmds], # "tcp_cmd_timestamps"
     ]
     assert len(series_list) == len(all_timestamps), "Number of series and timestamps must be the same"
 
@@ -210,6 +224,8 @@ def make_combined_video(demo_number):
     more_data = {}
     for i, key in enumerate(more_data_keys):  # reassign the more_data dict with cleaned data
         more_data[key] = series_list[7][i + 1]
+    tcp_cmds = series_list[9][0]
+
 
     start_idcs, end_idcs = tstamp_syncing(all_timestamps, demo_path, freq)
 
@@ -300,6 +316,7 @@ def make_combined_video(demo_number):
 
     # save all processed data to a .pkl file
     data = {
+        "franka_tcp_cmds": tcp_cmds[start_idcs[9]: end_idcs[9]],
         "depth_imgs": [x[start_idcs[i]: end_idcs[i]] for i, x in zip([3, 4, 6], depth_frames)],
         "rgb_imgs": [x[start_idcs[i]: end_idcs[i]] for i, x in zip([0, 1, 2], rgb_frames)],
         "eef_pos": cartesian_pos[start_idcs[6]: end_idcs[6]],
@@ -340,9 +357,10 @@ def tstamp_syncing(all_tstamps, demo_path, freq):
     start_idcs = []
     end_idcs = []
     min_errors = []
-    labels = ["rgb0", "rgb1", "rgb2", "depth0", "depth1", "depth2", "cartesian", "joint_state", "gripper_state"]
+    labels = ["rgb0", "rgb1", "rgb2", "depth0", "depth1", "depth2", "cartesian", "joint_state", "gripper_state", "arm_tcp_cmd"]
     assert len(all_tstamps) == len(labels), "Number of timestamps and labels must be the same"
-    if DEBUG: plot_timestamps(all_tstamps, labels, demo_path)
+    # if DEBUG: plot_timestamps(all_tstamps, labels, demo_path)  # This command throws errors about multithreading and X server, can also just cause machine to freeze. But it also sometimes works ¯\_(ツ)_/¯
+    # plot_timestamps(all_tstamps, labels, demo_path); sys.exit()
     for counter, x in enumerate(all_tstamps):
         min_error = float("inf")
         # compute average error
@@ -381,7 +399,11 @@ def tstamp_syncing(all_tstamps, demo_path, freq):
         start_idcs.append(start_idx)
         end_idcs.append(end_idx)
         min_errors.append(min_error)
-        assert min_error < 1 / freq * 0.75, f"Error too large: {min_error}"
+        try:
+            assert min_error < 1 / freq * 0.75, f"Error is too large: {min_error} for {labels[counter]}"
+        except AssertionError as e:
+            print(e)
+            breakpoint()
     for i in range(len(all_tstamps)):
         assert start_idcs[i] >= 0
         assert end_idcs[i] > 0

@@ -12,6 +12,7 @@ class FrankaArm(RobotWrapper):
             'joint_states': self.get_joint_state,
             'cartesian_states': self.get_cartesian_state,
             'gripper_state': self.get_gripper_state,
+            'arm_tcp_commands': self.get_arm_tcp_commands,
         }
 
     @property
@@ -68,3 +69,6 @@ class FrankaArm(RobotWrapper):
 
     def get_gripper_state(self):
         return self._controller.get_gripper_status()
+
+    def get_arm_tcp_commands(self):
+        return self._controller.get_arm_tcp_commands()

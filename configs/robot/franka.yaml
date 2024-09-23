@@ -53,3 +53,4 @@ recorded_data:
     - joint_states
     - cartesian_states
     - gripper_state
+    - arm_tcp_commands

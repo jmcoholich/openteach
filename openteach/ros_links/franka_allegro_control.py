@@ -186,6 +186,13 @@ class DexArmControl():
 
         return joint_state
 
+    def get_arm_tcp_commands(self):
+        """Return the commands sent to Franka arm. This is different from
+        `desired` values returned with the state of the arm.
+        """
+        cmd = copy(self.franka.get_arm_tcp_commands())
+        return {"arm_tcp_command": cmd, "timestamp": time.time()}
+
     def get_arm_pose(self):
         pose = copy(self.franka.get_pose())
 

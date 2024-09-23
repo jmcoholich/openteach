@@ -16,6 +16,7 @@ from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_compl
 import cv2
 import pickle as pkl
 from copy import copy
+import sys
 
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 # Set global matplotlib settings for better quality
@@ -37,7 +38,9 @@ def main():
 
 
 def make_combined_video(demo_number):
-    demo_path = f"/home/ripl/openteach/extracted_data/demonstration_{demo_number}"
+    # get working dir
+    openteach_dir = os.path.dirname(os.path.realpath(__file__))
+    demo_path = f"{openteach_dir}/extracted_data/demonstration_{demo_number}"
     depth_timestamps = []
     rgb_timestamps = []
 
@@ -359,8 +362,6 @@ def tstamp_syncing(all_tstamps, demo_path, freq):
     min_errors = []
     labels = ["rgb0", "rgb1", "rgb2", "depth0", "depth1", "depth2", "cartesian", "joint_state", "gripper_state", "arm_tcp_cmd"]
     assert len(all_tstamps) == len(labels), "Number of timestamps and labels must be the same"
-    # if DEBUG: plot_timestamps(all_tstamps, labels, demo_path)  # This command throws errors about multithreading and X server, can also just cause machine to freeze. But it also sometimes works ¯\_(ツ)_/¯
-    # plot_timestamps(all_tstamps, labels, demo_path); sys.exit()
     for counter, x in enumerate(all_tstamps):
         min_error = float("inf")
         # compute average error
@@ -400,7 +401,7 @@ def tstamp_syncing(all_tstamps, demo_path, freq):
         end_idcs.append(end_idx)
         min_errors.append(min_error)
         try:
-            assert min_error < 1 / freq * 0.75, f"Error is too large: {min_error} for {labels[counter]}"
+            assert min_error < 1 / freq * 0.75, f"Error is too large: {min_error} for {labels[counter]}. This is usually caused by variations in recording frequency during demo collection. Consider recollecting demo or reducing the frequency of data collection."
         except AssertionError as e:
             print(e)
             breakpoint()
@@ -443,6 +444,8 @@ def tstamp_syncing(all_tstamps, demo_path, freq):
             err = get_err(all_tstamps[i][start_idcs[i]: end_idcs[i]],
                         all_tstamps[ref][start_idcs[ref]: end_idcs[ref]])
             print((labels[i] + "error: ").ljust(25), err)
+    # if DEBUG: plot_timestamps(all_tstamps, labels, demo_path, start_idcs, end_idcs)  # This command throws errors about multithreading and X server, can also just cause machine to freeze. But it also sometimes works ¯\_(ツ)_/¯
+    # plot_timestamps(all_tstamps, labels, demo_path, start_idcs, end_idcs); sys.exit()
     return start_idcs, end_idcs
 
 
@@ -450,8 +453,8 @@ def get_err(a, b):
     return np.abs(a - b).max()
 
 
-def plot_timestamps(series, labels, demo_path):
-    spacing = 0.2  # Vertical spacing between series
+def plot_timestamps(series, labels, demo_path, start_idcs, end_idcs):
+    spacing = 0.35  # Vertical spacing between series
 
     # Flatten all timestamps to find the overall x-axis range
     all_timestamps = np.concatenate(series)
@@ -488,9 +491,11 @@ def plot_timestamps(series, labels, demo_path):
                 # Optionally, draw lines representing events
                 plt.vlines(timestamps_in_range, y_value - 0.1, y_value + 0.1, colors='k', linewidth=1)
 
-                # Label each point with its index in the series
+                # Label each point with its index in the series in black, AND with its output index in blue right below it
                 for idx, x in zip(indices_in_range, timestamps_in_range):
                     plt.annotate(str(idx), (x, y_value), textcoords="offset points", xytext=(0,10), ha='center')
+                    if idx - start_idcs[i] >= 0 and idx < end_idcs[i]:
+                        plt.annotate(str(idx - start_idcs[i]), (x, y_value), textcoords="offset points", xytext=(0, 3), ha='center', color='blue')
 
         plt.xlabel('Time')
         plt.ylabel('Series')

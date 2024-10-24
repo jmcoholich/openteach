@@ -5,7 +5,8 @@ from deoxys.utils.config_utils import get_default_controller_config
 from deoxys.utils.log_utils import get_deoxys_example_logger
 from examples.osc_control import move_to_target_pose
 from deoxys.experimental.motion_utils import reset_joints_to
-from deoxys.utils.transform_utils import quat2axisangle, mat2euler
+from deoxys.utils.transform_utils import quat2axisangle, mat2euler, mat2quat, quat_distance
+from deoxys.utils import transform_utils
 
 # General
 import numpy as np
@@ -69,17 +70,16 @@ def dataloader(args):
     # Load demonstration data
     sys.path.append("/home/ripl/rlds_dataset_builder")
 
-    module = importlib.import_module("franka_pick_coke")
-    ds = tfds.load("franka_pick_coke", split='train')
+    # module = importlib.import_module("franka_pick_coke")
+    ds = tfds.load("franka_pick_coke_25examples", split='train')
 
     # move robot to start position
     reset_joints_to(robot_interface, reset_joint_positions)
 
     # action scale probably plays a large role here and I don't know how to choose the correct value
-    for i, episode in enumerate(ds.take(1)):
-        for st in episode['steps']:
+    for episode in ds.take(1):
+        for i, st in enumerate(episode['steps']):
             # skip starting position
-            # breakpoint()
             if i == 0:
                 last_eef = np.concatenate((robot_interface.last_eef_quat_and_pos[1].flatten(), quat2axisangle(robot_interface.last_eef_quat_and_pos[0])))
                 eef = st['observation']['state'].numpy()
@@ -96,6 +96,7 @@ def dataloader(args):
                         )
             else:
                 deltas = st['action'].numpy()
+                print("deltas:", deltas)
 
                 move_to_target_pose(
                             robot_interface,
@@ -107,7 +108,7 @@ def dataloader(args):
                             interpolation_method="linear"
                             )
                 robot_interface.gripper_control(deltas[6])
-                sleep(1)
+                # sleep(1)
 
 def main(args):
     # Initialize robot
@@ -118,37 +119,33 @@ def main(args):
 
 
     # Load demonstration data
-    filename = f"/home/ripl/openteach/extracted_data/demonstration_{args.demo}/demo_{args.demo}.pkl"
+    filename = f"/home/ripl/openteach/extracted_data/pick_coke/demonstration_{args.demo}/demo_{args.demo}.pkl"
+    # arm_cmd_file = f"/home/ripl/openteach/extracted_data/pick_coke/demonstration_coke18/franka_arm_tcp_commands.h5"
     with open(filename, 'rb') as dbfile:
         db = pkl.load(dbfile)
-    # breakpoint()
 
-    # Convert demonstration data to 6DOF actions
-    pos = db['eef_pose'][:, :3, 3]  # (x, y, z)
-    rpy = np.array([mat2euler(db['eef_pose'][i, :3, :3]) for i in range(db['eef_pose'].shape[0])])  # (roll, pitch, yaw)
+    # with h5py.File(arm_cmd_file, "r") as f:
+    #     tpc_cmd = f['arm_tcp_commands'][()]
 
-    actions = np.concatenate((pos, rpy), axis=1)
+    # binarize gripper actions (-1, 1)
     gripper_actions = np.where(db['gripper_cmd'] <= 0, 1, -1)
-    # breakpoint()
+
     # move robot to start position
     reset_joints_to(robot_interface, db['joint_angles'][0])
 
-    # action scale probably plays a large role here and I don't know how to choose the correct value
-    for i, action in enumerate(actions):
+    for i, action in enumerate(gripper_actions):
         # skip starting position
-        if i == 0:
+        if i == 0 or i == len(gripper_actions):
             continue
 
         # get last eef position and calulate deltas to goal position
-        last_eef = np.concatenate((robot_interface.last_eef_quat_and_pos[1].flatten(), quat2axisangle(robot_interface.last_eef_quat_and_pos[0])))
-        deltas = action - last_eef
+        # last_eef_measured = np.concatenate((robot_interface.last_eef_quat_and_pos[1].flatten(), quat2axisangle(robot_interface.last_eef_quat_and_pos[0])))  # this is accurate but depends on current pose of robot which we don't train with
+        last_eef_recorded = np.concatenate((db['eef_pose'][i][:3, 3], quat2axisangle(mat2quat(db['eef_pose'][i][:3, :3]))))  # this is more accurate to how we are training
+        target_eef = np.concatenate((db['eef_pose'][i+1][:3, 3], quat2axisangle(mat2quat(db['eef_pose'][i+1][:3, :3]))))
+        deltas = target_eef - last_eef_recorded
+        # deltas = tpc_cmd[i]  # use commanded deltas instead of calculated deltas
 
-        # get commanded deltas
-        # cmd_deltas = db['franka_tcp_cmds'][i]
-
-        # print(f"Commanded:  {cmd_deltas}")
         print(f"Calculated: {deltas}\n")
-
         move_to_target_pose(
                     robot_interface,
                     controller_type,
@@ -159,9 +156,8 @@ def main(args):
                     interpolation_method="linear"
                     )
         robot_interface.gripper_control(gripper_actions[i])
-        sleep(1)
-
+        # sleep(1)
 
 if __name__ == "__main__":
-    # main(parser.parse_args())
-    dataloader(parser.parse_args())
+    main(parser.parse_args())
+    # dataloader(parser.parse_args())

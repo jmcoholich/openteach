@@ -16,8 +16,7 @@ from deoxys.utils.config_utils import get_default_controller_config
 from deoxys.utils.log_utils import get_deoxys_example_logger
 from examples.osc_control import move_to_target_pose, deltas_move
 from deoxys.experimental.motion_utils import reset_joints_to
-from deoxys.utils.transform_utils import quat2axisangle, mat2euler, mat2quat, quat_distance
-from deoxys.utils import transform_utils
+from deoxys.utils.transform_utils import quat2axisangle, mat2euler, mat2quat, quat_distance, quat2mat, euler2mat
 
 # General
 import numpy as np
@@ -32,6 +31,7 @@ import sys
 import importlib
 from scipy.spatial.transform import Rotation as R
 import os
+import time
 
 # add openteachcontrollers to path
 sys.path.append("/home/ripl/openteachcontrollers/src/franka-arm-controllers/franka_arm")
@@ -66,6 +66,7 @@ def vectquat2axisangle(quat):
     return rpy
 
 def dataloader(args):
+    franka_controller = FrankaController(record=False, control_freq=60)
     reset_joint_positions = [
             0.09162008114028396,
             -0.19826458111314524,
@@ -77,61 +78,44 @@ def dataloader(args):
         ]
 
     # Initialize robot
-    logger = get_deoxys_example_logger()  # logger for debugging
-    robot_interface = FrankaInterface("/home/ripl/deoxys_control/deoxys/config/charmander.yml", use_visualizer=False)  # hardcoded path to config file, probably should change
-    controller_type = "OSC_POSE"  # controls end effector in 6 dimensions, need to use serpeate controller for gripper
-    controller_cfg = get_default_controller_config(controller_type=controller_type)
+    # logger = get_deoxys_example_logger()  # logger for debugging
+    # robot_interface = FrankaInterface("/home/ripl/deoxys_control/deoxys/config/charmander.yml", use_visualizer=False)  # hardcoded path to config file, probably should change
+    # controller_type = "OSC_POSE"  # controls end effector in 6 dimensions, need to use serpeate controller for gripper
+    # controller_cfg = get_default_controller_config(controller_type=controller_type)
 
 
     # Load demonstration data
     sys.path.append("/home/ripl/rlds_dataset_builder")
-    ds = tfds.load("franka_pick_coke_single", split='train')
+    # ds = tfds.load("franka_pick_coke_single", split='train')
+    ds = tfds.load("franka_pick_coke", split='train')
 
     # move robot to start position
-    reset_joints_to(robot_interface, reset_joint_positions)
+    reset_joints_to(franka_controller.robot_interface, reset_joint_positions)
 
-    for episode in ds.take(1):
+    for episode in ds.take(2):
         for i, st in enumerate(episode['steps']):
-            # first move to starting position
-            if i == 0:
-                last_eef = np.concatenate((robot_interface.last_eef_quat_and_pos[1].flatten(), quat2axisangle(robot_interface.last_eef_quat_and_pos[0])))
-                eef = st['observation']['state'].numpy()
-                deltas = eef - last_eef
+            deltas = st['action'].numpy()  # the action are deltas for (x, y, z, r, p, y, gripper)
+            deltas[-1] = -1 if deltas[-1] == 0 else 1  # binarize gripper actions
+            # curr_pos, curr_quat = franka_controller.get_cartesian_position()
+            curr_pos, curr_quat = rlds_state2pos_quat(st['observation']['state'].numpy())
+            eef_pos = curr_pos.reshape((3,)) + deltas[:3]
+            curr_rot_mat = quat2mat(curr_quat)
+            delta_rot_mat = euler2mat(deltas[3:6])
+            target_rot_mat = delta_rot_mat @ curr_rot_mat
+            eef_quat = mat2quat(target_rot_mat)
 
-                move_to_target_pose(
-                        robot_interface,
-                        controller_type,
-                        controller_cfg,
-                        target_delta_pose=deltas,
-                        num_steps=40,
-                        num_additional_steps=1,
-                        interpolation_method="linear"
-                        )
-            else:
-                deltas = st['action'].numpy()
-                # deltas[:3] = [i/.05 for i in deltas[:3]]
-                deltas[-1] = -1 if deltas[-1] == 0 else 1  # binarize gripper actions
-                # print("deltas:", deltas)
-                # robot_interface.control(
-                #     controller_type=controller_type,
-                #     action=deltas,
-                #     controller_cfg=controller_cfg,
-                # )
+            cartesian_pose = np.concatenate((eef_pos, eef_quat))
+            franka_controller.cartesian_control(cartesian_pose)
+            franka_controller.set_gripper_position(deltas[-1])
+            time.sleep(1.0/15)
 
-                move_to_target_pose(
-                            robot_interface,
-                            controller_type,
-                            controller_cfg,
-                            target_delta_pose=deltas[:6],
-                            num_steps=40,
-                            num_additional_steps=1,
-                            interpolation_method="linear"
-                            )
-                robot_interface.gripper_control(deltas[6])
-                # sleep(1)
+def rlds_state2pos_quat(state):
+    rpy = state[3:6]
+    return state[:3], mat2quat(euler2mat(rpy))
 
 def main(args):
-    franka_controller = FrankaController(record=False, control_freq=15)
+    downsample_factor = 1
+    franka_controller = FrankaController(record=False, control_freq=15 // downsample_factor)
 
     home = os.path.expanduser("~")
     # Load demonstration data
@@ -147,14 +131,24 @@ def main(args):
     # move robot to start position
     reset_joints_to(franka_controller.robot_interface, db['joint_angles'][0])
 
-    for i in range(len(gripper_actions)):
+    for i in range(0, len(gripper_actions) - downsample_factor, downsample_factor):
+        delta_pos = db['eef_pos'][i + downsample_factor] - db['eef_pos'][i]
+        if i == 0:
+            curr_pos, curr_quat = franka_controller.get_cartesian_position()
+            curr_pos = curr_pos.reshape((3,)) + delta_pos
+        else:
+            curr_pos += delta_pos
+
+        # curr_pos = db['eef_pos'][i]
         cartesian_pose = np.concatenate((
-            db['eef_pos'][i],
+            curr_pos,
             db['eef_quat'][i]
         ))
+
         franka_controller.cartesian_control(cartesian_pose)
         franka_controller.set_gripper_position(gripper_actions[i])
 
 if __name__ == "__main__":
-    main(parser.parse_args())
-    # dataloader(parser.parse_args())
+    args = parser.parse_args()
+    main(args)
+    # dataloader(args)

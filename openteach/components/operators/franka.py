@@ -14,6 +14,7 @@ from openteach.utils.files import *
 from openteach.robot.franka import FrankaArm
 from scipy.spatial.transform import Rotation, Slerp
 from .operator import Operator
+import random
 
 
 
@@ -83,11 +84,8 @@ class FrankaArmOperator(Operator):
 
         self._timer = FrequencyTimer(VR_FREQ)
 
-        # Class variables
-        self.gripper_flag=1
-        self.gripper_cnt=0
-        self.prev_gripper_flag=0
-        self.gripper_correct_state=1
+        self.gripper_state = None
+        self.below_thresh = False
 
     @property
     def timer(self):
@@ -232,11 +230,8 @@ class FrankaArmOperator(Operator):
         self.robot.arm_control(final_pose)
 
         ## Add Gripper control. Gripper cmd should be in [-1, 1]
-        gripper_state,status_change, gripper_flag =self.get_gripper_state_from_hand_keypoints()
-        if gripper_flag ==1 and status_change:
-            print("GRIPPER STATUS CHANGE")
-            self.gripper_correct_state=gripper_state
-            self.robot.set_gripper_state(self.gripper_correct_state * 2 - 1)
+        gripper_cmd = self.get_gripper_state_from_hand_keypoints()
+        self.robot.set_gripper_state(gripper_cmd)
 
     def stream(self):
         self.notify_component_start('{} control'.format(self.robot.name))
@@ -266,20 +261,17 @@ class FrankaArmOperator(Operator):
     # Function to get gripper state from hand keypoints
     def get_gripper_state_from_hand_keypoints(self):
         transformed_hand_coords= self._transformed_hand_keypoint_subscriber.recv_keypoints()
-        distance = np.linalg.norm(transformed_hand_coords[OCULUS_JOINTS['middle'][-1]]- transformed_hand_coords[OCULUS_JOINTS['thumb'][-1]])
-        thresh = 0.07
-        gripper_fl =False
-        if distance < thresh:
-            print("distance less than thresh" * 10)
-            self.gripper_cnt+=1
-            if self.gripper_cnt==1:
-                self.prev_gripper_flag = self.gripper_flag
-                self.gripper_flag = not self.gripper_flag
-                gripper_fl=True
-        else:
-            self.gripper_cnt=0
-        gripper_state = np.asanyarray(self.gripper_flag).reshape(1)[0]
-        status= False
-        if gripper_state!= self.prev_gripper_flag:
-            status= True
-        return gripper_state , status , gripper_fl
+        distance = np.linalg.norm(transformed_hand_coords[OCULUS_JOINTS['ring'][-1]]- transformed_hand_coords[OCULUS_JOINTS['thumb'][-1]])
+        thresh = 0.05
+        if self.gripper_state is None:
+            self.gripper_state = self._robot.get_gripper_state()['position'] > 0.07
+        if distance < thresh and not self.below_thresh:
+            # print random 4 digit number to check if the function is being called
+            # print("distance less than thresh", random.randint(1000,9999))
+            self.gripper_state = not self.gripper_state
+            self.below_thresh = True
+        elif distance > thresh:
+            self.below_thresh = False
+        gripper_cmd = np.array(self.gripper_state * 2 - 1)
+        # print("gripper_cmd", gripper_cmd, random.randint(1000,9999))
+        return gripper_cmd

@@ -13,6 +13,7 @@ class FrankaArm(RobotWrapper):
             'cartesian_states': self.get_cartesian_state,
             'gripper_state': self.get_gripper_state,
             'arm_tcp_commands': self.get_arm_tcp_commands,
+            'deoxys_obs_cmd': self.get_deoxys_obs_cmd,
         }
 
     @property
@@ -58,8 +59,8 @@ class FrankaArm(RobotWrapper):
     def move_coords(self, cartesian_coords, duration=3):
         self._controller.move_arm_cartesian(cartesian_coords, duration=duration)
 
-    def arm_control(self, cartesian_coords):
-        self._controller.arm_control(cartesian_coords)
+    def arm_control(self, cartesian_coords, gripper_cmd=None):
+        self._controller.arm_control(cartesian_coords, gripper_cmd=gripper_cmd)
 
     def move_velocity(self, input_velocity_values, duration):
         pass
@@ -72,3 +73,6 @@ class FrankaArm(RobotWrapper):
 
     def get_arm_tcp_commands(self):
         return self._controller.get_arm_tcp_commands()
+
+    def get_deoxys_obs_cmd(self):
+        return self._controller.get_deoxys_obs_cmd()

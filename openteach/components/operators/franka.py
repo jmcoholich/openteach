@@ -16,6 +16,8 @@ from scipy.spatial.transform import Rotation, Slerp
 from .operator import Operator
 import random
 
+import pickle as pkl
+
 
 
 np.set_printoptions(precision=2, suppress=True)
@@ -41,9 +43,11 @@ class FrankaArmOperator(Operator):
         use_filter=False,
         arm_resolution_port = None,
         teleoperation_reset_port = None,
+        record=None,
     ):
         self.notify_component_start('franka arm operator')
         # Subscribers for the transformed hand keypoints
+        self.record = record
         self._transformed_hand_keypoint_subscriber = ZMQKeypointSubscriber(
             host=host,
             port=transformed_keypoints_port,
@@ -227,11 +231,11 @@ class FrankaArmOperator(Operator):
         if self.use_filter:
             final_pose = self.comp_filter(final_pose)
         # Move the robot arm
-        self.robot.arm_control(final_pose)
 
         ## Add Gripper control. Gripper cmd should be in [-1, 1]
         gripper_cmd = self.get_gripper_state_from_hand_keypoints()
-        self.robot.set_gripper_state(gripper_cmd)
+        # self.robot.set_gripper_state(gripper_cmd)
+        self.robot.arm_control(final_pose, gripper_cmd=gripper_cmd)
 
     def stream(self):
         self.notify_component_start('{} control'.format(self.robot.name))
@@ -248,6 +252,11 @@ class FrankaArmOperator(Operator):
 
                     self.timer.end_loop()
             except KeyboardInterrupt:
+                if self.record:
+                    path = os.path.join(os.getcwd(), 'extracted_data', f'deoxys_obs_cmd_history_{self.record}.pkl')
+                    print('Saving the deoxys_obs_cmd_history to {}'.format(path))
+                    with open(path, 'wb') as f:
+                        pkl.dump(self.robot._controller.franka.deoxys_obs_cmd_history, f)
                 break
 
         self.transformed_arm_keypoint_subscriber.stop()

@@ -264,8 +264,8 @@ class DexArmControl():
             np.abs(pose_error[:3]), angle_diff
         ))
 
-    def arm_control(self, cartesian_pose):
-        self.franka.cartesian_control(cartesian_pose=cartesian_pose)
+    def arm_control(self, cartesian_pose, gripper_cmd=None):
+        self.franka.cartesian_control(cartesian_pose=cartesian_pose, gripper_cmd=gripper_cmd)
 
     def home_arm(self):
         self.move_arm_cartesian(FRANKA_HOME_CART, duration=5)
@@ -294,3 +294,6 @@ class DexArmControl():
             timestamp = time.time(),
         )
         return gripper_state
+
+    def get_deoxys_obs_cmd(self):
+        return self.franka.get_deoxys_obs_cmd()

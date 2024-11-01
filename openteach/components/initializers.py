@@ -8,6 +8,7 @@ from .recorders.sensors import XelaSensorRecorder
 from .sensors import *
 from multiprocessing import Process
 from openteach.constants import *
+from omegaconf import open_dict
 
 
 
@@ -103,9 +104,8 @@ class TeleOperator(ProcessInstantiator):
         self._init_keypoint_transform()
         self._init_visualizers()
 
-
         if configs.operate:
-            self._init_operator()
+            self._init_operator(record=configs.record)
 
     #Function to start the components
     def _start_component(self, configs):
@@ -152,13 +152,13 @@ class TeleOperator(ProcessInstantiator):
                 ))
 
     #Function to start the operator
-    def _init_operator(self):
+    def _init_operator(self, record=None):
         for operator_config in self.configs.robot.operators:
-
+            with open_dict(operator_config):
+                operator_config.record = record
             self.processes.append(Process(
                 target = self._start_component,
-                args = (operator_config, )
-
+                args = (operator_config,)
             ))
 
 
@@ -182,8 +182,9 @@ class Collector(ProcessInstantiator):
         if self.configs.sim_env is True:
             self._init_sim_recorders()
         else:
-            print("Initialising robot recorders")
-            self._init_robot_recorders()
+            print("Robot recording moved to teleoperator!!")
+            # print("Initialising robot recorders")
+            # self._init_robot_recorders()
 
 
         if self.configs.is_xela is True:

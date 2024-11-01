@@ -48,9 +48,11 @@ controllers:
 
 
 # Information to be recorded by the robot
+# Robot recording moved to the teleoperator
 recorded_data:
   -
-    - joint_states
-    - cartesian_states
-    - gripper_state
-    - arm_tcp_commands
+    # - deoxys_obs_cmd
+    # - joint_states
+    # - cartesian_states
+    # - gripper_state
+    # - arm_tcp_commands

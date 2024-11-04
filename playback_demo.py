@@ -32,10 +32,7 @@ import importlib
 from scipy.spatial.transform import Rotation as R
 import os
 import time
-
-# add openteachcontrollers to path
-sys.path.append("/home/ripl/openteachcontrollers/src/franka-arm-controllers/franka_arm")
-from controller import FrankaController
+from openteach.utils.timer import FrequencyTimer
 
 parser = argparse.ArgumentParser()
 parser.add_argument("demo", type=str, help="The name of the demonstration to visualize")
@@ -109,44 +106,39 @@ def dataloader(args):
             franka_controller.set_gripper_position(deltas[-1])
             time.sleep(1.0/15)
 
+
 def rlds_state2pos_quat(state):
     rpy = state[3:6]
     return state[:3], mat2quat(euler2mat(rpy))
 
-def main(args):
-    downsample_factor = 1
-    franka_controller = FrankaController(record=False, control_freq=15 // downsample_factor)
 
+def main(args):
     home = os.path.expanduser("~")
     # Load demonstration data
-    filename = f"{home}/openteach/extracted_data/pick_coke/demonstration_{args.demo}/demo_{args.demo}.pkl"
+    filename = f"{home}/openteach/extracted_data/demonstration_{args.demo}/demo_{args.demo}.pkl"
     # arm_cmd_file = f"/home/ripl/openteach/extracted_data/pick_coke/demonstration_coke18/franka_arm_tcp_commands.h5"
     with open(filename, 'rb') as dbfile:
         db = pkl.load(dbfile)
-
-    # binarize gripper actions (-1, 1)
-    gripper_actions = np.where(db['gripper_cmd'] <= 0, 1, -1)
-    assert len(gripper_actions) == len(db['eef_pose'])
+    robot_interface = FrankaInterface(
+        os.path.join('/home/ripl/openteach/configs', 'deoxys.yml'), use_visualizer=False,
+        control_freq=60,
+        state_freq=200
+    )
+    timer = FrequencyTimer(15)
 
     # move robot to start position
-    reset_joints_to(franka_controller.robot_interface, db['joint_angles'][0])
+    reset_joints_to(robot_interface, db['joint_pos'][0])
+    for i in range(0, len(db["arm_action"])):
+        timer.start_loop()
+        robot_interface.control(
+                controller_type=db["controller_type"],
+                action=db["arm_action"][i],
+                controller_cfg=db["controller_cfg"],
+            )
 
-    for i in range(0, len(gripper_actions) - downsample_factor, downsample_factor):
-        delta_pos = db['eef_pos'][i + downsample_factor] - db['eef_pos'][i]
-        if i == 0:
-            curr_pos, curr_quat = franka_controller.get_cartesian_position()
-            curr_pos = curr_pos.reshape((3,)) + delta_pos
-        else:
-            curr_pos += delta_pos
+        robot_interface.gripper_control(db["gripper_action"][i])
+        timer.end_loop()
 
-        # curr_pos = db['eef_pos'][i]
-        cartesian_pose = np.concatenate((
-            curr_pos,
-            db['eef_quat'][i]
-        ))
-
-        franka_controller.cartesian_control(cartesian_pose)
-        franka_controller.set_gripper_position(gripper_actions[i])
 
 if __name__ == "__main__":
     args = parser.parse_args()

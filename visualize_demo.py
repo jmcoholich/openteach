@@ -162,6 +162,7 @@ def make_combined_video(folder, demo_number):
     max_depth_value = np.percentile(np.concatenate([x.flatten() for x in depth_frames]), 98)  # get rid of outliers
 
     output_data = {
+        "cartesian_pose_cmd": [],
         "arm_action": [],
         "gripper_action": [],
         "gripper_state": [],
@@ -172,7 +173,6 @@ def make_combined_video(folder, demo_number):
         "rgb_frames": [],
         "depth_frames": [],
         "timestamp": [],
-
         # "controller_type"
         # "controller_cfg"
         # "index"
@@ -180,8 +180,14 @@ def make_combined_video(folder, demo_number):
     all_cams_started_time = np.max([x[0] for x in rgb_timestamps] + [x[0] for x in depth_timestamps])
     cam_stopped = np.min([x[-1] for x in rgb_timestamps] + [x[-1] for x in depth_timestamps])
     for i in tqdm(range(len(cmd_data['index'])), desc="Processing data..."):
+        # once the robot is stopped (by releasing deadman switch), the robot state stops updating but the commands continue
+        # detect this and skip these frames
+        if i != 0 and (cmd_data['joint_pos'][i] == cmd_data['joint_pos'][i - 1]).all():
+            continue
+
         if cmd_data['timestamp'][i] < all_cams_started_time or cmd_data['timestamp'][i] > cam_stopped:  # throws away the last frame but thats fine
             continue
+        output_data["cartesian_pose_cmd"].append(cmd_data['cartesian_pose_cmd'][i])
         output_data["arm_action"].append(cmd_data['arm_action'][i])
         output_data["gripper_action"].append(cmd_data['gripper_action'][i])
         output_data["gripper_state"].append(cmd_data['gripper_state'][i])
@@ -209,6 +215,8 @@ def make_combined_video(folder, demo_number):
 
     for k, v in output_data.items():
         output_data[k] = np.array(v)
+    output_data["controller_type"] = cmd_data["controller_type"]
+    output_data["controller_cfg"] = cmd_data["controller_cfg"]
     path = f"{demo_path}/demo_{demo_number}.pkl"
     print(f"Saving processed data to {path}...")
     with open(path, "wb") as f:
@@ -542,64 +550,64 @@ def make_combined_video(folder, demo_number):
 #     return start_idcs, end_idcs
 
 
-def get_err(a, b):
-    return np.abs(a - b).max()
+# def get_err(a, b):
+#     return np.abs(a - b).max()
 
 
-def plot_timestamps(series, labels, demo_path):
-    spacing = 0.2  # Vertical spacing between series
+# def plot_timestamps(series, labels, demo_path):
+#     spacing = 0.2  # Vertical spacing between series
 
-    # Flatten all timestamps to find the overall x-axis range
-    all_timestamps = np.concatenate(series)
-    x_min = np.min(all_timestamps)
-    x_max = np.max(all_timestamps)
-    x_range = x_max - x_min
+#     # Flatten all timestamps to find the overall x-axis range
+#     all_timestamps = np.concatenate(series)
+#     x_min = np.min(all_timestamps)
+#     x_max = np.max(all_timestamps)
+#     x_range = x_max - x_min
 
-    # Define the maximum x-axis length per plot
-    max_x_length = 30
+#     # Define the maximum x-axis length per plot
+#     max_x_length = 30
 
-    # Calculate the number of plots needed
-    num_plots = int((x_range) / max_x_length) + 1
+#     # Calculate the number of plots needed
+#     num_plots = int((x_range) / max_x_length) + 1
 
-    # Ensure the demo_path exists
-    os.makedirs(demo_path, exist_ok=True)
+#     # Ensure the demo_path exists
+#     os.makedirs(demo_path, exist_ok=True)
 
-    for plot_idx in range(num_plots):
-        # Define the x-axis limits for this plot
-        start_x = x_min + plot_idx * max_x_length
-        end_x = start_x + max_x_length
+#     for plot_idx in range(num_plots):
+#         # Define the x-axis limits for this plot
+#         start_x = x_min + plot_idx * max_x_length
+#         end_x = start_x + max_x_length
 
-        # Create a new figure
-        plt.figure(figsize=(250/732 * max_x_length * 15, 5))  # Adjust figsize as needed
+#         # Create a new figure
+#         plt.figure(figsize=(250/732 * max_x_length * 15, 5))  # Adjust figsize as needed
 
-        # Plot each series
-        for i, timestamps in enumerate(series):
-            timestamps = np.array(timestamps)
-            # Get indices of timestamps within the current x-axis range
-            indices_in_range = np.where((timestamps >= start_x) & (timestamps <= end_x))[0]
-            timestamps_in_range = timestamps[indices_in_range]
-            y_value = i * spacing
-            if len(timestamps_in_range) > 0:
-                plt.scatter(timestamps_in_range, [y_value]*len(timestamps_in_range), label=labels[i], s=30)
-                # Optionally, draw lines representing events
-                plt.vlines(timestamps_in_range, y_value - 0.1, y_value + 0.1, colors='k', linewidth=1)
+#         # Plot each series
+#         for i, timestamps in enumerate(series):
+#             timestamps = np.array(timestamps)
+#             # Get indices of timestamps within the current x-axis range
+#             indices_in_range = np.where((timestamps >= start_x) & (timestamps <= end_x))[0]
+#             timestamps_in_range = timestamps[indices_in_range]
+#             y_value = i * spacing
+#             if len(timestamps_in_range) > 0:
+#                 plt.scatter(timestamps_in_range, [y_value]*len(timestamps_in_range), label=labels[i], s=30)
+#                 # Optionally, draw lines representing events
+#                 plt.vlines(timestamps_in_range, y_value - 0.1, y_value + 0.1, colors='k', linewidth=1)
 
-                # Label each point with its index in the series
-                for idx, x in zip(indices_in_range, timestamps_in_range):
-                    plt.annotate(str(idx), (x, y_value), textcoords="offset points", xytext=(0,10), ha='center')
+#                 # Label each point with its index in the series
+#                 for idx, x in zip(indices_in_range, timestamps_in_range):
+#                     plt.annotate(str(idx), (x, y_value), textcoords="offset points", xytext=(0,10), ha='center')
 
-        plt.xlabel('Time')
-        plt.ylabel('Series')
-        plt.yticks([i*spacing for i in range(len(series))], labels)
-        plt.title(f'Timestamp Series Plot (Part {plot_idx + 1})')
-        # plt.legend()
-        plt.xlim(start_x, end_x)
-        plt.tight_layout()
-        # Save plot
-        print(f"Saving timestamps plot part {plot_idx + 1}/{num_plots}...")
-        plot_filename = os.path.join(demo_path, f"timestamps_part_{plot_idx + 1}.png")
-        plt.savefig(plot_filename)
-        plt.close()
+#         plt.xlabel('Time')
+#         plt.ylabel('Series')
+#         plt.yticks([i*spacing for i in range(len(series))], labels)
+#         plt.title(f'Timestamp Series Plot (Part {plot_idx + 1})')
+#         # plt.legend()
+#         plt.xlim(start_x, end_x)
+#         plt.tight_layout()
+#         # Save plot
+#         print(f"Saving timestamps plot part {plot_idx + 1}/{num_plots}...")
+#         plot_filename = os.path.join(demo_path, f"timestamps_part_{plot_idx + 1}.png")
+#         plt.savefig(plot_filename)
+#         plt.close()
 
 
 def make_combined_frame(depth_frames, rgb_frames, cartesian_frames, joint_state_plot, i, max_depth_value, frames_dir):

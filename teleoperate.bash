@@ -44,7 +44,7 @@ xdotool type 'conda activate openteach'
 sleep 0.25
 xdotool key Return
 sleep 0.25
-xdotool type 'python teleop.py robot=franka'
+xdotool type 'python teleop.py robot=franka record='
 sleep 0.25
 xdotool key ctrl+shift+e
 sleep 0.25

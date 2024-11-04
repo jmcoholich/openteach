@@ -31,72 +31,100 @@ DEBUG = False
 # demo numer is the first argument
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("demo_number", type=str, help="The number of the demonstration to visualize")
+    # add mutually exclusive args "demo_number" and "demo_folder"
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument("--demo_number", type=str, help="The number of the demonstration to process and visualize")
+    group.add_argument("--demo_folder", type=str, help="Process and visualize all demos in folder.")
     args = parser.parse_args()
-    make_combined_video(args.demo_number)
+
+    if args.demo_number:
+        make_combined_video(None, args.demo_number)
+
+    elif args.demo_folder:
+        data_root = f"{os.path.expanduser('~')}/openteach/extracted_data/{args.demo_folder}"
+        if not os.path.exists(data_root):
+            raise FileNotFoundError(f"Folder {data_root} does not exist. Please check the folder name and try again.")
+        for file in os.listdir(data_root):
+            demo_number = file.split("_")[-1].split(".")[0]
+            make_combined_video(args.demo_folder, demo_number)
+
+    else:
+        raise ValueError("Either --demo_number or --demo_folder must be provided")
 
 
-def make_combined_video(demo_number):
-    demo_path = f"/home/ripl/openteach/extracted_data/demonstration_{demo_number}"
+def make_combined_video(folder, demo_number):
+    root_folder = f"{os.path.expanduser('~')}/openteach/extracted_data"
+    if folder is None:
+        demo_path = os.path.join(root_folder, f"demonstration_{demo_number}")
+    else:
+        demo_path = os.path.join(root_folder, f"{folder}/demonstration_{demo_number}")
+    print(demo_path)
     depth_timestamps = []
     rgb_timestamps = []
 
-    freq = 15.0
+    # freq = 15.0
 
-    print("Loading logged tcp commands...")
-    with h5py.File(f"{demo_path}/franka_arm_tcp_commands.h5", "r") as f:
-        tcp_cmds = np.array(f["arm_tcp_commands"])
-        for key in f.keys():
-            if key in ["commands", "timestamps"]:
-                continue
-            if DEBUG: print(key.ljust(25), f[key][()])
-        if DEBUG: print()
-        tcp_cmd_timestamps = np.array(f["timestamps"])
-        assert round(f['record_frequency'][()]) == freq
+    print('loading observations and commands ...')
+    path = os.path.join(root_folder, f"deoxys_obs_cmd_history_{demo_number}.pkl")
+    with open(path, "rb") as f:
+        cmd_data = pkl.load(f)
+        breakpoint()
 
-    print("Loading gripper states...")
-    with h5py.File(f"{demo_path}/franka_gripper_state.h5", "r") as f:
-        gripper_pos = np.array(f["positions"])
-        gripper_cmd = np.array(f["commands"])
-        for key in f.keys():
-            if key in ["positions", "timestamps"]:
-                continue
-            if DEBUG: print(key.ljust(25), f[key][()])
-        if DEBUG: print()
-        gripper_timestamps = np.array(f["timestamps"])
-        assert round(f['record_frequency'][()]) == freq
 
-    print("Loading joint states...")
-    cmd_metadata = {}
-    more_data = {}
-    with h5py.File(f"{demo_path}/franka_joint_states.h5", "r") as f:
-        angles = np.array(f["positions"])
-        # cmds = np.copy(angles)
-        # cmds = np.array(f["commands"])
-        more_data_keys = [
-            "dq",
-            "q_d",
-            "dq_d",
-            "ddq_d",
-            "tau_J",
-            "dtau_J",
-            "tau_J_d",
-            "tau_ext_hat_filtered",
-            "eef_pose",
-            "eef_pose_d",
-            "F_T_EE",
-            "F_T_NE",
-        ]
-        for key in f.keys():
-            if key in ["positions", "timestamps"]:
-                continue
-            elif key[:-1] in more_data_keys:  # so annoying how the script adds an "s" to the end of the key
-                more_data[key[:-1]] = np.array(f[key])
-            if DEBUG: print(key.ljust(25), f[key][()])
-            cmd_metadata[key] = f[key][()]
-        if DEBUG: print()
-        joint_state_timestamps = np.array(f["timestamps"])
-        assert round(f['record_frequency'][()]) == freq
+    # print("Loading logged tcp commands...")
+    # with h5py.File(f"{demo_path}/franka_arm_tcp_commands.h5", "r") as f:
+    #     tcp_cmds = np.array(f["arm_tcp_commands"])
+    #     for key in f.keys():
+    #         if key in ["commands", "timestamps"]:
+    #             continue
+    #         if DEBUG: print(key.ljust(25), f[key][()])
+    #     if DEBUG: print()
+    #     tcp_cmd_timestamps = np.array(f["timestamps"])
+    #     assert round(f['record_frequency'][()]) == freq
+
+    # print("Loading gripper states...")
+    # with h5py.File(f"{demo_path}/franka_gripper_state.h5", "r") as f:
+    #     gripper_pos = np.array(f["positions"])
+    #     gripper_cmd = np.array(f["commands"])
+    #     for key in f.keys():
+    #         if key in ["positions", "timestamps"]:
+    #             continue
+    #         if DEBUG: print(key.ljust(25), f[key][()])
+    #     if DEBUG: print()
+    #     gripper_timestamps = np.array(f["timestamps"])
+    #     assert round(f['record_frequency'][()]) == freq
+
+    # print("Loading joint states...")
+    # cmd_metadata = {}
+    # more_data = {}
+    # with h5py.File(f"{demo_path}/franka_joint_states.h5", "r") as f:
+    #     angles = np.array(f["positions"])
+    #     # cmds = np.copy(angles)
+    #     # cmds = np.array(f["commands"])
+    #     more_data_keys = [
+    #         "dq",
+    #         "q_d",
+    #         "dq_d",
+    #         "ddq_d",
+    #         "tau_J",
+    #         "dtau_J",
+    #         "tau_J_d",
+    #         "tau_ext_hat_filtered",
+    #         "eef_pose",
+    #         "eef_pose_d",
+    #         "F_T_EE",
+    #         "F_T_NE",
+    #     ]
+    #     for key in f.keys():
+    #         if key in ["positions", "timestamps"]:
+    #             continue
+    #         elif key[:-1] in more_data_keys:  # so annoying how the script adds an "s" to the end of the key
+    #             more_data[key[:-1]] = np.array(f[key])
+    #         if DEBUG: print(key.ljust(25), f[key][()])
+    #         cmd_metadata[key] = f[key][()]
+    #     if DEBUG: print()
+    #     joint_state_timestamps = np.array(f["timestamps"])
+    #     assert round(f['record_frequency'][()]) == freq
 
     # depth frames
     depth_frames = []
@@ -110,7 +138,7 @@ def make_combined_video(demo_number):
                 if DEBUG: print(key.ljust(25), f[key][()])
             if DEBUG: print()
             depth_timestamps.append(np.array(f["timestamps"]) / 1000)
-            assert round(f['record_frequency'][()]) == freq
+            # assert round(f['record_frequency'][()]) == freq
         depth_frames.append(x)
 
     # rgb frames
@@ -128,113 +156,182 @@ def make_combined_video(demo_number):
                     continue
                 if DEBUG: print(key.ljust(25), metadata[key])
             if DEBUG: print()
-            assert round(metadata['record_frequency']) == freq
+            # assert round(metadata['record_frequency']) == freq
         rgb_timestamps.append(np.array(metadata["timestamps"]) / 1000)
 
     # max_depth_value = max([np.max(x) for x in depth_frames]) * 0.5
     max_depth_value = np.percentile(np.concatenate([x.flatten() for x in depth_frames]), 98)  # get rid of outliers
 
-    print("Loading cartesion position data...")
-    fname = "franka_cartesian_states.h5"
-    with h5py.File(f"{demo_path}/{fname}", "r") as f:
-        cartesian_quats = np.array(f["orientations"])
-        cartesian_pos = np.array(f["positions"])
-        for key in f.keys():
-            if key in ["orientations", "positions", "timestamps"]:
-                continue
-            if DEBUG: print(key.ljust(25), f[key][()])
-        if DEBUG: print()
-        cartesian_timestamps = np.array(f["timestamps"])
-        assert round(f['record_frequency'][()]) == freq
-    num_cartesian_frames = cartesian_quats.shape[0]
+    output_data = {
+        "arm_action": [],
+        "gripper_action": [],
+        "gripper_state": [],
+        "eef_quat": [],
+        "eef_pos": [],
+        "eef_pose": [],
+        "joint_pos": [],
+        "rgb_frames": [],
+        "depth_frames": [],
+        "timestamp": [],
 
-    if DEBUG:
-        # Print number of frames for each component.
-        print("\nNumber of frames for each component:")
-        just_val = 17
-        for i in range(3):
-            print(f"rgb cam_{i}: ".ljust(just_val) , f"{rgb_frames[i].shape[0]}")
-            print(f"depth cam_{i}:".ljust(just_val) , f"{depth_frames[i].shape[0]}")
-        print("cartesian:".ljust(just_val), num_cartesian_frames)
-        print( "joint positions:".ljust(just_val), angles.shape[0], '\n')
-        print("gripper:".ljust(just_val), gripper_pos.shape[0])
-        print("tcp cmds:".ljust(just_val), tcp_cmds.shape[0])
+        # "controller_type"
+        # "controller_cfg"
+        # "index"
+    }
+    all_cams_started_time = np.max([x[0] for x in rgb_timestamps] + [x[0] for x in depth_timestamps])
+    cam_stopped = np.min([x[-1] for x in rgb_timestamps] + [x[-1] for x in depth_timestamps])
+    for i in tqdm(range(len(cmd_data['index'])), desc="Processing data..."):
+        if cmd_data['timestamp'][i] < all_cams_started_time or cmd_data['timestamp'][i] > cam_stopped:  # throws away the last frame but thats fine
+            continue
+        output_data["arm_action"].append(cmd_data['arm_action'][i])
+        output_data["gripper_action"].append(cmd_data['gripper_action'][i])
+        output_data["gripper_state"].append(cmd_data['gripper_state'][i])
+        output_data["eef_quat"].append(cmd_data['eef_quat'][i])
+        output_data["eef_pos"].append(cmd_data['eef_pos'][i])
+        output_data["eef_pose"].append(cmd_data['eef_pose'][i])
+        output_data["joint_pos"].append(cmd_data['joint_pos'][i])
+        output_data["timestamp"].append(cmd_data['timestamp'][i])
 
-    all_timestamps = (
-        rgb_timestamps
-        + depth_timestamps
-        + [cartesian_timestamps, joint_state_timestamps, gripper_timestamps, tcp_cmd_timestamps]
-        )
-    # to avoid referencing these old unchanged variables after changes are made to all_timestamps
-    del rgb_timestamps, depth_timestamps, cartesian_timestamps, joint_state_timestamps, gripper_timestamps
-    series_list = [
-        [rgb_frames[0]], # "rgb_timestamp_0":
-        [rgb_frames[1]], # "rgb_timestamp_1"
-        [rgb_frames[2]], # "rgb_timestamp_2"
-        [depth_frames[0]], # "depth_timestamp_0"
-        [depth_frames[1]], # "depth_timestamp_1"
-        [depth_frames[2]], # "depth_timestamp_2"
-        [cartesian_quats, cartesian_pos], # "cartesian_timestamps"
-        [angles] + [more_data[key] for key in more_data_keys], # "joint_state_timestamps"
-        [gripper_pos, gripper_cmd], # "gripper_state_timestamps"
-        [tcp_cmds], # "tcp_cmd_timestamps"
-    ]
-    assert len(series_list) == len(all_timestamps), "Number of series and timestamps must be the same"
+        # pick paired rgb and depth frames. Just pick the frame that comes immediately before the timestamp
+        curr_rgb_frames = []
+        curr_depth_frames = []
+        for j in range(3):
+            # pick the smallest value that is not negative
+            temp = cmd_data['timestamp'][i] - rgb_timestamps[j]
+            temp[temp < 0] = np.inf
+            idx = np.argmin(temp)
+            curr_rgb_frames.append(rgb_frames[j][idx])
+            temp = cmd_data['timestamp'][i] - depth_timestamps[j]
+            temp[temp < 0] = np.inf
+            idx = np.argmin(temp)
+            curr_depth_frames.append(depth_frames[j][idx])
+        output_data[f"rgb_frames"].append(curr_rgb_frames)
+        output_data[f"depth_frames"].append(curr_depth_frames)
 
-    # repair missing and duplicate timestamps.
-    num_missing = 0
-    num_duplicates = 0
-    for j, x in enumerate(all_timestamps):
-        missing_idcs = []
-        missing_tstamps = []
-        for i in range(1, len(x)):
-            if x[i] - x[i - 1] > 1 / freq * 1.5:  # if the gap is more than 1.5 times expected gap between frames, consider it missed
-                num_missing += 1
-                missing_idcs.append(i)
-                missing_tstamps.append((x[i] + x[i - 1]) / 2)  # missing tstamp will be avg of neighbors
-            elif x[i] == x[i - 1]:
-                num_duplicates += 1
-                x[i] += 1 / freq
-        all_timestamps[j] = np.insert(x, missing_idcs, missing_tstamps)
-        if missing_idcs:
-            for k, individual_series in enumerate(series_list[j]):
-                # fill missing datapoints with the previous value
-                series_list[j][k] = np.insert(
-                    individual_series,
-                    missing_idcs,
-                    [individual_series[l - 1] for l in missing_idcs],
-                    axis=0
-                    )
+    for k, v in output_data.items():
+        output_data[k] = np.array(v)
+    path = f"{demo_path}/demo_{demo_number}.pkl"
+    print(f"Saving processed data to {path}...")
+    with open(path, "wb") as f:
+        pkl.dump(output_data, f)
 
-    print(f"\nNumber of repaired missing timestamps: {num_missing}")
-    print(f"Number of repaired duplicate timestamps: {num_duplicates}")
-    assert num_missing < 50, "Many missing timestamps, consider rerecording demo"
-    assert num_duplicates < 50, "Many duplicate timestamps, consider rerecording demo"
-
-    # reassign cleaned data back to original variables
-    rgb_frames = [x[0] for x in series_list[:3]]
-    depth_frames = [x[0] for x in series_list[3:6]]
-    cartesian_quats = series_list[6][0]
-    cartesian_pos = series_list[6][1]
-    angles = series_list[7][0]
-    # cmds = series_list[7][1]
-    gripper_pos = series_list[8][0]
-    gripper_cmd = series_list[8][1]
-
-    more_data = {}
-    for i, key in enumerate(more_data_keys):  # reassign the more_data dict with cleaned data
-        more_data[key] = series_list[7][i + 1]
-    tcp_cmds = series_list[9][0]
+    # make video
+    frames_dir = f"{demo_path}/combined_frames"
+    if not os.path.exists(frames_dir):
+        os.makedirs(frames_dir)
+    else:
+        subprocess.run(f"rm -r {frames_dir}", shell=True)
+        os.makedirs(frames_dir)
 
 
-    start_idcs, end_idcs = tstamp_syncing(all_timestamps, demo_path, freq)
+    # print("Loading cartesion position data...")
+    # fname = "franka_cartesian_states.h5"
+    # with h5py.File(f"{demo_path}/{fname}", "r") as f:
+    #     cartesian_quats = np.array(f["orientations"])
+    #     cartesian_pos = np.array(f["positions"])
+    #     for key in f.keys():
+    #         if key in ["orientations", "positions", "timestamps"]:
+    #             continue
+    #         if DEBUG: print(key.ljust(25), f[key][()])
+    #     if DEBUG: print()
+    #     cartesian_timestamps = np.array(f["timestamps"])
+    #     assert round(f['record_frequency'][()]) == freq
+    # num_cartesian_frames = cartesian_quats.shape[0]
+
+    # if DEBUG:
+    #     # Print number of frames for each component.
+    #     print("\nNumber of frames for each component:")
+    #     just_val = 17
+    #     for i in range(3):
+    #         print(f"rgb cam_{i}: ".ljust(just_val) , f"{rgb_frames[i].shape[0]}")
+    #         print(f"depth cam_{i}:".ljust(just_val) , f"{depth_frames[i].shape[0]}")
+    #     # print("cartesian:".ljust(just_val), num_cartesian_frames)
+    #     # print( "joint positions:".ljust(just_val), angles.shape[0], '\n')
+    #     # print("gripper:".ljust(just_val), gripper_pos.shape[0])
+    #     # print("tcp cmds:".ljust(just_val), tcp_cmds.shape[0])
+
+    # all_timestamps = (
+    #     rgb_timestamps
+    #     + depth_timestamps
+    #     + [cartesian_timestamps, joint_state_timestamps, gripper_timestamps, tcp_cmd_timestamps]
+    #     )
+    # # to avoid referencing these old unchanged variables after changes are made to all_timestamps
+    # del rgb_timestamps, depth_timestamps, cartesian_timestamps, joint_state_timestamps, gripper_timestamps
+    # series_list = [
+    #     [rgb_frames[0]], # "rgb_timestamp_0":
+    #     [rgb_frames[1]], # "rgb_timestamp_1"
+    #     [rgb_frames[2]], # "rgb_timestamp_2"
+    #     [depth_frames[0]], # "depth_timestamp_0"
+    #     [depth_frames[1]], # "depth_timestamp_1"
+    #     [depth_frames[2]], # "depth_timestamp_2"
+    #     [cartesian_quats, cartesian_pos], # "cartesian_timestamps"
+    #     [angles] + [more_data[key] for key in more_data_keys], # "joint_state_timestamps"
+    #     [gripper_pos, gripper_cmd], # "gripper_state_timestamps"
+    #     [tcp_cmds], # "tcp_cmd_timestamps"
+    # ]
+    # assert len(series_list) == len(all_timestamps), "Number of series and timestamps must be the same"
+
+    # # repair missing and duplicate timestamps.
+    # num_missing = 0
+    # num_duplicates = 0
+    # for j, x in enumerate(all_timestamps):
+    #     missing_idcs = []
+    #     missing_tstamps = []
+    #     for i in range(1, len(x)):
+    #         if x[i] - x[i - 1] > 1 / freq * 1.5:  # if the gap is more than 1.5 times expected gap between frames, consider it missed
+    #             num_missing += 1
+    #             missing_idcs.append(i)
+    #             missing_tstamps.append((x[i] + x[i - 1]) / 2)  # missing tstamp will be avg of neighbors
+    #         elif x[i] == x[i - 1]:
+    #             num_duplicates += 1
+    #             x[i] += 1 / freq
+    #     all_timestamps[j] = np.insert(x, missing_idcs, missing_tstamps)
+    #     if missing_idcs:
+    #         for k, individual_series in enumerate(series_list[j]):
+    #             # fill missing datapoints with the previous value
+    #             series_list[j][k] = np.insert(
+    #                 individual_series,
+    #                 missing_idcs,
+    #                 [individual_series[l - 1] for l in missing_idcs],
+    #                 axis=0
+    #                 )
+
+    # print(f"\nNumber of repaired missing timestamps: {num_missing}")
+    # print(f"Number of repaired duplicate timestamps: {num_duplicates}")
+
+    # # skip bad files
+    # if num_missing > 50 or num_duplicates > 50:
+    #     print("Skipping bad files...")
+    #     return
+    # assert num_missing < 50, "Many missing timestamps, consider rerecording demo"
+    # assert num_duplicates < 50, "Many duplicate timestamps, consider rerecording demo"
+
+    # # reassign cleaned data back to original variables
+    # rgb_frames = [x[0] for x in series_list[:3]]
+    # depth_frames = [x[0] for x in series_list[3:6]]
+    # cartesian_quats = series_list[6][0]
+    # cartesian_pos = series_list[6][1]
+    # angles = series_list[7][0]
+    # # cmds = series_list[7][1]
+    # gripper_pos = series_list[8][0]
+    # gripper_cmd = series_list[8][1]
+
+    # more_data = {}
+    # for i, key in enumerate(more_data_keys):  # reassign the more_data dict with cleaned data
+    #     more_data[key] = series_list[7][i + 1]
+    # tcp_cmds = series_list[9][0]
+
+
+    # start_idcs, end_idcs = tstamp_syncing(all_timestamps, demo_path, freq)
 
     joint_futures = []
     cartesian_futures = []
     workers = 8
-    num_frames = end_idcs[0] - start_idcs[0]
+    num_frames = len(output_data["timestamp"])
+    print(f"Total number of final frames in demo: {num_frames}")
 
-    print("\nGenerating joint state plots and cartesian plots...\n")
+    # print("\nGenerating joint state plots and cartesian plots...\n")
+    print("\nGenerating joint state plots...\n")
     # split the range up into equal parts equal to the number of workers
     with ProcessPoolExecutor(max_workers=workers) as executor:
         chunk_size = num_frames // (workers - 1)
@@ -244,44 +341,44 @@ def make_combined_video(demo_number):
             end = (i + 1) * chunk_size
             joint_futures.append(executor.submit(
                 make_joint_state_plots,
-                angles[start_idcs[7]: end_idcs[7]],
-                more_data["q_d"][start_idcs[7]: end_idcs[7]],
-                gripper_pos[start_idcs[8]: end_idcs[8]],
-                gripper_cmd[start_idcs[8]: end_idcs[8]],
+                output_data["joint_pos"],
+                # more_data["q_d"][start_idcs[7]: end_idcs[7]],
+                output_data["gripper_state"],
+                output_data["gripper_action"],
                 np.arange(start, end)
                 ))
-            cartesian_futures.append(executor.submit(
-                make_cartesian_frame,
-                cartesian_pos[start_idcs[6] + start: start_idcs[6] + end],
-                cartesian_quats[start_idcs[6] + start: start_idcs[6] + end],
-                ))
+            # cartesian_futures.append(executor.submit(
+            #     make_cartesian_frame,
+            #     output_data["eef_pos"][start: end],
+            #     output_data["eef_quat"][start: end],
+            #     ))
         if remainder > 0:
             # add the remainder
             joint_futures.append(executor.submit(
                 make_joint_state_plots,
-                angles[start_idcs[7]: end_idcs[7]],
-                more_data["q_d"][start_idcs[7]: end_idcs[7]],
-                gripper_pos[start_idcs[8]: end_idcs[8]],
-                gripper_cmd[start_idcs[8]: end_idcs[8]],
+                output_data["joint_pos"],
+                # more_data["q_d"][start_idcs[7]: end_idcs[7]],
+                output_data["gripper_state"],
+                output_data["gripper_action"],
                 np.arange(end, num_frames)
                 ))
-            cartesian_futures.append(executor.submit(
-                make_cartesian_frame,
-                cartesian_pos[start_idcs[6] + end: end_idcs[6]],
-                cartesian_quats[start_idcs[6] + end: end_idcs[6]],
-                ))
+            # cartesian_futures.append(executor.submit(
+            #     make_cartesian_frame,
+            #     output_data["eef_pos"][end:],
+            #     output_data["eef_quat"][end:],
+            #     ))
 
         joint_state_plots = []
         cartesian_frames = []
         for future in joint_futures: # needs to be in order
             joint_state_plots.extend(future.result())
-        for future in cartesian_futures:
-            cartesian_frames.extend(future.result())
+        # for future in cartesian_futures:
+        #     cartesian_frames.extend(future.result())
 
 
-    idcs = []
-    for i in range(8):
-        idcs.append(range(start_idcs[i], end_idcs[i]))
+    # idcs = []
+    # for i in range(8):
+    #     idcs.append(range(start_idcs[i], end_idcs[i]))
 
     # clear and recreate frames dir
     frames_dir = f"{demo_path}/combined_frames"
@@ -298,9 +395,9 @@ def make_combined_video(demo_number):
 
             futures.append(executor.submit(
                 make_combined_frame,
-                [depth_frames[0][idcs[3][i]], depth_frames[1][idcs[4][i]], depth_frames[2][idcs[5][i]]],
-                [rgb_frames[0][idcs[0][i]], rgb_frames[1][idcs[1][i]], rgb_frames[2][idcs[2][i]]],
-                cartesian_frames[i],
+                [output_data["depth_frames"][i, 0], output_data["depth_frames"][i, 1], output_data["depth_frames"][i, 2]],
+                [output_data["rgb_frames"][i, 0], output_data["rgb_frames"][i, 1], output_data["rgb_frames"][i, 2]],
+                None,  # cartesian_frames[i],
                 joint_state_plots[i],
                 i,
                 max_depth_value,
@@ -314,136 +411,136 @@ def make_combined_video(demo_number):
     # compile video
     compile_video(f"demo_{demo_number}", frames_dir, demo_path)
 
-    # save all processed data to a .pkl file
-    data = {
-        "franka_tcp_cmds": tcp_cmds[start_idcs[9]: end_idcs[9]],
-        "depth_imgs": [x[start_idcs[i]: end_idcs[i]] for i, x in zip([3, 4, 6], depth_frames)],
-        "rgb_imgs": [x[start_idcs[i]: end_idcs[i]] for i, x in zip([0, 1, 2], rgb_frames)],
-        "eef_pos": cartesian_pos[start_idcs[6]: end_idcs[6]],
-        "eef_quat": cartesian_quats[start_idcs[6]: end_idcs[6]],
-        "joint_angles": angles[start_idcs[7]: end_idcs[7]],
-        "gripper_state": gripper_pos[start_idcs[8]: end_idcs[8]],
-        "gripper_cmd": gripper_cmd[start_idcs[8]: end_idcs[8]],
-        # "arm_cmd": cmds[start_idcs[7]: end_idcs[7]],
-        "cmd_metadata": cmd_metadata,
-        "timestamps": all_timestamps[0][start_idcs[0]: end_idcs[0]],  # arbitrary choice of zero-idx timestamps
-        }
-    for key, val in more_data.items():
-        data[key] = val[start_idcs[7]: end_idcs[7]]
-    for key, val in data.items():
-        if isinstance(val, list):
-            for x in val:
-                assert len(x) == num_frames, f"Length of {key} is {len(x)} but should be {num_frames}"
-        elif isinstance(val, dict):
-            continue
-        else:
-            assert len(val) == num_frames, f"Length of {key} is {len(val)} but should be {num_frames}"
-    print()
-    print("Saving processed data to .pkl file...")
-    with open(f"{demo_path}/demo_{demo_number}.pkl", "wb") as f:
-        pkl.dump(data, f)
+    # # save all processed data to a .pkl file
+    # data = {
+    #     "franka_tcp_cmds": tcp_cmds[start_idcs[9]: end_idcs[9]],
+    #     "depth_imgs": [x[start_idcs[i]: end_idcs[i]] for i, x in zip([3, 4, 6], depth_frames)],
+    #     "rgb_imgs": [x[start_idcs[i]: end_idcs[i]] for i, x in zip([0, 1, 2], rgb_frames)],
+    #     "eef_pos": cartesian_pos[start_idcs[6]: end_idcs[6]],
+    #     "eef_quat": cartesian_quats[start_idcs[6]: end_idcs[6]],
+    #     "joint_angles": angles[start_idcs[7]: end_idcs[7]],
+    #     "gripper_state": gripper_pos[start_idcs[8]: end_idcs[8]],
+    #     "gripper_cmd": gripper_cmd[start_idcs[8]: end_idcs[8]],
+    #     # "arm_cmd": cmds[start_idcs[7]: end_idcs[7]],
+    #     "cmd_metadata": cmd_metadata,
+    #     "timestamps": all_timestamps[0][start_idcs[0]: end_idcs[0]],  # arbitrary choice of zero-idx timestamps
+    #     }
+    # for key, val in more_data.items():
+    #     data[key] = val[start_idcs[7]: end_idcs[7]]
+    # for key, val in data.items():
+    #     if isinstance(val, list):
+    #         for x in val:
+    #             assert len(x) == num_frames, f"Length of {key} is {len(x)} but should be {num_frames}"
+    #     elif isinstance(val, dict):
+    #         continue
+    #     else:
+    #         assert len(val) == num_frames, f"Length of {key} is {len(val)} but should be {num_frames}"
+    # print()
+    # print("Saving processed data to .pkl file...")
+    # with open(f"{demo_path}/demo_{demo_number}.pkl", "wb") as f:
+    #     pkl.dump(data, f)
 
 
-def tstamp_syncing(all_tstamps, demo_path, freq):
-    """This is some spaghetti but it works. Likely there is a clever or
-    established way to do this.
-    """
+# def tstamp_syncing(all_tstamps, demo_path, freq):
+#     """This is some spaghetti but it works. Likely there is a clever or
+#     established way to do this.
+#     """
 
-    # ref idx should be shortest series
-    lens = [len(x) for x in all_tstamps]
-    ref = lens.index(min(lens))
-    ref_len = len(all_tstamps[ref])
-    min_shifts = []
-    start_idcs = []
-    end_idcs = []
-    min_errors = []
-    labels = ["rgb0", "rgb1", "rgb2", "depth0", "depth1", "depth2", "cartesian", "joint_state", "gripper_state", "arm_tcp_cmd"]
-    assert len(all_tstamps) == len(labels), "Number of timestamps and labels must be the same"
-    # if DEBUG: plot_timestamps(all_tstamps, labels, demo_path)  # This command throws errors about multithreading and X server, can also just cause machine to freeze. But it also sometimes works ¯\_(ツ)_/¯
-    # plot_timestamps(all_tstamps, labels, demo_path); sys.exit()
-    for counter, x in enumerate(all_tstamps):
-        min_error = float("inf")
-        # compute average error
-        min_length = min(ref_len, len(x))
-        test_shifts = [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5, 6, -6, 7, -7, 8, -8]
-        for shift in test_shifts:
+#     # ref idx should be shortest series
+#     lens = [len(x) for x in all_tstamps]
+#     ref = lens.index(min(lens))
+#     ref_len = len(all_tstamps[ref])
+#     min_shifts = []
+#     start_idcs = []
+#     end_idcs = []
+#     min_errors = []
+#     labels = ["rgb0", "rgb1", "rgb2", "depth0", "depth1", "depth2", "cartesian", "joint_state", "gripper_state", "arm_tcp_cmd"]
+#     assert len(all_tstamps) == len(labels), "Number of timestamps and labels must be the same"
+#     # if DEBUG: plot_timestamps(all_tstamps, labels, demo_path)  # This command throws errors about multithreading and X server, can also just cause machine to freeze. But it also sometimes works ¯\_(ツ)_/¯
+#     # plot_timestamps(all_tstamps, labels, demo_path); sys.exit()
+#     for counter, x in enumerate(all_tstamps):
+#         min_error = float("inf")
+#         # compute average error
+#         min_length = min(ref_len, len(x))
+#         test_shifts = [0, 1, -1, 2, -2, 3, -3, 4, -4, 5, -5, 6, -6, 7, -7, 8, -8]
+#         for shift in test_shifts:
 
-            if shift > 0:
-                # positive shift means the series ends before the reference series
-                err = get_err(x[len(x) - min_length + shift: ],
-                               all_tstamps[ref][ref_len - min_length: -shift])
-                start_idx = len(x) - min_length + shift
-                end_idx = len(x)
-            elif shift < 0:
-                err = get_err(x[len(x) - min_length: shift],
-                              all_tstamps[ref][ref_len - min_length - shift:])
-                start_idx = len(x) - min_length
-                end_idx = len(x) + shift
-            else:
-                err = get_err(x[len(x) - min_length: ],
-                               all_tstamps[ref][ref_len - min_length:])
-                start_idx = len(x) - min_length
-                end_idx = len(x)
+#             if shift > 0:
+#                 # positive shift means the series ends before the reference series
+#                 err = get_err(x[len(x) - min_length + shift: ],
+#                                all_tstamps[ref][ref_len - min_length: -shift])
+#                 start_idx = len(x) - min_length + shift
+#                 end_idx = len(x)
+#             elif shift < 0:
+#                 err = get_err(x[len(x) - min_length: shift],
+#                               all_tstamps[ref][ref_len - min_length - shift:])
+#                 start_idx = len(x) - min_length
+#                 end_idx = len(x) + shift
+#             else:
+#                 err = get_err(x[len(x) - min_length: ],
+#                                all_tstamps[ref][ref_len - min_length:])
+#                 start_idx = len(x) - min_length
+#                 end_idx = len(x)
 
-            if err < min_error:
-                min_error = err
-                min_shift = shift
-        if DEBUG:
-            # print avg max and min time diff
-            print(labels[counter])
-            print("avg_time_diff:", np.mean(np.diff(x)))
-            print("max_time_diff:", np.max(np.diff(x)))
-            print("min_time_diff:", np.min(np.diff(x)))
-            print()
-        min_shifts.append(min_shift)
-        start_idcs.append(start_idx)
-        end_idcs.append(end_idx)
-        min_errors.append(min_error)
-        try:
-            assert min_error < 1 / freq * 0.75, f"Error is too large: {min_error} for {labels[counter]}"
-        except AssertionError as e:
-            print(e)
-            breakpoint()
-    for i in range(len(all_tstamps)):
-        assert start_idcs[i] >= 0
-        assert end_idcs[i] > 0
-        assert end_idcs[i] - start_idcs[i] > 0
+#             if err < min_error:
+#                 min_error = err
+#                 min_shift = shift
+#         if DEBUG:
+#             # print avg max and min time diff
+#             print(labels[counter])
+#             print("avg_time_diff:", np.mean(np.diff(x)))
+#             print("max_time_diff:", np.max(np.diff(x)))
+#             print("min_time_diff:", np.min(np.diff(x)))
+#             print()
+#         min_shifts.append(min_shift)
+#         start_idcs.append(start_idx)
+#         end_idcs.append(end_idx)
+#         min_errors.append(min_error)
+#         try:
+#             assert min_error < 1 / freq * 0.75, f"Error is too large: {min_error} for {labels[counter]}"
+#         except AssertionError as e:
+#             print(e)
+#             breakpoint()
+#     for i in range(len(all_tstamps)):
+#         assert start_idcs[i] >= 0
+#         assert end_idcs[i] > 0
+#         assert end_idcs[i] - start_idcs[i] > 0
 
-    # the difference between the shift and the largest positive shift (max shift) needs to be subtracted from the end idx
-    # then, simply truncate the series from the start so that they are all the same length
-    max_shift = max(min_shifts)
-    for i in range(len(all_tstamps)):
-        shift_diff = max_shift - min_shifts[i]
-        assert shift_diff >= 0
-        end_idcs[i] -= shift_diff
+#     # the difference between the shift and the largest positive shift (max shift) needs to be subtracted from the end idx
+#     # then, simply truncate the series from the start so that they are all the same length
+#     max_shift = max(min_shifts)
+#     for i in range(len(all_tstamps)):
+#         shift_diff = max_shift - min_shifts[i]
+#         assert shift_diff >= 0
+#         end_idcs[i] -= shift_diff
 
-    # find the shortest series
-    min_len = float('inf')
-    for i in range(len(all_tstamps)):
-        length = end_idcs[i] - start_idcs[i]
-        if length < min_len:
-            min_len = length
-            # min_len_idx = i
+#     # find the shortest series
+#     min_len = float('inf')
+#     for i in range(len(all_tstamps)):
+#         length = end_idcs[i] - start_idcs[i]
+#         if length < min_len:
+#             min_len = length
+#             # min_len_idx = i
 
-    for i in range(len(all_tstamps)):
-        start_idcs[i] = end_idcs[i] - min_len
+#     for i in range(len(all_tstamps)):
+#         start_idcs[i] = end_idcs[i] - min_len
 
-    if DEBUG:
-        for i in range(len(all_tstamps)):
-            print(labels[i])
-            print("min shift:", min_shifts[i])
-            print("min error:", min_errors[i])
-            print("start idx:", start_idcs[i])
-            print("end idx:", end_idcs[i])
-            print("final_length:", end_idcs[i] - start_idcs[i])
-            print()
+#     if DEBUG:
+#         for i in range(len(all_tstamps)):
+#             print(labels[i])
+#             print("min shift:", min_shifts[i])
+#             print("min error:", min_errors[i])
+#             print("start idx:", start_idcs[i])
+#             print("end idx:", end_idcs[i])
+#             print("final_length:", end_idcs[i] - start_idcs[i])
+#             print()
 
-        # do final checks on error
-        for i in range(len(all_tstamps)):
-            err = get_err(all_tstamps[i][start_idcs[i]: end_idcs[i]],
-                        all_tstamps[ref][start_idcs[ref]: end_idcs[ref]])
-            print((labels[i] + "error: ").ljust(25), err)
-    return start_idcs, end_idcs
+#         # do final checks on error
+#         for i in range(len(all_tstamps)):
+#             err = get_err(all_tstamps[i][start_idcs[i]: end_idcs[i]],
+#                         all_tstamps[ref][start_idcs[ref]: end_idcs[ref]])
+#             print((labels[i] + "error: ").ljust(25), err)
+#     return start_idcs, end_idcs
 
 
 def get_err(a, b):
@@ -522,7 +619,7 @@ def make_combined_frame(depth_frames, rgb_frames, cartesian_frames, joint_state_
         frame[0:360, j*640:(j+1)*640] = x[:, :, ::-1]
 
     # add cartesian frames
-    frame[360*2:, :640] = (cartesian_frames[:, :, :3]).astype(np.uint8)
+    # frame[360*2:, :640] = (cartesian_frames[:, :, :3]).astype(np.uint8)
 
     # add joint state_frame
     frame[360*2:, 640:] = (joint_state_plot[..., :3]).astype(np.uint8)
@@ -531,7 +628,8 @@ def make_combined_frame(depth_frames, rgb_frames, cartesian_frames, joint_state_
     plt.imsave(f"{frames_dir}/frame_{i:03d}.png", frame)
 
 
-def make_joint_state_plots(angles, q_d, gripper_pos, gripper_cmd, idcs):
+# def make_joint_state_plots(angles, q_d, gripper_pos, gripper_cmd, idcs):
+def make_joint_state_plots(angles, gripper_pos, gripper_cmd, idcs):
     # make 2 x 4 subplots for 7 joints. Figure size should have a height of 480 and width of 1280. Return fig as an np array.
     # make dir joint_state_plots
     joint_state_plots = []
@@ -547,7 +645,7 @@ def make_joint_state_plots(angles, q_d, gripper_pos, gripper_cmd, idcs):
             ax.set_title(f"Gripper", antialiased=True)
         else:
             ax.plot(angles[:, i], antialiased=True)
-            ax.plot(q_d[:, i], antialiased=True)
+            # ax.plot(q_d[:, i], antialiased=True)
             ax.set_title(f"Joint {i+1}", antialiased=True)
         ax.grid()
         # draw a vertical red line corresponding to the timestep
@@ -555,7 +653,8 @@ def make_joint_state_plots(angles, q_d, gripper_pos, gripper_cmd, idcs):
     plt.tight_layout()
     # Convert the plot to a NumPy array
     # make a super legend for the whole figure: ["actual", "commanded"]
-    fig.legend(["pos", "cmd pos"], loc='upper right')
+    # fig.legend(["pos", "cmd pos"], loc='upper right')
+    fig.legend(["pos"], loc='upper right')
     canvas.draw()
     image = np.frombuffer(canvas.tostring_rgb(), dtype='uint8')
     image = image.reshape(canvas.get_width_height()[::-1] + (3,))

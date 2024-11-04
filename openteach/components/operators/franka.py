@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import zmq
+import time
 
 from mpl_toolkits.mplot3d import Axes3D
 from tqdm import tqdm
@@ -11,14 +12,53 @@ from openteach.utils.timer import FrequencyTimer
 from openteach.utils.network import ZMQKeypointSubscriber, ZMQKeypointPublisher
 from openteach.utils.vectorops import *
 from openteach.utils.files import *
-from openteach.robot.franka import FrankaArm
+# from openteach.robot.franka import FrankaArm
 from scipy.spatial.transform import Rotation, Slerp
 from .operator import Operator
 import random
 
+from deoxys.franka_interface import FrankaInterface
+from deoxys.utils import transform_utils
+from deoxys.utils.config_utils import YamlConfig
+from deoxys.utils.config_utils import verify_controller_config
+
+
 import pickle as pkl
 
+CONTROLLER_TYPE = "OSC_POSE"
+CONFIG_ROOT = '/home/ripl/openteach/configs'
+CONFIG_NUC_ROOT = '/home/ripl/openteachcontrollers/src/franka-arm-controllers/franka_arm/configs'
 
+RESPONSE_TIMEOUT = 7
+
+CONTROL_FREQ = 60
+STATE_FREQ = 200
+
+ROTATION_VELOCITY_LIMIT = 0.5 # 1
+TRANSLATION_VELOCITY_LIMIT = 0.1 # 2
+
+# ROTATIONAL_POSE_VELOCITY_SCALE = 1 # 2 # Scales to be used when we're using cartesian_movement
+# TRANSLATIONAL_POSE_VELOCITY_SCALE = 1 # 10
+
+VELOCITY_MOVE_STEPS = 1 # For now this will be 1
+POSITION_MOVE_STEPS = 30
+POSITION_HOME_STEPS = 30
+
+def get_velocity_controller_config(config_root):
+    controller_cfg = YamlConfig(
+        os.path.join(config_root, "osc-pose-controller-velocity.yml")
+    ).as_easydict()
+    controller_cfg = verify_controller_config(controller_cfg)
+
+    return controller_cfg
+
+def get_position_controller_config(config_root):
+    controller_cfg = YamlConfig(
+        os.path.join(config_root, "osc-pose-controller-position.yml")
+    ).as_easydict()
+    controller_cfg = verify_controller_config(controller_cfg)
+
+    return controller_cfg
 
 np.set_printoptions(precision=2, suppress=True)
 # Filter to smooth out the arm cartesian state
@@ -60,9 +100,24 @@ class FrankaArmOperator(Operator):
             topic='transformed_hand_frame'
         )
 
+        self.deoxys_obs_cmd_history = {}
+        self.robot_interface = FrankaInterface(
+                os.path.join(CONFIG_ROOT, 'deoxys.yml'), use_visualizer=False,
+                control_freq=CONTROL_FREQ,
+                state_freq=STATE_FREQ
+            )
+        self.velocity_controller_cfg = get_velocity_controller_config(
+            config_root = CONFIG_ROOT
+        )
+        print("\nvelocity controller config", self.velocity_controller_cfg)
+
+        self.position_controller_cfg = get_position_controller_config(
+            config_root = CONFIG_ROOT
+        )
+
         # Initalizing the robot controller
-        self._robot = FrankaArm()
-        self.resolution_scale = 1 # NOTE: Get this from a socket
+        # self._robot = FrankaArm()
+        # self.resolution_scale = 1 # NOTE: Get this from a socket
         self.arm_teleop_state = ARM_TELEOP_STOP # We will start as the cont
 
         # Subscribers for the resolution scale and teleop state
@@ -78,7 +133,7 @@ class FrankaArmOperator(Operator):
             topic = 'pause'
         )
         # Robot Initial Frame
-        self.robot_init_H = self.robot.get_pose()['position']
+        self.robot_init_H = self.robot_interface.last_eef_pose
         self.is_first_frame = True
 
         self.use_filter = use_filter
@@ -95,9 +150,9 @@ class FrankaArmOperator(Operator):
     def timer(self):
         return self._timer
 
-    @property
-    def robot(self):
-        return self._robot
+    # @property
+    # def robot(self):
+    #     return self._robot
 
     @property
     def transformed_hand_keypoint_subscriber(self):
@@ -158,7 +213,7 @@ class FrankaArmOperator(Operator):
         unscaled_cart_pose = self._homo2cart(moving_robot_homo_mat)
 
         # Get the current cart pose
-        current_homo_mat = copy(self.robot.get_pose()['position'])
+        current_homo_mat = copy(self.robot_interface.last_eef_pose)
         current_cart_pose = self._homo2cart(current_homo_mat)
 
         # Get the difference in translation between these two cart poses
@@ -176,7 +231,7 @@ class FrankaArmOperator(Operator):
     def _reset_teleop(self):
         # Just updates the beginning position of the arm
         print('****** RESETTING TELEOP ****** ')
-        self.robot_init_H = self.robot.get_pose()['position']
+        self.robot_init_H = self.robot_interface.last_eef_pose
         first_hand_frame = self._get_hand_frame()
         while first_hand_frame is None:
             first_hand_frame = self._get_hand_frame()
@@ -196,12 +251,12 @@ class FrankaArmOperator(Operator):
             moving_hand_frame = self._get_hand_frame() # Should get the hand frame
         self.arm_teleop_state = new_arm_teleop_state
 
-        # Get the arm resolution
-        arm_teleoperation_scale_mode = self._get_resolution_scale_mode()
-        if arm_teleoperation_scale_mode == ARM_HIGH_RESOLUTION:
-            self.resolution_scale = 1
-        elif arm_teleoperation_scale_mode == ARM_LOW_RESOLUTION:
-            self.resolution_scale = 0.6
+        # # Get the arm resolution
+        # arm_teleoperation_scale_mode = self._get_resolution_scale_mode()
+        # if arm_teleoperation_scale_mode == ARM_HIGH_RESOLUTION:
+        #     self.resolution_scale = 1
+        # elif arm_teleoperation_scale_mode == ARM_LOW_RESOLUTION:
+        #     self.resolution_scale = 0.6
 
         if moving_hand_frame is None:
             return # It means we are not on the arm mode yet instead of blocking it is directly returning
@@ -223,28 +278,88 @@ class FrankaArmOperator(Operator):
 
         H_HT_HI = np.linalg.pinv(H_HI_HH) @ H_HT_HH # Homo matrix that takes P_HT to P_HI
         H_RT_RH = H_RI_RH @ H_A_R @ H_HT_HI @ np.linalg.pinv(H_A_R) # Homo matrix that takes P_RT to P_RH
-        self.robot_moving_H = copy(H_RT_RH)
+        # self.robot_moving_H = copy(H_RT_RH)
 
         # Use the resolution scale to get the final cart pose
-        final_pose = self._get_scaled_cart_pose(self.robot_moving_H)
+        # final_pose = self._get_scaled_cart_pose(self.robot_moving_H)
+        final_pose = self._homo2cart(copy(H_RT_RH))
         # Use a Filter
-        if self.use_filter:
-            final_pose = self.comp_filter(final_pose)
+        # if self.use_filter:
+        #     final_pose = self.comp_filter(final_pose)
         # Move the robot arm
 
         ## Add Gripper control. Gripper cmd should be in [-1, 1]
         gripper_cmd = self.get_gripper_state_from_hand_keypoints()
         # self.robot.set_gripper_state(gripper_cmd)
-        self.robot.arm_control(final_pose, gripper_cmd=gripper_cmd)
+        # self.robot.arm_control(final_pose, gripper_cmd=gripper_cmd)
+        self.arm_control(final_pose, gripper_cmd)
+
+    def arm_control(self, cartesian_pose, gripper_cmd):
+        cartesian_pose = np.array(cartesian_pose, dtype=np.float32)
+        target_pos, target_quat = cartesian_pose[:3], cartesian_pose[3:]
+        target_mat = transform_utils.pose2mat(pose=(target_pos, target_quat))
+
+        current_quat, current_pos = self.robot_interface.last_eef_quat_and_pos
+        current_mat = transform_utils.pose2mat(pose=(current_pos.flatten(), current_quat.flatten()))
+
+        pose_error = transform_utils.get_pose_error(target_pose=target_mat, current_pose=current_mat)
+
+        if np.dot(target_quat, current_quat) < 0.0:
+            current_quat = -current_quat
+        quat_diff = transform_utils.quat_distance(target_quat, current_quat)
+        axis_angle_diff = transform_utils.quat2axisangle(quat_diff)
+
+        action_pos = pose_error[:3]
+        action_axis_angle = axis_angle_diff.flatten()
+
+        action_pos, _ = transform_utils.clip_translation(action_pos, TRANSLATION_VELOCITY_LIMIT)
+        action_axis_angle = np.clip(action_axis_angle, -ROTATION_VELOCITY_LIMIT, ROTATION_VELOCITY_LIMIT)
+        action = action_pos.tolist() + action_axis_angle.tolist()
+
+        if not self.deoxys_obs_cmd_history:
+            self.deoxys_obs_cmd_history = {
+                'cartesian_pose_cmd': [cartesian_pose],
+                'arm_action': [action],
+                'gripper_action': [gripper_cmd],
+                'gripper_state': [self.robot_interface.last_gripper_q],
+                'eef_quat': [current_quat],
+                'eef_pos': [current_pos],
+                'eef_pose': [current_mat],
+                'joint_pos': [self.robot_interface.last_q],
+                'controller_type': CONTROLLER_TYPE,
+                'controller_cfg': self.velocity_controller_cfg,
+                'timestamp': [time.time()],
+                'index': [0],
+            }
+        else:
+            self.deoxys_obs_cmd_history['cartesian_pose_cmd'].append(cartesian_pose)
+            self.deoxys_obs_cmd_history['arm_action'].append(action)
+            self.deoxys_obs_cmd_history['gripper_action'].append(gripper_cmd)
+            self.deoxys_obs_cmd_history['gripper_state'].append(self.robot_interface.last_gripper_q)
+            self.deoxys_obs_cmd_history['eef_quat'].append(current_quat)
+            self.deoxys_obs_cmd_history['eef_pos'].append(current_pos)
+            self.deoxys_obs_cmd_history['eef_pose'].append(current_mat)
+            self.deoxys_obs_cmd_history['joint_pos'].append(self.robot_interface.last_q)
+            self.deoxys_obs_cmd_history['timestamp'].append(time.time())
+            self.deoxys_obs_cmd_history['index'].append(len(self.deoxys_obs_cmd_history['index']))
+
+        self.robot_interface.control(
+            controller_type=CONTROLLER_TYPE,
+            action=action,
+            controller_cfg=self.velocity_controller_cfg,
+        )
+
+        if gripper_cmd is not None:
+            self.robot_interface.gripper_control(gripper_cmd)
 
     def stream(self):
-        self.notify_component_start('{} control'.format(self.robot.name))
+        self.notify_component_start('franka control')
         print("Start controlling the robot hand using the Oculus Headset.\n")
 
         # Assume that the initial position is considered initial after 3 seconds of the start
         while True:
             try:
-                if self.robot.get_joint_position() is not None:
+                if self.robot_interface.last_eef_pose is not None:
                     self.timer.start_loop()
 
                     # Retargeting function
@@ -256,7 +371,8 @@ class FrankaArmOperator(Operator):
                     path = os.path.join(os.getcwd(), 'extracted_data', f'deoxys_obs_cmd_history_{self.record}.pkl')
                     print('Saving the deoxys_obs_cmd_history to {}'.format(path))
                     with open(path, 'wb') as f:
-                        pkl.dump(self.robot._controller.franka.deoxys_obs_cmd_history, f)
+                        pkl.dump(self.deoxys_obs_cmd_history, f)
+                        # pkl.dump(self.robot._controller.franka.deoxys_obs_cmd_history, f)
                 break
 
         self.transformed_arm_keypoint_subscriber.stop()
@@ -273,7 +389,7 @@ class FrankaArmOperator(Operator):
         distance = np.linalg.norm(transformed_hand_coords[OCULUS_JOINTS['ring'][-1]]- transformed_hand_coords[OCULUS_JOINTS['thumb'][-1]])
         thresh = 0.05
         if self.gripper_state is None:
-            self.gripper_state = self._robot.get_gripper_state()['position'] > 0.07
+            self.gripper_state = self.robot_interface.last_gripper_q > 0.07
         if distance < thresh and not self.below_thresh:
             # print random 4 digit number to check if the function is being called
             # print("distance less than thresh", random.randint(1000,9999))

@@ -33,10 +33,10 @@ sleep 0.25
 
 xdotool key ctrl+Tab
 sleep 0.25
-xdotool type 'conda activate openteach && roslaunch franka_arm franka_arm.launch'
-sleep 0.25
-xdotool key Return
-sleep 0.25
+# xdotool type 'conda activate openteach && roslaunch franka_arm franka_arm.launch'
+# sleep 0.25
+# xdotool key Return
+# sleep 0.25
 
 xdotool key ctrl+shift+o
 sleep 0.25

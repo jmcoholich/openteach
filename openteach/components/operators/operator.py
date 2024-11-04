@@ -8,11 +8,11 @@ class Operator(Component, ABC):
     def timer(self):
         return self._timer
 
-    # This function is used to create the robot
-    @property
-    @abstractmethod
-    def robot(self):
-        return self._robot
+    # # This function is used to create the robot
+    # @property
+    # @abstractmethod
+    # def robot(self):
+    #     return self._robot
 
     # This function is the subscriber for the hand keypoints
     @property

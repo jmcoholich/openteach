@@ -1,0 +1,35 @@
+ARM_LOGGER:
+  CONSOLE:
+    LEVEL: info
+    LOGGER_NAME: arm_logger
+    USE: true
+  FILE:
+    LEVEL: debug
+    LOGGER_NAME: logs/deoxys_control_arm_program.log
+    USE: true
+CONTROL:
+  POLICY_RATE: 20
+  STATE_PUBLISHER_RATE: 100
+  TRAJ_RATE: 500
+  ZMQ_NOBLOCK: true
+GRIPPER_LOGGER:
+  CONSOLE:
+    LEVEL: info
+    LOGGER_NAME: gripper_logger
+    USE: true
+  FILE:
+    LEVEL: debug
+    LOGGER_NAME: logs/deoxys_control_gripper_program.log
+    USE: true
+NUC:
+  NAME: "ripl-nuc"
+  IP: 172.16.0.3
+  PUB_PORT: 5556
+  SUB_PORT:  5555
+  GRIPPER_PUB_PORT: 5558
+  GRIPPER_SUB_PORT: 5557
+PC:
+  IP: 172.16.0.1
+  NAME: ripl-d3
+ROBOT:
+  IP: 172.16.0.2

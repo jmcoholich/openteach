@@ -34,7 +34,7 @@ OCULUS_VIEW_LIMITS = {
     'z_limits': [-0.04, 0.04]
 }
 
-VR_FREQ = 60
+VR_FREQ = 15
 BIMANUAL_VR_FREQ = 90
 LIBERO_FREQ = 20
 

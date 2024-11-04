@@ -68,7 +68,6 @@ def make_combined_video(folder, demo_number):
     path = os.path.join(root_folder, f"deoxys_obs_cmd_history_{demo_number}.pkl")
     with open(path, "rb") as f:
         cmd_data = pkl.load(f)
-        breakpoint()
 
 
     # print("Loading logged tcp commands...")

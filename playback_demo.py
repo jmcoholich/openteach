@@ -33,37 +33,67 @@ from scipy.spatial.transform import Rotation as R
 import os
 import time
 from openteach.utils.timer import FrequencyTimer
+from easydict import EasyDict
 
 parser = argparse.ArgumentParser()
 parser.add_argument("demo", type=str, help="The name of the demonstration to visualize")
 
+DEFAULT_CONTROLLER = EasyDict({
+    'controller_type': 'OSC_POSE',
+    'is_delta': True,
+    'traj_interpolator_cfg': {
+        'traj_interpolator_type': 'LINEAR_POSE',
+        'time_fraction': 0.3
+    },
+    'Kp': {
+        'translation': [250.0, 250.0, 250.0],
+        'rotation': [250.0, 250.0, 250.0]
+    },
+    'action_scale': {
+        'translation': 0.5,
+        'rotation': 1.0
+    },
+    'residual_mass_vec': [0.0, 0.0, 0.0, 0.0, 0.1, 0.5, 0.5],
+    'state_estimator_cfg': {
+        'is_estimation': False,
+        'state_estimator_type': 'EXPONENTIAL_SMOOTHING',
+        'alpha_q': 0.9,
+        'alpha_dq': 0.9,
+        'alpha_eef': 1.0,
+        'alpha_eef_vel': 1.0
+    }
+})
 
-def vectquat2axisangle(quat):
-    """
-    Converts quaternion to axis-angle format.
-    Returns a unit vector direction scaled by its angle in radians.
+# def vectquat2axisangle(quat):
+#     """
+#     Converts quaternion to axis-angle format.
+#     Returns a unit vector direction scaled by its angle in radians.
 
-    Args:
-        quat (np.array): (N, 4) vec4 float angles in (x,y,z,w) format
+#     Args:
+#         quat (np.array): (N, 4) vec4 float angles in (x,y,z,w) format
 
-    Returns:
-        np.array: (N, 3) axis-angle exponential coordinates in (ax,ay,az) format
-    """
-    # clip quaternion
-    quat[:, 3] = np.clip(quat[:, 3], -1.0, 1.0)
+#     Returns:
+#         np.array: (N, 3) axis-angle exponential coordinates in (ax,ay,az) format
+#     """
+#     # clip quaternion
+#     quat[:, 3] = np.clip(quat[:, 3], -1.0, 1.0)
 
 
-    den = np.sqrt(1.0 - quat[:, 3] * quat[:, 3])
+#     den = np.sqrt(1.0 - quat[:, 3] * quat[:, 3])
 
-    mask = np.isclose(den, 0.0)
+#     mask = np.isclose(den, 0.0)
 
-    rpy = (quat[:, :3] * 2.0 * np.arccos(quat[:, 3])[:, None]) / den[:, None]
-    rpy[mask] = np.zeros(3)
+#     rpy = (quat[:, :3] * 2.0 * np.arccos(quat[:, 3])[:, None]) / den[:, None]
+#     rpy[mask] = np.zeros(3)
 
-    return rpy
+#     return rpy
 
-def dataloader(args):
-    franka_controller = FrankaController(record=False, control_freq=60)
+def replay_from_rlds(args):
+    robot_interface = FrankaInterface(
+        os.path.join('/home/ripl/openteach/configs', 'deoxys.yml'), use_visualizer=False,
+        control_freq=60,
+        state_freq=200
+    )
     reset_joint_positions = [
             0.09162008114028396,
             -0.19826458111314524,
@@ -73,46 +103,31 @@ def dataloader(args):
             2.30396583422025,
             0.8480939705504309,
         ]
-
-    # Initialize robot
-    # logger = get_deoxys_example_logger()  # logger for debugging
-    # robot_interface = FrankaInterface("/home/ripl/deoxys_control/deoxys/config/charmander.yml", use_visualizer=False)  # hardcoded path to config file, probably should change
-    # controller_type = "OSC_POSE"  # controls end effector in 6 dimensions, need to use serpeate controller for gripper
-    # controller_cfg = get_default_controller_config(controller_type=controller_type)
-
+    reset_joints_to(robot_interface, reset_joint_positions)
 
     # Load demonstration data
     sys.path.append("/home/ripl/rlds_dataset_builder")
     # ds = tfds.load("franka_pick_coke_single", split='train')
     ds = tfds.load("franka_pick_coke", split='train')
 
-    # move robot to start position
-    reset_joints_to(franka_controller.robot_interface, reset_joint_positions)
-
-    for episode in ds.take(2):
-        for i, st in enumerate(episode['steps']):
+    timer = FrequencyTimer(15)
+    for episode in ds.take(1):
+        for st in episode['steps']:
+            timer.start_loop()
             deltas = st['action'].numpy()  # the action are deltas for (x, y, z, r, p, y, gripper)
-            deltas[-1] = -1 if deltas[-1] == 0 else 1  # binarize gripper actions
-            # curr_pos, curr_quat = franka_controller.get_cartesian_position()
-            curr_pos, curr_quat = rlds_state2pos_quat(st['observation']['state'].numpy())
-            eef_pos = curr_pos.reshape((3,)) + deltas[:3]
-            curr_rot_mat = quat2mat(curr_quat)
-            delta_rot_mat = euler2mat(deltas[3:6])
-            target_rot_mat = delta_rot_mat @ curr_rot_mat
-            eef_quat = mat2quat(target_rot_mat)
+            # convert rpy to exponential axis-angle
+            deltas[3:6] = quat2axisangle(mat2quat(euler2mat(deltas[3:6])))
 
-            cartesian_pose = np.concatenate((eef_pos, eef_quat))
-            franka_controller.cartesian_control(cartesian_pose)
-            franka_controller.set_gripper_position(deltas[-1])
-            time.sleep(1.0/15)
+            robot_interface.control(
+                    controller_type='OSC_POSE',
+                    action=deltas[:6],
+                    controller_cfg=DEFAULT_CONTROLLER,
+                )
+            robot_interface.gripper_control(deltas[6])
+            timer.end_loop()
 
 
-def rlds_state2pos_quat(state):
-    rpy = state[3:6]
-    return state[:3], mat2quat(euler2mat(rpy))
-
-
-def main(args):
+def replay_from_pkl(args):
     home = os.path.expanduser("~")
     # Load demonstration data
     filename = f"{home}/openteach/extracted_data/demonstration_{args.demo}/demo_{args.demo}.pkl"
@@ -142,5 +157,5 @@ def main(args):
 
 if __name__ == "__main__":
     args = parser.parse_args()
-    main(args)
-    # dataloader(args)
+    # replay_from_pkl(args)
+    replay_from_rlds(args)

@@ -33,6 +33,11 @@ sleep 0.25
 
 xdotool key ctrl+Tab
 sleep 0.25
+xdotool type 'conda activate openteach'
+sleep 0.25
+xdotool key Return
+sleep 0.25
+
 # xdotool type 'conda activate openteach && roslaunch franka_arm franka_arm.launch'
 # sleep 0.25
 # xdotool key Return
@@ -79,6 +84,20 @@ sleep 0.25
 xdotool key Return
 sleep 0.25
 xdotool type 'python data_collect.py robot=franka demo_num='
+
+# control shift tab twice
+xdotool key ctrl+shift+Tab
+sleep 0.25
+xdotool key ctrl+shift+Tab
+sleep 0.25
+xdotool key ctrl+shift+o
+sleep 0.25
+xdotool type 'conda activate openteach && cd ~/openteach'
+sleep 0.25
+xdotool key Return
+sleep 0.25
+xdotool type 'python reset_gripper.py'
+
 
 
 

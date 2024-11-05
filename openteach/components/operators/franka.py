@@ -27,9 +27,6 @@ import pickle as pkl
 
 CONTROLLER_TYPE = "OSC_POSE"
 CONFIG_ROOT = '/home/ripl/openteach/configs'
-CONFIG_NUC_ROOT = '/home/ripl/openteachcontrollers/src/franka-arm-controllers/franka_arm/configs'
-
-RESPONSE_TIMEOUT = 7
 
 CONTROL_FREQ = 60
 STATE_FREQ = 200
@@ -37,12 +34,6 @@ STATE_FREQ = 200
 ROTATION_VELOCITY_LIMIT = 0.5 # 1
 TRANSLATION_VELOCITY_LIMIT = 0.1 # 2
 
-# ROTATIONAL_POSE_VELOCITY_SCALE = 1 # 2 # Scales to be used when we're using cartesian_movement
-# TRANSLATIONAL_POSE_VELOCITY_SCALE = 1 # 10
-
-VELOCITY_MOVE_STEPS = 1 # For now this will be 1
-POSITION_MOVE_STEPS = 30
-POSITION_HOME_STEPS = 30
 
 def get_velocity_controller_config(config_root):
     controller_cfg = YamlConfig(

@@ -380,7 +380,7 @@ class FrankaArmOperator(Operator):
         distance = np.linalg.norm(transformed_hand_coords[OCULUS_JOINTS['ring'][-1]]- transformed_hand_coords[OCULUS_JOINTS['thumb'][-1]])
         thresh = 0.05
         if self.gripper_state is None:
-            self.gripper_state = self.robot_interface.last_gripper_q > 0.07
+            self.gripper_state = not (self.robot_interface.last_gripper_q > 0.07)
         if distance < thresh and not self.below_thresh:
             # print random 4 digit number to check if the function is being called
             # print("distance less than thresh", random.randint(1000,9999))

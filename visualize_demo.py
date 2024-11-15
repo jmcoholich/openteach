@@ -45,7 +45,12 @@ def main():
         if not os.path.exists(data_root):
             raise FileNotFoundError(f"Folder {data_root} does not exist. Please check the folder name and try again.")
         for file in os.listdir(data_root):
+            if file.endswith(".pkl"):
+                continue
             demo_number = file.split("_")[-1].split(".")[0]
+            if os.path.exists(os.path.join(data_root, file, f"demo_{demo_number}.pkl")):
+                print(f"Demo {demo_number} already processed. Skipping...")
+                continue
             make_combined_video(args.demo_folder, demo_number)
 
     else:
@@ -65,7 +70,7 @@ def make_combined_video(folder, demo_number):
     # freq = 15.0
 
     print('loading observations and commands ...')
-    path = os.path.join(root_folder, f"deoxys_obs_cmd_history_{demo_number}.pkl")
+    path = os.path.join(root_folder, folder, f"deoxys_obs_cmd_history_{demo_number}.pkl")
     with open(path, "rb") as f:
         cmd_data = pkl.load(f)
 

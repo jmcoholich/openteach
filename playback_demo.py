@@ -34,6 +34,7 @@ import os
 import time
 from openteach.utils.timer import FrequencyTimer
 from easydict import EasyDict
+from matplotlib import pyplot as plt
 
 parser = argparse.ArgumentParser()
 parser.add_argument("demo", type=str, help="The name of the demonstration to visualize")
@@ -64,34 +65,10 @@ DEFAULT_CONTROLLER = EasyDict({
     }
 })
 
-# def vectquat2axisangle(quat):
-#     """
-#     Converts quaternion to axis-angle format.
-#     Returns a unit vector direction scaled by its angle in radians.
-
-#     Args:
-#         quat (np.array): (N, 4) vec4 float angles in (x,y,z,w) format
-
-#     Returns:
-#         np.array: (N, 3) axis-angle exponential coordinates in (ax,ay,az) format
-#     """
-#     # clip quaternion
-#     quat[:, 3] = np.clip(quat[:, 3], -1.0, 1.0)
-
-
-#     den = np.sqrt(1.0 - quat[:, 3] * quat[:, 3])
-
-#     mask = np.isclose(den, 0.0)
-
-#     rpy = (quat[:, :3] * 2.0 * np.arccos(quat[:, 3])[:, None]) / den[:, None]
-#     rpy[mask] = np.zeros(3)
-
-#     return rpy
-
 def replay_from_rlds(args):
     robot_interface = FrankaInterface(
         os.path.join('/home/ripl/openteach/configs', 'deoxys.yml'), use_visualizer=False,
-        control_freq=60,
+        control_freq=1,
         state_freq=200
     )
     reset_joint_positions = [
@@ -110,21 +87,27 @@ def replay_from_rlds(args):
     # ds = tfds.load("franka_pick_coke_single", split='train')
     ds = tfds.load("franka_pick_coke", split='train')
 
-    timer = FrequencyTimer(15)
+    # timer = FrequencyTimer(15)
     for episode in ds.take(1):
         for st in episode['steps']:
-            timer.start_loop()
+            # breakpoint()
+            # timer.start_loop()
             deltas = st['action'].numpy()  # the action are deltas for (x, y, z, r, p, y, gripper)
+            cv2.imshow("image", st['observation']['image'].numpy()[:, :, ::-1])  # convert to BGR for cv2
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
             # convert rpy to exponential axis-angle
             deltas[3:6] = quat2axisangle(mat2quat(euler2mat(deltas[3:6])))
-
+            print(deltas)
             robot_interface.control(
                     controller_type='OSC_POSE',
                     action=deltas[:6],
                     controller_cfg=DEFAULT_CONTROLLER,
                 )
             robot_interface.gripper_control(deltas[6])
-            timer.end_loop()
+            # timer.end_loop()
+
 
 
 def replay_from_pkl(args):
@@ -134,17 +117,27 @@ def replay_from_pkl(args):
     # arm_cmd_file = f"/home/ripl/openteach/extracted_data/pick_coke/demonstration_coke18/franka_arm_tcp_commands.h5"
     with open(filename, 'rb') as dbfile:
         db = pkl.load(dbfile)
+    # breakpoint()
+
+    # images = []
+    # for i in db['rgb_frames'][:, 2]: # grab from the right camera
+    #     images.append(i[:, :, ::-1])
+    # image_strip = np.concatenate(db['rgb_frames'][:,2][::4], axis=1)
+    # plt.figure()
+    # plt.imshow(image_strip)
+    # plt.show()
+    # breakpoint()
     robot_interface = FrankaInterface(
         os.path.join('/home/ripl/openteach/configs', 'deoxys.yml'), use_visualizer=False,
-        control_freq=60,
+        control_freq=15,  # setting control frequency here so we don't have to handle it with a timer
         state_freq=200
     )
-    timer = FrequencyTimer(15)
+    # timer = FrequencyTimer(15)
 
     # move robot to start position
     reset_joints_to(robot_interface, db['joint_pos'][0])
     for i in range(0, len(db["arm_action"])):
-        timer.start_loop()
+        # timer.start_loop()
         robot_interface.control(
                 controller_type=db["controller_type"],
                 action=db["arm_action"][i],
@@ -152,7 +145,7 @@ def replay_from_pkl(args):
             )
 
         robot_interface.gripper_control(db["gripper_action"][i])
-        timer.end_loop()
+        # timer.end_loop()
 
 
 if __name__ == "__main__":

@@ -61,8 +61,10 @@ def make_combined_video(folder, demo_number):
     root_folder = f"{os.path.expanduser('~')}/openteach/extracted_data"
     if folder is None:
         demo_path = os.path.join(root_folder, f"demonstration_{demo_number}")
+        cmds_path = os.path.join(root_folder, f"deoxys_obs_cmd_history_{demo_number}.pkl")
     else:
         demo_path = os.path.join(root_folder, f"{folder}/demonstration_{demo_number}")
+        cmds_path = os.path.join(root_folder, folder, f"deoxys_obs_cmd_history_{demo_number}.pkl")
     print(demo_path)
     depth_timestamps = []
     rgb_timestamps = []
@@ -70,8 +72,7 @@ def make_combined_video(folder, demo_number):
     # freq = 15.0
 
     print('loading observations and commands ...')
-    path = os.path.join(root_folder, folder, f"deoxys_obs_cmd_history_{demo_number}.pkl")
-    with open(path, "rb") as f:
+    with open(cmds_path, "rb") as f:
         cmd_data = pkl.load(f)
 
 

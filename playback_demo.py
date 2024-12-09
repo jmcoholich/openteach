@@ -65,10 +65,36 @@ DEFAULT_CONTROLLER = EasyDict({
     }
 })
 
+CMD_ACTION_CONTROLLER = EasyDict({
+    'controller_type': 'OSC_POSE',
+    'is_delta': False,
+    'traj_interpolator_cfg': {
+        'traj_interpolator_type': 'LINEAR_POSE',
+        'time_fraction': 0.3
+    },
+    'Kp': {
+        'translation': [250.0, 250.0, 250.0],
+        'rotation': [250.0, 250.0, 250.0]
+    },
+    'action_scale': {
+        'translation': 1.0,
+        'rotation': 1.0
+    },
+    'residual_mass_vec': [0.0, 0.0, 0.0, 0.0, 0.1, 0.5, 0.5],
+    'state_estimator_cfg': {
+        'is_estimation': False,
+        'state_estimator_type': 'EXPONENTIAL_SMOOTHING',
+        'alpha_q': 0.9,
+        'alpha_dq': 0.9,
+        'alpha_eef': 1.0,
+        'alpha_eef_vel': 1.0
+    }
+})
+
 def replay_from_rlds(args):
     robot_interface = FrankaInterface(
         os.path.join('/home/ripl/openteach/configs', 'deoxys.yml'), use_visualizer=False,
-        control_freq=1,
+        control_freq=5,
         state_freq=200
     )
     reset_joint_positions = [
@@ -85,7 +111,7 @@ def replay_from_rlds(args):
     # Load demonstration data
     sys.path.append("/home/ripl/rlds_dataset_builder")
     # ds = tfds.load("franka_pick_coke_single", split='train')
-    ds = tfds.load("franka_pick_coke", split='train')
+    ds = tfds.load("franka_pick_coke_single", split='train')
 
     # timer = FrequencyTimer(15)
     for episode in ds.take(1):
@@ -113,7 +139,7 @@ def replay_from_rlds(args):
 def replay_from_pkl(args):
     home = os.path.expanduser("~")
     # Load demonstration data
-    filename = f"{home}/openteach/extracted_data/demonstration_{args.demo}/demo_{args.demo}.pkl"
+    filename = f"{home}/openteach/extracted_data/_5Hz_Demos/demonstration_{args.demo}/demo_{args.demo}.pkl"
     # arm_cmd_file = f"/home/ripl/openteach/extracted_data/pick_coke/demonstration_coke18/franka_arm_tcp_commands.h5"
     with open(filename, 'rb') as dbfile:
         db = pkl.load(dbfile)
@@ -121,15 +147,19 @@ def replay_from_pkl(args):
 
     # images = []
     # for i in db['rgb_frames'][:, 2]: # grab from the right camera
-    #     images.append(i[:, :, ::-1])
-    # image_strip = np.concatenate(db['rgb_frames'][:,2][::4], axis=1)
+    #     images.append(cv2.cvtColor(i, cv2.COLOR_BGR2RGB))
+    #     cv2.imshow("Camera", i)  # convert back to BGR for cv2
+    #     if cv2.waitKey(30) & 0xFF == ord('q'):
+    #         break
+    # cv2.destroyAllWindows()
+    # image_strip = np.concatenate(images[::4], axis=1)
     # plt.figure()
     # plt.imshow(image_strip)
     # plt.show()
     # breakpoint()
     robot_interface = FrankaInterface(
         os.path.join('/home/ripl/openteach/configs', 'deoxys.yml'), use_visualizer=False,
-        control_freq=15,  # setting control frequency here so we don't have to handle it with a timer
+        control_freq=1,  # setting control frequency here so we don't have to handle it with a timer
         state_freq=200
     )
     # timer = FrequencyTimer(15)
@@ -138,10 +168,19 @@ def replay_from_pkl(args):
     reset_joints_to(robot_interface, db['joint_pos'][0])
     for i in range(0, len(db["arm_action"])):
         # timer.start_loop()
+        # breakpoint()
+        # absolute action
+        target_pos, target_quat = db['cartesian_pose_cmd'][i][:3], db['cartesian_pose_cmd'][i][3:]
+        target_axis_angle = quat2axisangle(target_quat)
+        action = np.concatenate([target_pos, target_axis_angle])
+
+        # relative action
+        # deltas = db["arm_action"][i]
+        # deltas[3:6] = quat2axisangle(mat2quat(euler2mat(deltas[3:6])))
         robot_interface.control(
                 controller_type=db["controller_type"],
-                action=db["arm_action"][i],
-                controller_cfg=db["controller_cfg"],
+                action=action,
+                controller_cfg=CMD_ACTION_CONTROLLER,
             )
 
         robot_interface.gripper_control(db["gripper_action"][i])
@@ -150,5 +189,5 @@ def replay_from_pkl(args):
 
 if __name__ == "__main__":
     args = parser.parse_args()
-    # replay_from_pkl(args)
-    replay_from_rlds(args)
+    replay_from_pkl(args)
+    # replay_from_rlds(args)

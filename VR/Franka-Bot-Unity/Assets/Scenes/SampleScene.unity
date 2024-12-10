@@ -2958,7 +2958,7 @@ MonoBehaviour:
           m_IntArgument: 0
           m_FloatArgument: 0
           m_StringArgument: 
-          m_BoolArgument: 1
+          m_BoolArgument: 0
         m_CallState: 2
       - m_Target: {fileID: 223974226}
         m_TargetAssemblyTypeName: UnityEngine.GameObject, UnityEngine
@@ -7239,6 +7239,7 @@ MonoBehaviour:
     camPortNum: 
     graphPortNum: 
     resolutionPortNum: 
+    PausePortNum: 
   IPDisplay: {fileID: 1457199017}
 --- !u!4 &1197026217
 Transform:

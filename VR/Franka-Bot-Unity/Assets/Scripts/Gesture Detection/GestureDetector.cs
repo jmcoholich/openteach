@@ -68,9 +68,14 @@ class GestureDetector : MonoBehaviour
     private bool resolutioncreated = false;
     private bool PauseCreated = false;
 
+    // Controller tracking
+    private PushSocket ControllerClient;
+    private string controllerCommunicationAddress;
+    private bool controllerConnectionEstablished = false;
+
     // Starting the server connection
     public void CreateTCPConnection()
-     {
+    {
         // Check if communication address is available
         communicationAddress = netConfig.getKeypointAddress();
         bool AddressAvailable = !String.Equals(communicationAddress, "tcp://:");
@@ -95,7 +100,21 @@ class GestureDetector : MonoBehaviour
         }
     }
 
-   
+    public void CreateControllerTCPConnection()
+    {
+        // Check if communication address is available
+        controllerCommunicationAddress = netConfig.getControllerAddress();
+        bool AddressAvailable = !String.Equals(controllerCommunicationAddress, "tcp://:");
+
+        if (AddressAvailable)
+        {
+            // Initiate Push Socket
+            ControllerClient = new PushSocket();
+            ControllerClient.Connect(controllerCommunicationAddress);
+            controllerConnectionEstablished = true;
+            ControllerClient.SendFrame("Controller Init");
+        }
+    }   
 
    
 
@@ -454,6 +473,7 @@ class GestureDetector : MonoBehaviour
             
             SendResolution();
             SendResetStatus();
+            ControllerClient.SendFrame("CONTROLLER");
             if (String.Equals(communicationAddress, netConfig.getKeypointAddress()))
             {   
 
@@ -495,10 +515,25 @@ class GestureDetector : MonoBehaviour
             StreamBorder.color = Color.red;
             ToggleMenuButton(true);
             //ToggleResolutionButton(false);
-            CreateTCPConnection();
-            
-            
+            CreateTCPConnection();        
         }
         //SendResolution();
+
+        // Controller tracking
+        if (false)
+        {   
+            if (String.Equals(controllerCommunicationAddress, netConfig.getControllerAddress()))
+            {   
+                ControllerClient.SendFrame("CONTROLLER");
+            }
+            else
+            {
+                controllerConnectionEstablished = false;
+            }
+        
+        } else
+        {
+            CreateControllerTCPConnection();       
+        }
     }
 }

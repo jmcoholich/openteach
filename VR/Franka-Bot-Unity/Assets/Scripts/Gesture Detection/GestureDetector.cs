@@ -467,13 +467,30 @@ class GestureDetector : MonoBehaviour
 
     void Update()
     {
+        // Controller tracking
+        if (controllerConnectionEstablished)
+        {
+            if (String.Equals(controllerCommunicationAddress, netConfig.getControllerAddress()))
+            {   
+                ControllerClient.SendFrame("CONTROLLER");
+            }
+            else
+            {
+                controllerConnectionEstablished = false;
+            }
+        
+        } else
+        {
+            CreateControllerTCPConnection();
+        }
+
+        // Hand Tracking
         if (connectionEstablished)
         
         {   
             
             SendResolution();
             SendResetStatus();
-            ControllerClient.SendFrame("CONTROLLER");
             if (String.Equals(communicationAddress, netConfig.getKeypointAddress()))
             {   
 
@@ -518,22 +535,5 @@ class GestureDetector : MonoBehaviour
             CreateTCPConnection();        
         }
         //SendResolution();
-
-        // Controller tracking
-        if (false)
-        {   
-            if (String.Equals(controllerCommunicationAddress, netConfig.getControllerAddress()))
-            {   
-                ControllerClient.SendFrame("CONTROLLER");
-            }
-            else
-            {
-                controllerConnectionEstablished = false;
-            }
-        
-        } else
-        {
-            CreateControllerTCPConnection();       
-        }
     }
 }

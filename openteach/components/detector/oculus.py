@@ -5,12 +5,15 @@ from openteach.utils.network import create_pull_socket, ZMQKeypointPublisher, ZM
 
 
 class OculusVRHandDetector(Component):
-    def __init__(self, host, oculus_port, keypoint_pub_port, button_port,button_publish_port,teleop_reset_port, teleop_reset_publish_port):
+    def __init__(self, host, oculus_port, keypoint_pub_port, button_port,button_publish_port,teleop_reset_port, teleop_reset_publish_port, controller_port):
         self.notify_component_start('vr detector')
         # Initializing the network socket for getting the raw right hand keypoints
         self.raw_keypoint_socket = create_pull_socket(host, oculus_port)
         self.button_keypoint_socket = create_pull_socket(host, button_port)
         self.teleop_reset_socket = create_pull_socket(host, teleop_reset_port)
+
+        # initializing the network socket for getting controller inputs
+        self.controller_input_socket = create_pull_socket(host, controller_port)
 
         # ZMQ Keypoint publisher
         self.hand_keypoint_publisher = ZMQKeypointPublisher(
@@ -77,10 +80,14 @@ class OculusVRHandDetector(Component):
                 self.timer.start_loop()
                 # Getting the raw keypoints
                 raw_keypoints = self.raw_keypoint_socket.recv()
+                print(raw_keypoints)
                 # Getting the button feedback
                 button_feedback = self.button_keypoint_socket.recv()
                 # Getting the Teleop Reset Status
                 pause_status = self.teleop_reset_socket.recv()
+                # Getting the Controller Inputs
+                controller_input = self.controller_input_socket.recv()
+                print(controller_input)
                 # Analyzing the resolution based on Button Feedback
                 if button_feedback==b'Low':
                     button_feedback_num = ARM_LOW_RESOLUTION
@@ -93,6 +100,7 @@ class OculusVRHandDetector(Component):
                     pause_status = ARM_TELEOP_CONT
                 # Processing the keypoints and publishing them
                 keypoint_dict = self._extract_data_from_token(raw_keypoints)
+                # print(keypoint_dict)
                 # Publish Data
                 self._publish_data(keypoint_dict)
                 # Publish Button Data
@@ -101,9 +109,11 @@ class OculusVRHandDetector(Component):
                 self._publish_pause_data(pause_status)
                 self.timer.end_loop()
             except:
+                print("ERROR")
                 break
 
         self.raw_keypoint_socket.close()
+        self.controller_input_socket.close()
         self.hand_keypoint_publisher.stop()
 
         print('Stopping the oculus keypoint extraction process.')

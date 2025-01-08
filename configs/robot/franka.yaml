@@ -10,6 +10,7 @@ detector:
   button_publish_port: ${resolution_button_publish_port}
   teleop_reset_port: ${teleop_reset_port}
   teleop_reset_publish_port: ${teleop_reset_publish_port}
+  controller_port: ${controller_port}
 
 # Transformation classes used to transform the keypoints
 transforms:

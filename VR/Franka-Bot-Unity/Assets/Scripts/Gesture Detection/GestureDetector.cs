@@ -52,7 +52,6 @@ class GestureDetector : MonoBehaviour
     private PushSocket client2;
     private PushSocket client3;
     private string communicationAddress;
-    private string ResolutionAddress;
 
     private string PauseAddress;
 
@@ -60,12 +59,10 @@ class GestureDetector : MonoBehaviour
     private string pauseState;
     private bool connectionEstablished = false;
 
-    private bool resolutionconnectionEstablished = false;
 
     private bool ShouldContinueArmTeleop = false;
 
     private bool PauseEstablished = false;
-    private bool resolutioncreated = false;
     private bool PauseCreated = false;
 
     // Controller tracking
@@ -194,11 +191,6 @@ class GestureDetector : MonoBehaviour
 
     public void SendResetStatus()
     {
-       
-        //printf("Address available", Address)
-       
-        // client2.SendFrame("None");
-        // byte[] recievedToken = client2.ReceiveFrameBytes();
         PauseAddress = netConfig.getPauseAddress();
         bool PauseAvailable = !String.Equals(PauseAddress, "tcp://:");
 
@@ -303,30 +295,54 @@ class GestureDetector : MonoBehaviour
         }
     }
 
-    void Update()
+
+    public void SendGripStatus()
     {
         // Controller tracking
         if (controllerConnectionEstablished)
         {
             if (String.Equals(controllerCommunicationAddress, netConfig.getControllerAddress()))
             {   
-                ControllerClient.SendFrame("CONTROLLER");
-            }
-            else
-            {
+                if (OVRInput.Get(OVRInput.RawButton.RIndexTrigger)) 
+                {
+                    ControllerClient.SendFrame("True");
+                } else {
+                    ControllerClient.SendFrame("False");
+                }
+            } else {
                 controllerConnectionEstablished = false;
             }
         
-        } else
-        {
+        } else {
             CreateControllerTCPConnection();
         }
+    }
+
+    void Update()
+    {
+        // Controller tracking
+        // if (controllerConnectionEstablished)
+        // {
+        //     if (String.Equals(controllerCommunicationAddress, netConfig.getControllerAddress()))
+        //     {   
+        //         ControllerClient.SendFrame("CONTROLLER");
+        //     }
+        //     else
+        //     {
+        //         controllerConnectionEstablished = false;
+        //     }
+        
+        // } else
+        // {
+        //     CreateControllerTCPConnection();
+        // }
 
         // Hand Tracking
         if (connectionEstablished)
         
         {   
             SendResetStatus();
+            SendGripStatus();
             if (String.Equals(communicationAddress, netConfig.getKeypointAddress()))
             {   
 

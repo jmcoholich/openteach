@@ -9,7 +9,7 @@ class OculusVRHandDetector(Component):
         self.notify_component_start('vr detector')
         # Initializing the network socket for getting the raw right hand keypoints
         self.raw_keypoint_socket = create_pull_socket(host, oculus_port)
-        self.button_keypoint_socket = create_pull_socket(host, button_port)
+        # self.button_keypoint_socket = create_pull_socket(host, button_port)
         self.teleop_reset_socket = create_pull_socket(host, teleop_reset_port)
 
         # initializing the network socket for getting controller inputs
@@ -22,10 +22,10 @@ class OculusVRHandDetector(Component):
         )
 
         # Socket For Resolution Button
-        self.button_socket_publisher = ZMQKeypointPublisher(
-            host =host,
-            port =button_publish_port
-        )
+        # self.button_socket_publisher = ZMQKeypointPublisher(
+        #     host =host,
+        #     port =button_publish_port
+        # )
         # Socket For Teleop Reset
         self.pause_info_publisher = ZMQKeypointPublisher(
             host =host,
@@ -82,17 +82,17 @@ class OculusVRHandDetector(Component):
                 raw_keypoints = self.raw_keypoint_socket.recv()
                 print(raw_keypoints)
                 # Getting the button feedback
-                button_feedback = self.button_keypoint_socket.recv()
+                # button_feedback = self.button_keypoint_socket.recv()
                 # Getting the Teleop Reset Status
                 pause_status = self.teleop_reset_socket.recv()
                 # Getting the Controller Inputs
                 controller_input = self.controller_input_socket.recv()
                 print(controller_input)
                 # Analyzing the resolution based on Button Feedback
-                if button_feedback==b'Low':
-                    button_feedback_num = ARM_LOW_RESOLUTION
-                else:
-                    button_feedback_num = ARM_HIGH_RESOLUTION
+                # if button_feedback==b'Low':
+                #     button_feedback_num = ARM_LOW_RESOLUTION
+                # else:
+                #     button_feedback_num = ARM_HIGH_RESOLUTION
                 # Analyzing the Teleop Reset Status
                 if pause_status==b'Low':
                     pause_status = ARM_TELEOP_STOP
@@ -104,7 +104,7 @@ class OculusVRHandDetector(Component):
                 # Publish Data
                 self._publish_data(keypoint_dict)
                 # Publish Button Data
-                self._publish_button_data(button_feedback_num)
+                # self._publish_button_data(button_feedback_num)
                 # Publish Pause Data
                 self._publish_pause_data(pause_status)
                 self.timer.end_loop()

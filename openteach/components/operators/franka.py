@@ -137,6 +137,10 @@ class FrankaArmOperator(Operator):
         self.gripper_state = None
         self.below_thresh = False
 
+        # Controller Tracking
+        self.last_remote_pose = None
+
+
     @property
     def timer(self):
         return self._timer
@@ -289,13 +293,21 @@ class FrankaArmOperator(Operator):
         # See if there is a reset in the teleop
         new_arm_teleop_state = self._get_arm_teleop_state()
         if self.is_first_frame or (self.arm_teleop_state == ARM_TELEOP_STOP and new_arm_teleop_state == ARM_TELEOP_CONT):
-            moving_hand_frame = self._reset_teleop() # Should get the moving hand frame only once
+            # initialize
+            self.last_remote_pose = self._get_remote_pose()
+            return
         else:
-            moving_hand_frame = self._get_hand_frame() # Should get the hand frame
-        self.arm_teleop_state = new_arm_teleop_state
+            current_remote_pose = self._get_remote_pose()
+            delta = current_remote_pose - self.last_remote_pose
+            self.last_remote_pose = current_remote_pose
+
+        print(delta)
+
 
         # final_pose needs to be in the form of [x, y, z, qx, qy, qz, qw]
-        #
+        # store last remote pose
+        # calculate delta
+        # apply delta to robot
         # self.arm_control(final_pose, gripper_cmd)
 
     def arm_control(self, cartesian_pose, gripper_cmd):
@@ -367,7 +379,8 @@ class FrankaArmOperator(Operator):
                     self.timer.start_loop()
 
                     # Retargeting function
-                    self._apply_retargeted_angles(log=False)
+                    # self._apply_retargeted_angles(log=False)
+                    self._controller_tracking()
 
                     self.timer.end_loop()
             except KeyboardInterrupt:

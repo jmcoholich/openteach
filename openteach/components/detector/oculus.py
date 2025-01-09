@@ -5,21 +5,28 @@ from openteach.utils.network import create_pull_socket, ZMQKeypointPublisher, ZM
 
 
 class OculusVRHandDetector(Component):
-    def __init__(self, host, oculus_port, keypoint_pub_port, teleop_reset_port, teleop_reset_publish_port, controller_port):
+    def __init__(self, host, oculus_port, keypoint_pub_port, teleop_reset_port, teleop_reset_publish_port,
+                 remote_port):
         self.notify_component_start('vr detector')
         # Initializing the network socket for getting the raw right hand keypoints
-        self.raw_keypoint_socket = create_pull_socket(host, oculus_port)
+        # self.raw_keypoint_socket = create_pull_socket(host, oculus_port)
         # self.button_keypoint_socket = create_pull_socket(host, button_port)
         self.teleop_reset_socket = create_pull_socket(host, teleop_reset_port)
 
         # initializing the network socket for getting controller inputs
-        self.controller_input_socket = create_pull_socket(host, controller_port)
+        self.remote_socket = create_pull_socket(host, remote_port)
+        # self.trigger_socket = create_pull_socket(host, trigger_port)
 
-        # ZMQ Keypoint publisher
-        self.hand_keypoint_publisher = ZMQKeypointPublisher(
-            host = host,
-            port = keypoint_pub_port
-        )
+        # ZMQ publishers
+        # self.remote_pose_publisher = ZMQKeypointPublisher(
+        #     host = host,
+        #     port = remote_pose_publish_port
+        # )
+
+        # self.trigger_publisher = ZMQKeypointPublisher(
+        #     host = host,
+        #     port = trigger_publish_port
+        # )
 
         # Socket For Teleop Reset
         self.pause_info_publisher = ZMQKeypointPublisher(
@@ -68,21 +75,42 @@ class OculusVRHandDetector(Component):
             topic_name = 'pause'
         )
 
+    # Function to Publish the Remote Pose
+    def _publish_remote_pose(self,remote_pose):
+        self.remote_pose_publisher.pub_keypoints(
+            keypoint_array = remote_pose,
+            topic_name = 'remote_pose'
+        )
+
+    # Function to Publish the Trigger Status
+    def _publish_trigger(self,trigger):
+        self.trigger_publisher.pub_keypoints(
+            keypoint_array = trigger,
+            topic_name = 'trigger'
+        )
+
     # Function to Stream the Keypoints
     def stream(self):
         while True:
             try:
                 self.timer.start_loop()
                 # Getting the raw keypoints
-                raw_keypoints = self.raw_keypoint_socket.recv()
-                print(raw_keypoints)
+                # raw_keypoints = self.raw_keypoint_socket.recv()
+                # print(raw_keypoints)
                 # Getting the button feedback
                 # button_feedback = self.button_keypoint_socket.recv()
+
+                # Getting remote pose
+                remote_message = self.remote_socket.recv()
+                print(remote_message)
+
+                # Getting the trigger status
+                # trigger = self.trigger_socket.recv()
+                # print(trigger)
+
+
                 # Getting the Teleop Reset Status
                 pause_status = self.teleop_reset_socket.recv()
-                # Getting the Controller Inputs
-                controller_input = self.controller_input_socket.recv()
-                print(controller_input)
                 # Analyzing the resolution based on Button Feedback
                 # if button_feedback==b'Low':
                 #     button_feedback_num = ARM_LOW_RESOLUTION
@@ -93,13 +121,19 @@ class OculusVRHandDetector(Component):
                     pause_status = ARM_TELEOP_STOP
                 else:
                     pause_status = ARM_TELEOP_CONT
+                print(pause_status)
                 # Processing the keypoints and publishing them
-                keypoint_dict = self._extract_data_from_token(raw_keypoints)
+                # keypoint_dict = self._extract_data_from_token(raw_keypoints)
                 # print(keypoint_dict)
                 # Publish Data
-                self._publish_data(keypoint_dict)
+                # self._publish_data(keypoint_dict)
                 # Publish Button Data
                 # self._publish_button_data(button_feedback_num)
+
+                # Publish Remote Pose
+                # self._publish_remote_pose(remote_pose)
+                # Publish Trigger
+                # self._publish_trigger(trigger)
                 # Publish Pause Data
                 self._publish_pause_data(pause_status)
                 self.timer.end_loop()
@@ -107,8 +141,13 @@ class OculusVRHandDetector(Component):
                 print("ERROR")
                 break
 
-        self.raw_keypoint_socket.close()
-        self.controller_input_socket.close()
-        self.hand_keypoint_publisher.stop()
+        # self.raw_keypoint_socket.close()
+        # self.controller_input_socket.close()
+        # self.hand_keypoint_publisher.stop()
+        self.remote_socket.close()
+        self.teleop_reset_socket.close()
+        self.pause_info_publisher.stop()
+        # self.remote_pose_publisher.stop()
+        # self.trigger_publisher.stop()
 
         print('Stopping the oculus keypoint extraction process.')

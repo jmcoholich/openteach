@@ -10,8 +10,12 @@ transformed_position_keypoint_port: 8089
 transformed_position_left_keypoint_port: 8099
 transformed_velocity_keypoint_port: 8090
 
-# controller ports
-controller_port: 8125
+
+# Remote Tracking
+remote_port: 8125
+remote_pose_publish_port: 8126
+trigger_port: 8127
+trigger_publish_port: 8128
 
 # Camera offsets
 cam_port_offset:  10005

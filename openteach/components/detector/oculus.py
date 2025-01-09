@@ -54,6 +54,17 @@ class OculusVRHandDetector(Component):
         information['keypoints'] = keypoint_vals
         return information
 
+    def _extract_remote_data(self, message):
+        data = self._process_data_token(message)
+        typemarker, pos, quat, gripper = data.split('|')
+        pose = []
+        for val in pos.split(','):
+            pose.append(float(val))
+        for val in quat.split(','):
+            pose.append(float(val))
+
+        return pose, gripper
+
     # Function to Publish the transformed Keypoints
     def _publish_data(self, keypoint_dict):
         self.hand_keypoint_publisher.pub_keypoints(
@@ -100,9 +111,11 @@ class OculusVRHandDetector(Component):
                 # Getting the button feedback
                 # button_feedback = self.button_keypoint_socket.recv()
 
-                # Getting remote pose
+                # Getting remote message
+                # TypeMarker|x,y,z|q1,q2,q3,q4|gripper
                 remote_message = self.remote_socket.recv()
-                print(remote_message)
+                remote_pose, gripper = self._extract_remote_data(remote_message)
+                print(remote_pose, gripper)
 
                 # Getting the trigger status
                 # trigger = self.trigger_socket.recv()

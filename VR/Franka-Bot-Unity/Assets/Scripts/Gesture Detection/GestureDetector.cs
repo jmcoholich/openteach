@@ -8,12 +8,11 @@ using NetMQ;
 using NetMQ.Sockets;
 
 class GestureDetector : MonoBehaviour
-{
+{   
+    // Controller Objects
+    public OVRInput.Controller RightController;
     // Hand objects
-    public OVRHand LeftHand;
-    public OVRHand RightHand;
-    public OVRSkeleton LeftHandSkeleton;
-    public OVRSkeleton RightHandSkeleton;
+    // public OVRSkeleton RightHandSkeleton;
     public OVRPassthroughLayer PassthroughLayerManager;
     private List<OVRBone> RightHandFingerBones;
 
@@ -150,7 +149,7 @@ class GestureDetector : MonoBehaviour
         LineRenderer = LaserPointer.GetComponent<LineRenderer>();
 
         // Initializing the hand skeleton
-        RightHandFingerBones = new List<OVRBone>(RightHandSkeleton.Bones);
+        // RightHandFingerBones = new List<OVRBone>(RightHandSkeleton.Bones);
         
         
     }
@@ -174,13 +173,13 @@ class GestureDetector : MonoBehaviour
     {
         // Getting bone positional information
         List<Vector3> rightHandGestureData = new List<Vector3>();
-        foreach (var bone in RightHandFingerBones)
-        {
-            Vector3 bonePosition = bone.Transform.position;
-            rightHandGestureData.Add(bonePosition);
-        }
+        // foreach (var bone in RightHandFingerBones)
+        // {
+        //     Vector3 bonePosition = bone.Transform.position;
+            rightHandGestureData.Add(OVRInput.GetLocalControllerPosition(RightController));
+        // }
 
-        // Creating a string from the vectors
+        // // Creating a string from the vectors
         string RightHandDataString = SerializeVector3List(rightHandGestureData);
         RightHandDataString = TypeMarker + ":" + RightHandDataString;
 
@@ -237,7 +236,7 @@ class GestureDetector : MonoBehaviour
     public void StreamPauser()
     {
         // Switching from Right hand control
-        if (LeftHand.GetFingerIsPinching(OVRHand.HandFinger.Middle))
+        if (OVRInput.Get(OVRInput.RawButton.RHandTrigger))
         {
             StreamRelativeData = false;
             StreamAbsoluteData = true;
@@ -251,23 +250,23 @@ class GestureDetector : MonoBehaviour
             
         }
 
-        // Switching from Left hand control
-        if (LeftHand.GetFingerIsPinching(OVRHand.HandFinger.Index))
-        {
-            StreamRelativeData = true;
-            StreamAbsoluteData = false;
-            StreamResolution = false;
-            StreamBorder.color = Color.green; // Green for right hand stream
-            ToggleMenuButton(false);
-            ToggleResolutionButton(false);
-            WristTracker.SetActive(false);
-            ShouldContinueArmTeleop = false;
-            // SendPause();
+        // // Switching from Left hand control
+        // if (OVRInput.Get(OVRInput.RawButton.Y))
+        // {
+        //     StreamRelativeData = true;
+        //     StreamAbsoluteData = false;
+        //     StreamResolution = false;
+        //     StreamBorder.color = Color.green; // Green for right hand stream
+        //     ToggleMenuButton(false);
+        //     ToggleResolutionButton(false);
+        //     WristTracker.SetActive(false);
+        //     ShouldContinueArmTeleop = false;
+        //     // SendPause();
             
-        }
+        // }
 
         // Pausing Stream
-        if (LeftHand.GetFingerIsPinching(OVRHand.HandFinger.Ring))
+        if (OVRInput.Get(OVRInput.RawButton.B))
         {
             StreamRelativeData = false;
             StreamAbsoluteData = false;
@@ -280,19 +279,19 @@ class GestureDetector : MonoBehaviour
             
         }
 
-        if (LeftHand.GetFingerIsPinching(OVRHand.HandFinger.Pinky))
-        {
-            StreamRelativeData = false;
-            StreamAbsoluteData = false;
-            StreamResolution = true;
-            StreamBorder.color = Color.black; // Black color for resolution
-            ShouldContinueArmTeleop = false;
-            ToggleMenuButton(false);
-            ToggleResolutionButton(true);
-            WristTracker.SetActive(false);
-            // SendPause();
+        // if (LeftHand.GetFingerIsPinching(OVRHand.HandFinger.Pinky))
+        // {
+        //     StreamRelativeData = false;
+        //     StreamAbsoluteData = false;
+        //     StreamResolution = true;
+        //     StreamBorder.color = Color.black; // Black color for resolution
+        //     ShouldContinueArmTeleop = false;
+        //     ToggleMenuButton(false);
+        //     ToggleResolutionButton(true);
+        //     WristTracker.SetActive(false);
+        //     // SendPause();
 
-        }
+        // }
     }
 
 

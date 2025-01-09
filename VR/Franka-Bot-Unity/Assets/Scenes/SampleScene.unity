@@ -577,17 +577,6 @@ Canvas:
   m_SortingLayerID: 0
   m_SortingOrder: 0
   m_TargetDisplay: 0
---- !u!114 &65284399 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 1495513345257028992, guid: 126d619cf4daa52469682f85c1378b4a, type: 3}
-  m_PrefabInstance: {fileID: 782628375}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2609c54f376cffc4da1ab9401cc1a36f, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!114 &65284400
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -647,17 +636,6 @@ MonoBehaviour:
   m_DefaultSpriteDPI: 96
   m_DynamicPixelsPerUnit: 1
   m_PresetInfoIsWorld: 1
---- !u!114 &65284404 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 1495388067768977240, guid: 126d619cf4daa52469682f85c1378b4a, type: 3}
-  m_PrefabInstance: {fileID: 782628375}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: cb7623a8f0b49cf4dbaa40aea4d4be64, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!1 &83159899
 GameObject:
   m_ObjectHideFlags: 0
@@ -1596,10 +1574,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 068f650b673584aeb842fa0dda8744d4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  LeftHand: {fileID: 1577749895}
-  RightHand: {fileID: 65284404}
-  LeftHandSkeleton: {fileID: 1577749889}
-  RightHandSkeleton: {fileID: 65284399}
+  LeftController: 1
+  RightController: 2
+  RightHandSkeleton: {fileID: 0}
   PassthroughLayerManager: {fileID: 1985308841}
   MenuButton: {fileID: 741250026}
   ResolutionButton: {fileID: 779833893}
@@ -4521,7 +4498,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _OVRInputModule: {fileID: 1061161770}
   _OVRRaycaster: {fileID: 741250031}
-  _OVRHand: {fileID: 65284404}
+  _OVRHand: {fileID: 0}
 --- !u!1 &779768205
 GameObject:
   m_ObjectHideFlags: 0
@@ -4697,7 +4674,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   _OVRInputModule: {fileID: 1061161770}
   _OVRRaycaster: {fileID: 779833899}
-  _OVRHand: {fileID: 65284404}
+  _OVRHand: {fileID: 0}
 --- !u!114 &779833899
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -7239,6 +7216,7 @@ MonoBehaviour:
     camPortNum: 
     graphPortNum: 
     resolutionPortNum: 
+    controllerPortNum: 
     PausePortNum: 
   IPDisplay: {fileID: 1457199017}
 --- !u!4 &1197026217
@@ -9134,28 +9112,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1577749883}
   m_CullTransparentMesh: 1
---- !u!114 &1577749889 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 5652759875750041684, guid: 126d619cf4daa52469682f85c1378b4a, type: 3}
-  m_PrefabInstance: {fileID: 782628375}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2609c54f376cffc4da1ab9401cc1a36f, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
---- !u!114 &1577749895 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 5652912366689804940, guid: 126d619cf4daa52469682f85c1378b4a, type: 3}
-  m_PrefabInstance: {fileID: 782628375}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: cb7623a8f0b49cf4dbaa40aea4d4be64, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!1 &1600812346
 GameObject:
   m_ObjectHideFlags: 0

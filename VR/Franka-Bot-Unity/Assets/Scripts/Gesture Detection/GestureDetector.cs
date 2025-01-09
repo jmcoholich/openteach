@@ -47,17 +47,11 @@ class GestureDetector : MonoBehaviour
 
     // Network enablers
     private NetworkManager netConfig;
-    private PushSocket client;
-    private PushSocket client2;
     private PushSocket client3;
-    private string communicationAddress;
 
     private string PauseAddress;
 
-    private string state;
     private string pauseState;
-    private bool connectionEstablished = false;
-
 
     private bool ShouldContinueArmTeleop = false;
 
@@ -65,27 +59,31 @@ class GestureDetector : MonoBehaviour
     private bool PauseCreated = false;
 
     // Controller tracking
-    private PushSocket ControllerClient;
-    private string controllerCommunicationAddress;
-    private bool controllerConnectionEstablished = false;
+    private PushSocket RemoteClient;
+    private string RemoteCommunicationAddress;
+    private bool RemoteConnectionEstablished = false;
+
+    // Mode
+    private int currentMode = 0;
 
     // Starting the server connection
-    public void CreateTCPConnection()
+    public void CreateRemoteTCPConnection()
     {
         // Check if communication address is available
-        communicationAddress = netConfig.getKeypointAddress();
-        bool AddressAvailable = !String.Equals(communicationAddress, "tcp://:");
+        RemoteCommunicationAddress = netConfig.getRemoteAddress();
+        bool AddressAvailable = !String.Equals(RemoteCommunicationAddress, "tcp://:");
 
         if (AddressAvailable)
         {
             // Initiate Push Socket
-            client = new PushSocket();
-            client.Connect(communicationAddress);
-            connectionEstablished = true;
+            RemoteClient = new PushSocket();
+            RemoteClient.Connect(RemoteCommunicationAddress);
+            RemoteConnectionEstablished = true;
+            RemoteClient.SendFrame("Connected");
         }
 
         // Setting color to green to indicate control
-        if (connectionEstablished)
+        if (RemoteConnectionEstablished)
         {
             StreamBorder.color = Color.green;
             ToggleMenuButton(false);
@@ -95,24 +93,7 @@ class GestureDetector : MonoBehaviour
             ToggleMenuButton(true);
         }
     }
-
-    public void CreateControllerTCPConnection()
-    {
-        // Check if communication address is available
-        controllerCommunicationAddress = netConfig.getControllerAddress();
-        bool AddressAvailable = !String.Equals(controllerCommunicationAddress, "tcp://:");
-
-        if (AddressAvailable)
-        {
-            // Initiate Push Socket
-            ControllerClient = new PushSocket();
-            ControllerClient.Connect(controllerCommunicationAddress);
-            controllerConnectionEstablished = true;
-            ControllerClient.SendFrame("Controller Init");
-        }
-    }   
-
-   
+  
 
     public void ToggleMenuButton(bool toggle)
     {
@@ -146,45 +127,24 @@ class GestureDetector : MonoBehaviour
         netConfig = netConfGameObject.GetComponent<NetworkManager>();
 
         LaserPointer = GameObject.Find("LaserPointer");
-        LineRenderer = LaserPointer.GetComponent<LineRenderer>();
-
-        // Initializing the hand skeleton
-        // RightHandFingerBones = new List<OVRBone>(RightHandSkeleton.Bones);
-        
+        LineRenderer = LaserPointer.GetComponent<LineRenderer>();       
         
     }
 
 
-    // Function to serialize the Vector3 List
-    public static string SerializeVector3List(List<Vector3> gestureData)
+    public void SendRemoteData(String TypeMarker)
     {
-        string vectorString = "";
-        foreach (Vector3 vec in gestureData)
-            vectorString = vectorString + vec.x + "," + vec.y + "," + vec.z + "|";
+        // Message needs to contain Marker|x,y,z|ax,ay,az,aw|gripper
+        string message = TypeMarker;
+        Vector3 pos = OVRInput.GetLocalControllerPosition(RightController);
+        Quaternion quat = OVRInput.GetLocalControllerRotation(RightController);
+        
+        message = message + pos.x + "," + pos.y + "," + pos.z + "|";
+        message = message + quat.w + "," + quat.x + "," + quat.y + "," + quat.z + "|";
+        message = message + OVRInput.Get(OVRInput.RawButton.RIndexTrigger);
 
-        // Clipping last element and using a semi colon instead
-        if (vectorString.Length > 0)
-            vectorString = vectorString.Substring(0, vectorString.Length - 1) + ":";
-
-        return vectorString;
-    }
-
-    public void SendHandData(String TypeMarker)
-    {
-        // Getting bone positional information
-        List<Vector3> rightHandGestureData = new List<Vector3>();
-        // foreach (var bone in RightHandFingerBones)
-        // {
-        //     Vector3 bonePosition = bone.Transform.position;
-            rightHandGestureData.Add(OVRInput.GetLocalControllerPosition(RightController));
-        // }
-
-        // // Creating a string from the vectors
-        string RightHandDataString = SerializeVector3List(rightHandGestureData);
-        RightHandDataString = TypeMarker + ":" + RightHandDataString;
-
-        client.SendFrame(RightHandDataString);
-        byte[] recievedToken = client.ReceiveFrameBytes();
+        RemoteClient.SendFrame(message);
+        byte[] recievedToken = RemoteClient.ReceiveFrameBytes();
     }
 
 
@@ -236,7 +196,15 @@ class GestureDetector : MonoBehaviour
     public void StreamPauser()
     {
         // Switching from Right hand control
-        if (OVRInput.Get(OVRInput.RawButton.RHandTrigger))
+        bool modeChange = false;
+        if (OVRInput.GetDown(OVRInput.RawButton.B))
+        {
+            currentMode += 1;
+            currentMode %= 2;
+            modeChange = true;
+        }
+
+        if (modeChange && currentMode == 1)
         {
             StreamRelativeData = false;
             StreamAbsoluteData = true;
@@ -266,7 +234,7 @@ class GestureDetector : MonoBehaviour
         // }
 
         // Pausing Stream
-        if (OVRInput.Get(OVRInput.RawButton.B))
+        if (modeChange && currentMode == 0)
         {
             StreamRelativeData = false;
             StreamAbsoluteData = false;
@@ -294,55 +262,14 @@ class GestureDetector : MonoBehaviour
         // }
     }
 
-
-    public void SendGripStatus()
-    {
-        // Controller tracking
-        if (controllerConnectionEstablished)
-        {
-            if (String.Equals(controllerCommunicationAddress, netConfig.getControllerAddress()))
-            {   
-                if (OVRInput.Get(OVRInput.RawButton.RIndexTrigger)) 
-                {
-                    ControllerClient.SendFrame("True");
-                } else {
-                    ControllerClient.SendFrame("False");
-                }
-            } else {
-                controllerConnectionEstablished = false;
-            }
-        
-        } else {
-            CreateControllerTCPConnection();
-        }
-    }
-
     void Update()
     {
-        // Controller tracking
-        // if (controllerConnectionEstablished)
-        // {
-        //     if (String.Equals(controllerCommunicationAddress, netConfig.getControllerAddress()))
-        //     {   
-        //         ControllerClient.SendFrame("CONTROLLER");
-        //     }
-        //     else
-        //     {
-        //         controllerConnectionEstablished = false;
-        //     }
-        
-        // } else
-        // {
-        //     CreateControllerTCPConnection();
-        // }
-
         // Hand Tracking
-        if (connectionEstablished)
+        if (RemoteConnectionEstablished)
         
         {   
             SendResetStatus();
-            SendGripStatus();
-            if (String.Equals(communicationAddress, netConfig.getKeypointAddress()))
+            if (String.Equals(RemoteCommunicationAddress, netConfig.getRemoteAddress()))
             {   
 
                 StreamPauser();
@@ -350,7 +277,8 @@ class GestureDetector : MonoBehaviour
                 
 
                 if (StreamAbsoluteData)
-                {   SendHandData("absolute");
+                {   
+                    SendRemoteData("absolute");
                     ToggleResolutionButton(false);
                     // SendCont();
                    
@@ -358,7 +286,7 @@ class GestureDetector : MonoBehaviour
 
                 if (StreamRelativeData)
                 {
-                    SendHandData("relative");
+                    SendRemoteData("relative");
                     ToggleResolutionButton(false);
                     // SendPause();
                     
@@ -375,7 +303,7 @@ class GestureDetector : MonoBehaviour
             }
             else
             {
-                connectionEstablished = false;
+                RemoteConnectionEstablished = false;
             }
         
         } else
@@ -383,7 +311,7 @@ class GestureDetector : MonoBehaviour
             StreamBorder.color = Color.red;
             ToggleMenuButton(true);
             //ToggleResolutionButton(false);
-            CreateTCPConnection();        
+            CreateRemoteTCPConnection();        
         }
     }
 }

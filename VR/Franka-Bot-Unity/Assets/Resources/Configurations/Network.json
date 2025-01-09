@@ -5,5 +5,5 @@
   "graphPortNum": "15001",
   "resolutionPortNum": "8095",
   "PausePortNum": "8100", 
-  "controllerPortNum": "8125"
+  "remotePortNum": "8125"
 }

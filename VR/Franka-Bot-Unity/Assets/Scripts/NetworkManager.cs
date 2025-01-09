@@ -10,7 +10,7 @@ public class NetworkConfiguration
     public string camPortNum;
     public string graphPortNum;
     public string resolutionPortNum;
-    public string controllerPortNum;
+    public string remotePortNum;
 
     public string PausePortNum;
 
@@ -42,12 +42,12 @@ public class NetworkManager : MonoBehaviour
             return "tcp://" + netConfig.IPAddress + ":" + netConfig.keyptPortNum;
     }
 
-    public string getControllerAddress()
+    public string getRemoteAddress()
     {
         if (IPNotFound)
             return "tcp://:";
         else
-            return "tcp://" + netConfig.IPAddress + ":" + netConfig.controllerPortNum;
+            return "tcp://" + netConfig.IPAddress + ":" + netConfig.remotePortNum;
     }
 
     public string getCamAddress()

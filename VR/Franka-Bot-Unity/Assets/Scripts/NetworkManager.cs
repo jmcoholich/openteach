@@ -10,6 +10,7 @@ public class NetworkConfiguration
     public string camPortNum;
     public string graphPortNum;
     public string resolutionPortNum;
+    public string controllerPortNum;
 
     public string PausePortNum;
 
@@ -39,6 +40,14 @@ public class NetworkManager : MonoBehaviour
             return "tcp://:";
         else
             return "tcp://" + netConfig.IPAddress + ":" + netConfig.keyptPortNum;
+    }
+
+    public string getControllerAddress()
+    {
+        if (IPNotFound)
+            return "tcp://:";
+        else
+            return "tcp://" + netConfig.IPAddress + ":" + netConfig.controllerPortNum;
     }
 
     public string getCamAddress()
@@ -93,6 +102,7 @@ public class NetworkManager : MonoBehaviour
 
         if (PlayerPrefs.HasKey("ipAddress"))
             netConfig.IPAddress = PlayerPrefs.GetString("ipAddress");
+        // netConfig.IPAddress = "143.215.128.151";
 
         if (!netConfig.isIPAllocated())
             IPNotFound = true;

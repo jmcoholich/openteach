@@ -12,6 +12,7 @@ class OculusVRHandDetector(Component):
         self.button_keypoint_socket = create_pull_socket(host, button_port)
         self.teleop_reset_socket = create_pull_socket(host, teleop_reset_port)
 
+
         # ZMQ Keypoint publisher
         self.hand_keypoint_publisher = ZMQKeypointPublisher(
             host = host,
@@ -93,6 +94,7 @@ class OculusVRHandDetector(Component):
                     pause_status = ARM_TELEOP_CONT
                 # Processing the keypoints and publishing them
                 keypoint_dict = self._extract_data_from_token(raw_keypoints)
+                # print(keypoint_dict)
                 # Publish Data
                 self._publish_data(keypoint_dict)
                 # Publish Button Data
@@ -101,6 +103,7 @@ class OculusVRHandDetector(Component):
                 self._publish_pause_data(pause_status)
                 self.timer.end_loop()
             except:
+                print("ERROR")
                 break
 
         self.raw_keypoint_socket.close()

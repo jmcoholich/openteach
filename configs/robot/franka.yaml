@@ -6,8 +6,8 @@ detector:
   host: ${host_address}
   oculus_port: ${oculus_reciever_port}
   keypoint_pub_port: ${keypoint_port}
-  button_port: ${resolution_button_port}
-  button_publish_port: ${resolution_button_publish_port}
+  # button_port: ${resolution_button_port}
+  # button_publish_port: ${resolution_button_publish_port}
   teleop_reset_port: ${teleop_reset_port}
   teleop_reset_publish_port: ${teleop_reset_publish_port}
   controller_port: ${controller_port}

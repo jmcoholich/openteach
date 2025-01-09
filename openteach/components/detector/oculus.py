@@ -5,7 +5,7 @@ from openteach.utils.network import create_pull_socket, ZMQKeypointPublisher, ZM
 
 
 class OculusVRHandDetector(Component):
-    def __init__(self, host, oculus_port, keypoint_pub_port, button_port,button_publish_port,teleop_reset_port, teleop_reset_publish_port, controller_port):
+    def __init__(self, host, oculus_port, keypoint_pub_port, teleop_reset_port, teleop_reset_publish_port, controller_port):
         self.notify_component_start('vr detector')
         # Initializing the network socket for getting the raw right hand keypoints
         self.raw_keypoint_socket = create_pull_socket(host, oculus_port)
@@ -21,11 +21,6 @@ class OculusVRHandDetector(Component):
             port = keypoint_pub_port
         )
 
-        # Socket For Resolution Button
-        # self.button_socket_publisher = ZMQKeypointPublisher(
-        #     host =host,
-        #     port =button_publish_port
-        # )
         # Socket For Teleop Reset
         self.pause_info_publisher = ZMQKeypointPublisher(
             host =host,

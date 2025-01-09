@@ -285,6 +285,19 @@ class FrankaArmOperator(Operator):
         # self.robot.arm_control(final_pose, gripper_cmd=gripper_cmd)
         self.arm_control(final_pose, gripper_cmd)
 
+    def _controller_tracking(self):
+        # See if there is a reset in the teleop
+        new_arm_teleop_state = self._get_arm_teleop_state()
+        if self.is_first_frame or (self.arm_teleop_state == ARM_TELEOP_STOP and new_arm_teleop_state == ARM_TELEOP_CONT):
+            moving_hand_frame = self._reset_teleop() # Should get the moving hand frame only once
+        else:
+            moving_hand_frame = self._get_hand_frame() # Should get the hand frame
+        self.arm_teleop_state = new_arm_teleop_state
+
+        # final_pose needs to be in the form of [x, y, z, qx, qy, qz, qw]
+        #
+        # self.arm_control(final_pose, gripper_cmd)
+
     def arm_control(self, cartesian_pose, gripper_cmd):
         cartesian_pose = np.array(cartesian_pose, dtype=np.float32)
         target_pos, target_quat = cartesian_pose[:3], cartesian_pose[3:]

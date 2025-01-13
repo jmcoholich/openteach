@@ -71,6 +71,7 @@ class FrankaArmOperator(Operator):
         self,
         host,
         transformed_keypoints_port,
+        remote_message_port,
         use_filter=False,
         arm_resolution_port = None,
         teleoperation_reset_port = None,
@@ -89,6 +90,12 @@ class FrankaArmOperator(Operator):
             host=host,
             port=transformed_keypoints_port,
             topic='transformed_hand_frame'
+        )
+        # Subscribers for the remote message
+        self._remote_message_subscriber = ZMQKeypointSubscriber(
+            host=host,
+            port=remote_message_port,
+            topic='remote_msg'
         )
 
         self.deoxys_obs_cmd_history = {}
@@ -157,6 +164,10 @@ class FrankaArmOperator(Operator):
     def transformed_arm_keypoint_subscriber(self):
         return self._transformed_arm_keypoint_subscriber
 
+    @property
+    def remote_message_subscriber(self):
+        return self._remote_message_subscriber
+
     # Get the hand frame
     def _get_hand_frame(self):
         for i in range(10):
@@ -164,6 +175,11 @@ class FrankaArmOperator(Operator):
             if not data is None: break
         if data is None: return None
         return np.asanyarray(data).reshape(4, 3)
+
+    def _get_remote_message(self):
+        pose, gripper = self.remote_message_subscriber.recv_keypoints()
+        gripper = -1 if gripper == 'False' else 1
+        return pose, gripper
 
     # Get the resolution scale mode (High or Low)
     def _get_resolution_scale_mode(self):
@@ -294,21 +310,29 @@ class FrankaArmOperator(Operator):
         new_arm_teleop_state = self._get_arm_teleop_state()
         if self.is_first_frame or (self.arm_teleop_state == ARM_TELEOP_STOP and new_arm_teleop_state == ARM_TELEOP_CONT):
             # initialize
-            self.last_remote_pose = self._get_remote_pose()
+            self.last_remote_pose, _ = self._get_remote_message()
+            self.is_first_frame = False
+            self.arm_teleop_state = new_arm_teleop_state
             return
         else:
-            current_remote_pose = self._get_remote_pose()
-            delta = current_remote_pose - self.last_remote_pose
+            current_remote_pose, gripper_cmd = self._get_remote_message()
+            delta = np.array(current_remote_pose, dtype=np.float32) - np.array(self.last_remote_pose, dtype=np.float32)
             self.last_remote_pose = current_remote_pose
+        self.arm_teleop_state = new_arm_teleop_state
 
         print(delta)
-
 
         # final_pose needs to be in the form of [x, y, z, qx, qy, qz, qw]
         # store last remote pose
         # calculate delta
         # apply delta to robot
-        # self.arm_control(final_pose, gripper_cmd)
+        self.robot_interface.control(
+            controller_type=CONTROLLER_TYPE,
+            action=delta,
+            controller_cfg=self.velocity_controller_cfg,
+        )
+        if gripper_cmd is not None:
+            self.robot_interface.gripper_control(gripper_cmd)
 
     def arm_control(self, cartesian_pose, gripper_cmd):
         cartesian_pose = np.array(cartesian_pose, dtype=np.float32)
@@ -375,7 +399,9 @@ class FrankaArmOperator(Operator):
         # Assume that the initial position is considered initial after 3 seconds of the start
         while True:
             try:
+                # print(self.robot_interface.last_eef_pose)
                 if self.robot_interface.last_eef_pose is not None:
+                    print('beat')
                     self.timer.start_loop()
 
                     # Retargeting function
@@ -391,6 +417,9 @@ class FrankaArmOperator(Operator):
                         pkl.dump(self.deoxys_obs_cmd_history, f)
                         # pkl.dump(self.robot._controller.franka.deoxys_obs_cmd_history, f)
                 break
+            except Exception as e:
+                print(e)
+
 
         self.transformed_arm_keypoint_subscriber.stop()
         print('Stopping the teleoperator!')

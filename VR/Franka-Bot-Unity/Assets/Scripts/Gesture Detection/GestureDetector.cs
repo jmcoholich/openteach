@@ -135,7 +135,7 @@ class GestureDetector : MonoBehaviour
     public void SendRemoteData(String TypeMarker)
     {
         // Message needs to contain Marker|x,y,z|ax,ay,az,aw|gripper
-        string message = TypeMarker;
+        string message = TypeMarker + "|";
         Vector3 pos = OVRInput.GetLocalControllerPosition(RightController);
         Quaternion quat = OVRInput.GetLocalControllerRotation(RightController);
         

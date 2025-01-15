@@ -12,6 +12,7 @@ detector:
   teleop_reset_publish_port: ${teleop_reset_publish_port}
   remote_port: ${remote_port}
   remote_publish_port: ${remote_message_port}
+  gripper_message_port: ${gripper_message_port}
 
 # Transformation classes used to transform the keypoints
 transforms:
@@ -38,6 +39,7 @@ operators:
     host: ${host_address}
     transformed_keypoints_port: ${transformed_position_keypoint_port}
     remote_message_port: ${remote_message_port}
+    gripper_message_port: ${gripper_message_port}
     arm_resolution_port: ${resolution_button_publish_port}
     use_filter: False
     teleoperation_reset_port: ${teleop_reset_publish_port}

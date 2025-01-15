@@ -6,7 +6,7 @@ from openteach.utils.network import create_pull_socket, ZMQKeypointPublisher, ZM
 
 class OculusVRHandDetector(Component):
     def __init__(self, host, oculus_port, keypoint_pub_port, teleop_reset_port, teleop_reset_publish_port,
-                 remote_port, remote_publish_port):
+                 remote_port, remote_publish_port, gripper_message_port):
         self.notify_component_start('vr detector')
         # Initializing the network socket for getting the raw right hand keypoints
         # self.raw_keypoint_socket = create_pull_socket(host, oculus_port)
@@ -20,6 +20,12 @@ class OculusVRHandDetector(Component):
         self.remote_pose_publisher = ZMQKeypointPublisher(
             host = host,
             port = remote_publish_port
+        )
+
+        # ZMQ Socket for Gripper
+        self.gripper_publisher = ZMQKeypointPublisher(
+            host = host,
+            port = gripper_message_port
         )
 
         # Socket For Teleop Reset
@@ -87,6 +93,14 @@ class OculusVRHandDetector(Component):
             topic_name = 'remote_msg'
         )
 
+    # Function to Publish the Remote Pose
+    def _publish_gripper_message(self, gripper):
+        msg = -1 if gripper == 'False' else 1
+        self.gripper_publisher.pub_keypoints(
+            keypoint_array = msg,
+            topic_name = 'gripper_msg'
+        )
+
     # Function to Stream the Keypoints
     def stream(self):
         while True:
@@ -101,7 +115,7 @@ class OculusVRHandDetector(Component):
                 # Getting remote message
                 # TypeMarker|x,y,z|q1,q2,q3,q4|gripper
                 remote_message = self.remote_socket.recv()
-                remote_pose = self._extract_remote_data(remote_message)
+                remote_pose, gripper = self._extract_remote_data(remote_message)
                 # print(remote_pose)
 
                 # Getting the Teleop Reset Status
@@ -119,12 +133,13 @@ class OculusVRHandDetector(Component):
 
                 # Publish Remote Pose
                 self._publish_remote_message(remote_pose)
+                self._publish_gripper_message(gripper)
 
                 # Publish Pause Data
                 self._publish_pause_data(pause_status)
                 self.timer.end_loop()
-            except:
-                print("ERROR")
+            except Exception as e:
+                print(e)
                 break
 
         # self.raw_keypoint_socket.close()
@@ -134,5 +149,6 @@ class OculusVRHandDetector(Component):
         self.teleop_reset_socket.close()
         self.pause_info_publisher.stop()
         self.remote_pose_publisher.stop()
+        self.gripper_publisher.stop()
 
         print('Stopping the oculus keypoint extraction process.')

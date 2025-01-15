@@ -240,7 +240,13 @@ class FrankaArmOperator(Operator):
             [np.sin(a), np.cos(a), 0],
             [0,0,1],
         ])
-        meta2robo = Z_45 @ X_90 @ Y_45
+        a = 180 * np.pi/180
+        X_180 = np.array([
+            [1,0,0],
+            [0, np.cos(a), -np.sin(a)],
+            [0, np.sin(a), np.cos(a)],
+        ])
+        meta2robo = X_180 @ Z_45 @ X_90 @ Y_45
         t = (meta2robo @ t.reshape(3, 1)).reshape(3)
 
         R = frame[1:]
@@ -395,10 +401,14 @@ class FrankaArmOperator(Operator):
         T_HO_HI[:3, :3] = np.eye(3)
         T_HO_HC[:3, :3] = np.eye(3)
 
+        robo_rot = copy(T_RO_RI[:3, :3])
+        T_RO_RI[:3, :3] = np.eye(3)
+
 
 
         T_HI_HC = np.linalg.pinv(T_HO_HI) @ T_HO_HC
         T_RO_RC = T_RO_RI @ T_HI_HC
+        T_RO_RC[:3, :3] = robo_rot
 
         # self.robot_moving_H = copy(H_RT_RH)
 

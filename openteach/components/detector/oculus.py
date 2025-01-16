@@ -95,7 +95,7 @@ class OculusVRHandDetector(Component):
 
     # Function to Publish the Remote Pose
     def _publish_gripper_message(self, gripper):
-        msg = -1 if gripper == 'False' else 1
+        msg = gripper == 'True'
         self.gripper_publisher.pub_keypoints(
             keypoint_array = msg,
             topic_name = 'gripper_msg'
@@ -116,7 +116,6 @@ class OculusVRHandDetector(Component):
                 # TypeMarker|x,y,z|q1,q2,q3,q4|gripper
                 remote_message = self.remote_socket.recv()
                 remote_pose, gripper = self._extract_remote_data(remote_message)
-                # print(remote_pose)
 
                 # Getting the Teleop Reset Status
                 pause_status = self.teleop_reset_socket.recv()

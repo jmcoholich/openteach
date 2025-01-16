@@ -149,6 +149,8 @@ class FrankaArmOperator(Operator):
         self._timer = FrequencyTimer(VR_FREQ)
 
         self.gripper_state = None
+        self.gripper_last_msg = False
+        self.gripper_cmd = -1
         self.below_thresh = False
 
         # Controller Tracking
@@ -199,8 +201,13 @@ class FrankaArmOperator(Operator):
         return frame
 
     def _get_gripper_message(self):
-        data = self._gripper_message_subscriber.recv_keypoints()
-        return data
+        msg = self._gripper_message_subscriber.recv_keypoints()
+        if not self.gripper_last_msg and msg:
+            self.gripper_cmd *= -1
+            self.gripper_last_msg = msg
+        elif self.gripper_last_msg and not msg:
+            self.gripper_last_msg = msg
+        return self.gripper_cmd
 
     # Get the resolution scale mode (High or Low)
     def _get_resolution_scale_mode(self):

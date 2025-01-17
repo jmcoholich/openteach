@@ -194,11 +194,16 @@ class FrankaArmOperator(Operator):
         # pose is x, y, z, qx, qy, qz, qw
         # need to transform this to a (4,3) pose matrix
         t = np.array(data[:3])
-        t[2] *= -1  # flip from LH coordinate system to RH coordinates
+        # t[2] *= -1  # flip from LH coordinate system to RH coordinates
         # print(t)
         R = Rotation.from_quat(data[3:]).as_matrix()
         frame = np.vstack([t, R])
         return frame
+
+    # def _transform_remote_coords(self, remote_pose, robot_init_H):
+    # # Finding the rotation matrix and rotating the coordinates
+    #     rotation_matrix = np.linalg.solve(remote_pose, np.eye(3)).T
+    #     transformed_hand_coords = (rotation_matrix @ translated_coords.T).T
 
     def _get_gripper_message(self):
         msg = self._gripper_message_subscriber.recv_keypoints()
@@ -224,43 +229,45 @@ class FrankaArmOperator(Operator):
     # Converts a frame to a homogenous transformation matrix
     def _turn_frame_to_homo_mat(self, frame):
         t = frame[0]
-        a = -45*np.pi/180
-        Y_45 = np.array(
-            [
-            [np.cos(a), 0, np.sin(a)],
-            [0,1,0],
-            [-np.sin(a), 0, np.cos(a)],
-             ]
-        )
-        # t = (Y_45 @ t.reshape(3, 1)).reshape(3)
+        # a = -45*np.pi/180
+        # Y_45 = np.array(
+        #     [
+        #     [np.cos(a), 0, np.sin(a)],
+        #     [0,1,0],
+        #     [-np.sin(a), 0, np.cos(a)],
+        #      ]
+        # )
+        # # t = (Y_45 @ t.reshape(3, 1)).reshape(3)
 
-        a = -90 * np.pi/180
-        X_90 = np.array([
-            [1,0,0],
-            [0, np.cos(a), -np.sin(a)],
-            [0, np.sin(a), np.cos(a)],
-        ])
-        # t = (X_90 @ t.reshape(3, 1)).reshape(3)
-        a = 45 * np.pi/180
-        Z_45 = np.array([
-            [np.cos(a), -np.sin(a), 0],
-            [np.sin(a), np.cos(a), 0],
-            [0,0,1],
-        ])
-        a = 180 * np.pi/180
-        X_180 = np.array([
-            [1,0,0],
-            [0, np.cos(a), -np.sin(a)],
-            [0, np.sin(a), np.cos(a)],
-        ])
-        meta2robo = X_180 @ Z_45 @ X_90 @ Y_45
-        t = (meta2robo @ t.reshape(3, 1)).reshape(3)
+        # a = -90 * np.pi/180
+        # X_90 = np.array([
+        #     [1,0,0],
+        #     [0, np.cos(a), -np.sin(a)],
+        #     [0, np.sin(a), np.cos(a)],
+        # ])
+        # # t = (X_90 @ t.reshape(3, 1)).reshape(3)
+        # a = 45 * np.pi/180
+        # Z_45 = np.array([
+        #     [np.cos(a), -np.sin(a), 0],
+        #     [np.sin(a), np.cos(a), 0],
+        #     [0,0,1],
+        # ])
+        # a = 180 * np.pi/180
+        # X_180 = np.array([
+        #     [1,0,0],
+        #     [0, np.cos(a), -np.sin(a)],
+        #     [0, np.sin(a), np.cos(a)],
+        # ])
+        # meta2robo = X_180 @ Z_45 @ X_90 @ Y_45
+        # t = (meta2robo @ t.reshape(3, 1)).reshape(3)
 
         R = frame[1:]
 
         homo_mat = np.zeros((4, 4))
-        homo_mat[:3, :3] = np.transpose(R)  # TODO: Why?? This seeems to be critical to how this works.
+        # homo_mat[:3, :3] = np.transpose(R)  # TODO: Why?? This seeems to be critical to how this works.
         # homo_mat[:3, :3] = meta2robo @ homo_mat[:3, :3]
+        # homo_mat[:3, :3] = np.eye(3)
+        # homo_mat[:3, :3] = copy(R)
         homo_mat[:3, 3] = t
         homo_mat[3, 3] = 1
 
@@ -393,35 +400,32 @@ class FrankaArmOperator(Operator):
             return # It means we are not on the arm mode yet instead of blocking it is directly returning
 
         # Get the moving hand frame
-        print(f"X: {moving_hand_frame[0, 0]} Y: {moving_hand_frame[0, 1]}, Z: {moving_hand_frame[0, 2]}")
+        # print(f"X: {moving_hand_frame[0, 0]} Y: {moving_hand_frame[0, 1]}, Z: {moving_hand_frame[0, 2]}")
         self.hand_moving_H = self._turn_frame_to_homo_mat(moving_hand_frame)
 
         # self.logs.append(moving_hand_frame[0])
 
-        # Transformation code
-        T_HO_HI = copy(self.hand_init_H)
-        T_HO_HC = copy(self.hand_moving_H)
-        T_RO_RI = copy(self.robot_init_H)
-        # we want T_RO_RC
+         # Transformation code
+        H_HI_HH = copy(self.hand_init_H) # Homo matrix that takes P_HI  to P_HH - Point in Inital Hand Frame to Point in current hand Frame
+        H_HT_HH = copy(self.hand_moving_H) # Homo matrix that takes P_HT to P_HH
+        H_RI_RH = copy(self.robot_init_H) # Homo matrix that takes P_RI to P_RH
 
-        # temp, positions only
-        T_HO_HI[:3, :3] = np.eye(3)
-        T_HO_HC[:3, :3] = np.eye(3)
+        # Rotation from allegro to franka
+        # H_A_R = np.array(
+        #     [[1/np.sqrt(2), 1/np.sqrt(2), 0, 0],
+        #      [-1/np.sqrt(2), 1/np.sqrt(2), 0, 0],
+        #      [0, 0, 1, -0.06], # The height of the allegro mount is 6cm
+        #      [0, 0, 0, 1]])
 
-        robo_rot = copy(T_RO_RI[:3, :3])
-        T_RO_RI[:3, :3] = np.eye(3)
-
-
-
-        T_HI_HC = np.linalg.pinv(T_HO_HI) @ T_HO_HC
-        T_RO_RC = T_RO_RI @ T_HI_HC
-        T_RO_RC[:3, :3] = robo_rot
-
+        H_HT_HI = np.linalg.pinv(H_HI_HH) @ H_HT_HH # Homo matrix that takes P_HT to P_HI
+        # H_RT_RH = H_RI_RH @ H_A_R @ H_HT_HI @ np.linalg.pinv(H_A_R) # Homo matrix that takes P_RT to P_RH
+        H_RT_RH = H_RI_RH @ H_HT_HI # Homo matrix that takes P_RT to P_RH
         # self.robot_moving_H = copy(H_RT_RH)
 
         # Use the resolution scale to get the final cart pose
         # final_pose = self._get_scaled_cart_pose(self.robot_moving_H)
-        final_pose = self._homo2cart(copy(T_RO_RC))
+        final_pose = self._homo2cart(copy(H_RT_RH))
+
         # Use a Filter
         # if self.use_filter:
         #     final_pose = self.comp_filter(final_pose)

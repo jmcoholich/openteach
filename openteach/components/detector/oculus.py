@@ -56,14 +56,20 @@ class OculusVRHandDetector(Component):
 
     def _extract_remote_data(self, message):
         data = self._process_data_token(message)
-        typemarker, pos, quat, gripper = data.split('|')
+        typemarker, pos, quat, gripper, headset_pos, headset_quat = data.split('|')
         pose = []
         for val in pos.split(','):
             pose.append(float(val))
         for val in quat.split(','):
             pose.append(float(val))
 
-        return pose, gripper
+        headset_pose = []
+        for val in headset_pos.split(','):
+            headset_pose.append(float(val))
+        for val in headset_quat.split(','):
+            headset_pose.append(float(val))
+
+        return pose, gripper, headset_pose
 
     # Function to Publish the transformed Keypoints
     def _publish_data(self, keypoint_dict):
@@ -115,7 +121,8 @@ class OculusVRHandDetector(Component):
                 # Getting remote message
                 # TypeMarker|x,y,z|q1,q2,q3,q4|gripper
                 remote_message = self.remote_socket.recv()
-                remote_pose, gripper = self._extract_remote_data(remote_message)
+                remote_pose, gripper, headset_pose = self._extract_remote_data(remote_message)
+                # print(headset_pose)
 
                 # Getting the Teleop Reset Status
                 pause_status = self.teleop_reset_socket.recv()

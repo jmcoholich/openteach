@@ -13,8 +13,9 @@ class GestureDetector : MonoBehaviour
     public OVRInput.Controller RightController;
     // Hand objects
     // public OVRSkeleton RightHandSkeleton;
-    public OVRPassthroughLayer PassthroughLayerManager;
-    private List<OVRBone> RightHandFingerBones;
+    public OVRCameraRig CameraRig;
+
+    public Transform controllerTransform;
 
     // Menu and RayCaster GameObjects
     public GameObject MenuButton;
@@ -127,21 +128,28 @@ class GestureDetector : MonoBehaviour
         netConfig = netConfGameObject.GetComponent<NetworkManager>();
 
         LaserPointer = GameObject.Find("LaserPointer");
-        LineRenderer = LaserPointer.GetComponent<LineRenderer>();       
-        
+        LineRenderer = LaserPointer.GetComponent<LineRenderer>();
+
     }
 
 
     public void SendRemoteData(String TypeMarker)
     {
         // Message needs to contain Marker|x,y,z|ax,ay,az,aw|gripper
-        string message = TypeMarker + "|";
         Vector3 pos = OVRInput.GetLocalControllerPosition(RightController);
         Quaternion quat = OVRInput.GetLocalControllerRotation(RightController);
-        
+        Vector3 offsetForward = pos + controllerTransform.forward * 0.1f;   
+        Vector3 offsetRight = pos + controllerTransform.right * 0.1f;   
+        Vector3 offsetUp = pos + controllerTransform.up * 0.1f;
+
+
+        string message = TypeMarker + "|";
         message = message + pos.x + "," + pos.y + "," + pos.z + "|";
         message = message + quat.w + "," + quat.x + "," + quat.y + "," + quat.z + "|";
-        message = message + OVRInput.Get(OVRInput.RawButton.RIndexTrigger);
+        message = message + OVRInput.Get(OVRInput.RawButton.RIndexTrigger) + "|";
+        message = message + offsetForward.x + "," + offsetForward.y + "," + offsetForward.z + "|";
+        message = message + offsetRight.x + "," + offsetRight.y + "," + offsetRight.z + "|";
+        message = message + offsetUp.x + "," + offsetUp.y + "," + offsetUp.z;
 
         RemoteClient.SendFrame(message);
         byte[] recievedToken = RemoteClient.ReceiveFrameBytes();
@@ -206,6 +214,7 @@ class GestureDetector : MonoBehaviour
 
         if (modeChange && currentMode == 1)
         {
+            OVRManager.display.RecenterPose();
             StreamRelativeData = false;
             StreamAbsoluteData = true;
             StreamResolution= false;

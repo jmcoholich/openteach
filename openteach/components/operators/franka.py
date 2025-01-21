@@ -153,6 +153,8 @@ class FrankaArmOperator(Operator):
         self.gripper_cmd = -1
         self.below_thresh = False
 
+        self.headset_init_R = None
+
         # Controller Tracking
         self.last_remote_pose = None
         self.logs = []
@@ -193,17 +195,26 @@ class FrankaArmOperator(Operator):
         if data is None: return None
         # pose is x, y, z, qx, qy, qz, qw
         # need to transform this to a (4,3) pose matrix
-        t = np.array(data[:3])
-        # t[2] *= -1  # flip from LH coordinate system to RH coordinates
-        # print(t)
-        R = Rotation.from_quat(data[3:]).as_matrix()
-        frame = np.vstack([t, R])
-        return frame
+        remote_pose = np.array(data[0])
+        offset_R = np.array(data[1])
 
-    # def _transform_remote_coords(self, remote_pose, robot_init_H):
-    # # Finding the rotation matrix and rotating the coordinates
-    #     rotation_matrix = np.linalg.solve(remote_pose, np.eye(3)).T
-    #     transformed_hand_coords = (rotation_matrix @ translated_coords.T).T
+        t = np.array(remote_pose[:3])
+        R = self._get_dir_frame(remote_pose[:3], offset_R)
+
+        # R = Rotation.from_quat(remote_pose[3:]).as_matrix()
+        # transform_R = self.headset_init_R @ R
+
+        remote_frame = np.vstack([t, R])
+
+        return remote_frame
+
+    # Create a coordinate frame for the arm
+    def _get_dir_frame(self, base, offset):
+        X = normalize_vector(offset[0] - base)
+        Y = normalize_vector(offset[1] - base)
+        Z = normalize_vector(base - offset[2])
+
+        return [X, Y, Z]
 
     def _get_gripper_message(self):
         msg = self._gripper_message_subscriber.recv_keypoints()
@@ -264,10 +275,7 @@ class FrankaArmOperator(Operator):
         R = frame[1:]
 
         homo_mat = np.zeros((4, 4))
-        # homo_mat[:3, :3] = np.transpose(R)  # TODO: Why?? This seeems to be critical to how this works.
-        # homo_mat[:3, :3] = meta2robo @ homo_mat[:3, :3]
-        # homo_mat[:3, :3] = np.eye(3)
-        # homo_mat[:3, :3] = copy(R)
+        homo_mat[:3, :3] = np.transpose(R)  # TODO: Why?? This seeems to be critical to how this works.
         homo_mat[:3, 3] = t
         homo_mat[3, 3] = 1
 
@@ -297,7 +305,7 @@ class FrankaArmOperator(Operator):
 
         # Get the difference in translation between these two cart poses
         diff_in_translation = unscaled_cart_pose[:3] - current_cart_pose[:3]
-        scaled_diff_in_translation = diff_in_translation * self.resolution_scale
+        scaled_diff_in_translation = diff_in_translation * 0.5  # translation_scale
         # print('SCALED_DIFF_IN_TRANSLATION: {}'.format(scaled_diff_in_translation))
 
         scaled_cart_pose = np.zeros(7)
@@ -405,7 +413,7 @@ class FrankaArmOperator(Operator):
 
         # self.logs.append(moving_hand_frame[0])
 
-         # Transformation code
+        # Transformation code
         H_HI_HH = copy(self.hand_init_H) # Homo matrix that takes P_HI  to P_HH - Point in Inital Hand Frame to Point in current hand Frame
         H_HT_HH = copy(self.hand_moving_H) # Homo matrix that takes P_HT to P_HH
         H_RI_RH = copy(self.robot_init_H) # Homo matrix that takes P_RI to P_RH
@@ -423,8 +431,8 @@ class FrankaArmOperator(Operator):
         # self.robot_moving_H = copy(H_RT_RH)
 
         # Use the resolution scale to get the final cart pose
-        # final_pose = self._get_scaled_cart_pose(self.robot_moving_H)
-        final_pose = self._homo2cart(copy(H_RT_RH))
+        final_pose = copy(self._get_scaled_cart_pose(H_RT_RH))
+        # final_pose = self._homo2cart(copy(H_RT_RH))
 
         # Use a Filter
         # if self.use_filter:

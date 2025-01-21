@@ -13,9 +13,8 @@ transformed_velocity_keypoint_port: 8090
 
 # Remote Tracking
 remote_port: 8125
-remote_pose_publish_port: 8126
-trigger_port: 8127
-trigger_publish_port: 8128
+remote_message_port: 8126
+gripper_message_port: 8127
 
 # Camera offsets
 cam_port_offset:  10005

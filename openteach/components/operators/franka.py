@@ -71,6 +71,8 @@ class FrankaArmOperator(Operator):
         self,
         host,
         transformed_keypoints_port,
+        remote_message_port,
+        gripper_message_port,
         use_filter=False,
         arm_resolution_port = None,
         teleoperation_reset_port = None,
@@ -89,6 +91,18 @@ class FrankaArmOperator(Operator):
             host=host,
             port=transformed_keypoints_port,
             topic='transformed_hand_frame'
+        )
+        # Subscribers for the remote message
+        self._remote_message_subscriber = ZMQKeypointSubscriber(
+            host=host,
+            port=remote_message_port,
+            topic='remote_msg'
+        )
+        # Subscribers for the gripper message
+        self._gripper_message_subscriber = ZMQKeypointSubscriber(
+            host=host,
+            port=gripper_message_port,
+            topic='gripper_msg'
         )
 
         self.deoxys_obs_cmd_history = {}
@@ -135,10 +149,15 @@ class FrankaArmOperator(Operator):
         self._timer = FrequencyTimer(VR_FREQ)
 
         self.gripper_state = None
+        self.gripper_last_msg = False
+        self.gripper_cmd = -1
         self.below_thresh = False
+
+        self.headset_init_R = None
 
         # Controller Tracking
         self.last_remote_pose = None
+        self.logs = []
 
 
     @property
@@ -157,6 +176,10 @@ class FrankaArmOperator(Operator):
     def transformed_arm_keypoint_subscriber(self):
         return self._transformed_arm_keypoint_subscriber
 
+    @property
+    def remote_message_subscriber(self):
+        return self._remote_message_subscriber
+
     # Get the hand frame
     def _get_hand_frame(self):
         for i in range(10):
@@ -164,6 +187,43 @@ class FrankaArmOperator(Operator):
             if not data is None: break
         if data is None: return None
         return np.asanyarray(data).reshape(4, 3)
+
+    def _get_remote_message(self):
+        for i in range(10):
+            data = self.remote_message_subscriber.recv_keypoints()
+            if not data is None: break
+        if data is None: return None
+        # pose is x, y, z, qx, qy, qz, qw
+        # need to transform this to a (4,3) pose matrix
+        remote_pose = np.array(data[0])
+        offset_R = np.array(data[1])
+
+        t = np.array(remote_pose[:3])
+        R = self._get_dir_frame(remote_pose[:3], offset_R)
+
+        # R = Rotation.from_quat(remote_pose[3:]).as_matrix()
+        # transform_R = self.headset_init_R @ R
+
+        remote_frame = np.vstack([t, R])
+
+        return remote_frame
+
+    # Create a coordinate frame for the arm
+    def _get_dir_frame(self, base, offset):
+        X = normalize_vector(offset[0] - base)
+        Y = normalize_vector(offset[1] - base)
+        Z = normalize_vector(base - offset[2])
+
+        return [X, Y, Z]
+
+    def _get_gripper_message(self):
+        msg = self._gripper_message_subscriber.recv_keypoints()
+        if not self.gripper_last_msg and msg:
+            self.gripper_cmd *= -1
+            self.gripper_last_msg = msg
+        elif self.gripper_last_msg and not msg:
+            self.gripper_last_msg = msg
+        return self.gripper_cmd
 
     # Get the resolution scale mode (High or Low)
     def _get_resolution_scale_mode(self):
@@ -180,10 +240,42 @@ class FrankaArmOperator(Operator):
     # Converts a frame to a homogenous transformation matrix
     def _turn_frame_to_homo_mat(self, frame):
         t = frame[0]
+        # a = -45*np.pi/180
+        # Y_45 = np.array(
+        #     [
+        #     [np.cos(a), 0, np.sin(a)],
+        #     [0,1,0],
+        #     [-np.sin(a), 0, np.cos(a)],
+        #      ]
+        # )
+        # # t = (Y_45 @ t.reshape(3, 1)).reshape(3)
+
+        # a = -90 * np.pi/180
+        # X_90 = np.array([
+        #     [1,0,0],
+        #     [0, np.cos(a), -np.sin(a)],
+        #     [0, np.sin(a), np.cos(a)],
+        # ])
+        # # t = (X_90 @ t.reshape(3, 1)).reshape(3)
+        # a = 45 * np.pi/180
+        # Z_45 = np.array([
+        #     [np.cos(a), -np.sin(a), 0],
+        #     [np.sin(a), np.cos(a), 0],
+        #     [0,0,1],
+        # ])
+        # a = 180 * np.pi/180
+        # X_180 = np.array([
+        #     [1,0,0],
+        #     [0, np.cos(a), -np.sin(a)],
+        #     [0, np.sin(a), np.cos(a)],
+        # ])
+        # meta2robo = X_180 @ Z_45 @ X_90 @ Y_45
+        # t = (meta2robo @ t.reshape(3, 1)).reshape(3)
+
         R = frame[1:]
 
         homo_mat = np.zeros((4, 4))
-        homo_mat[:3, :3] = np.transpose(R)
+        homo_mat[:3, :3] = np.transpose(R)  # TODO: Why?? This seeems to be critical to how this works.
         homo_mat[:3, 3] = t
         homo_mat[3, 3] = 1
 
@@ -213,7 +305,7 @@ class FrankaArmOperator(Operator):
 
         # Get the difference in translation between these two cart poses
         diff_in_translation = unscaled_cart_pose[:3] - current_cart_pose[:3]
-        scaled_diff_in_translation = diff_in_translation * self.resolution_scale
+        scaled_diff_in_translation = diff_in_translation * 0.5  # translation_scale
         # print('SCALED_DIFF_IN_TRANSLATION: {}'.format(scaled_diff_in_translation))
 
         scaled_cart_pose = np.zeros(7)
@@ -230,6 +322,19 @@ class FrankaArmOperator(Operator):
         first_hand_frame = self._get_hand_frame()
         while first_hand_frame is None:
             first_hand_frame = self._get_hand_frame()
+        self.hand_init_H = self._turn_frame_to_homo_mat(first_hand_frame)
+        self.hand_init_t = copy(self.hand_init_H[:3, 3])
+        self.is_first_frame = False
+        return first_hand_frame
+
+        # Reset the teleoperation and get the first frame
+    def _reset_controller_teleop(self):
+        # Just updates the beginning position of the arm
+        print('****** RESETTING TELEOP ****** ')
+        self.robot_init_H = self.robot_interface.last_eef_pose
+        first_hand_frame = self._get_remote_message()
+        while first_hand_frame is None:
+            first_hand_frame = self._get_remote_message()
         self.hand_init_H = self._turn_frame_to_homo_mat(first_hand_frame)
         self.hand_init_t = copy(self.hand_init_H[:3, 3])
         self.is_first_frame = False
@@ -294,21 +399,51 @@ class FrankaArmOperator(Operator):
         new_arm_teleop_state = self._get_arm_teleop_state()
         if self.is_first_frame or (self.arm_teleop_state == ARM_TELEOP_STOP and new_arm_teleop_state == ARM_TELEOP_CONT):
             # initialize
-            self.last_remote_pose = self._get_remote_pose()
-            return
+            moving_hand_frame = self._reset_controller_teleop()
         else:
-            current_remote_pose = self._get_remote_pose()
-            delta = current_remote_pose - self.last_remote_pose
-            self.last_remote_pose = current_remote_pose
+            moving_hand_frame = self._get_remote_message()
+        self.arm_teleop_state = new_arm_teleop_state
 
-        print(delta)
+        if moving_hand_frame is None:
+            return # It means we are not on the arm mode yet instead of blocking it is directly returning
 
+        # Get the moving hand frame
+        # print(f"X: {moving_hand_frame[0, 0]} Y: {moving_hand_frame[0, 1]}, Z: {moving_hand_frame[0, 2]}")
+        self.hand_moving_H = self._turn_frame_to_homo_mat(moving_hand_frame)
 
-        # final_pose needs to be in the form of [x, y, z, qx, qy, qz, qw]
-        # store last remote pose
-        # calculate delta
-        # apply delta to robot
-        # self.arm_control(final_pose, gripper_cmd)
+        # self.logs.append(moving_hand_frame[0])
+
+        # Transformation code
+        H_HI_HH = copy(self.hand_init_H) # Homo matrix that takes P_HI  to P_HH - Point in Inital Hand Frame to Point in current hand Frame
+        H_HT_HH = copy(self.hand_moving_H) # Homo matrix that takes P_HT to P_HH
+        H_RI_RH = copy(self.robot_init_H) # Homo matrix that takes P_RI to P_RH
+
+        # Rotation from allegro to franka
+        # H_A_R = np.array(
+        #     [[1/np.sqrt(2), 1/np.sqrt(2), 0, 0],
+        #      [-1/np.sqrt(2), 1/np.sqrt(2), 0, 0],
+        #      [0, 0, 1, -0.06], # The height of the allegro mount is 6cm
+        #      [0, 0, 0, 1]])
+
+        H_HT_HI = np.linalg.pinv(H_HI_HH) @ H_HT_HH # Homo matrix that takes P_HT to P_HI
+        # H_RT_RH = H_RI_RH @ H_A_R @ H_HT_HI @ np.linalg.pinv(H_A_R) # Homo matrix that takes P_RT to P_RH
+        H_RT_RH = H_RI_RH @ H_HT_HI # Homo matrix that takes P_RT to P_RH
+        # self.robot_moving_H = copy(H_RT_RH)
+
+        # Use the resolution scale to get the final cart pose
+        final_pose = copy(self._get_scaled_cart_pose(H_RT_RH))
+        # final_pose = self._homo2cart(copy(H_RT_RH))
+
+        # Use a Filter
+        # if self.use_filter:
+        #     final_pose = self.comp_filter(final_pose)
+        # Move the robot arm
+        # print(final_pose)
+
+        ## Add Gripper control. Gripper cmd should be in [-1, 1]
+        gripper_cmd = self._get_gripper_message()
+        self.arm_control(final_pose, gripper_cmd)
+
 
     def arm_control(self, cartesian_pose, gripper_cmd):
         cartesian_pose = np.array(cartesian_pose, dtype=np.float32)
@@ -375,6 +510,7 @@ class FrankaArmOperator(Operator):
         # Assume that the initial position is considered initial after 3 seconds of the start
         while True:
             try:
+                # print(self.robot_interface.last_eef_pose)
                 if self.robot_interface.last_eef_pose is not None:
                     self.timer.start_loop()
 
@@ -384,6 +520,10 @@ class FrankaArmOperator(Operator):
 
                     self.timer.end_loop()
             except KeyboardInterrupt:
+                # # save logs
+                # with open('logs.pkl', 'wb') as f:
+                #     pkl.dump(self.logs, f)
+
                 if self.record:
                     path = os.path.join(os.getcwd(), 'extracted_data', f'deoxys_obs_cmd_history_{self.record}.pkl')
                     print('Saving the deoxys_obs_cmd_history to {}'.format(path))
@@ -391,6 +531,9 @@ class FrankaArmOperator(Operator):
                         pkl.dump(self.deoxys_obs_cmd_history, f)
                         # pkl.dump(self.robot._controller.franka.deoxys_obs_cmd_history, f)
                 break
+            except Exception as e:
+                print(e)
+
 
         self.transformed_arm_keypoint_subscriber.stop()
         print('Stopping the teleoperator!')

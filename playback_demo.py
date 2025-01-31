@@ -51,7 +51,7 @@ DEFAULT_CONTROLLER = EasyDict({
         'rotation': [250.0, 250.0, 250.0]
     },
     'action_scale': {
-        'translation': 0.5,
+        'translation': 1.0,
         'rotation': 1.0
     },
     'residual_mass_vec': [0.0, 0.0, 0.0, 0.0, 0.1, 0.5, 0.5],
@@ -139,7 +139,7 @@ def replay_from_rlds(args):
 def replay_from_pkl(args):
     home = os.path.expanduser("~")
     # Load demonstration data
-    filename = f"{home}/openteach/extracted_data/_5Hz_Demos/demonstration_{args.demo}/demo_{args.demo}.pkl"
+    filename = f"{home}/openteach/extracted_data/demonstration_{args.demo}/demo_{args.demo}.pkl"
     # arm_cmd_file = f"/home/ripl/openteach/extracted_data/pick_coke/demonstration_coke18/franka_arm_tcp_commands.h5"
     with open(filename, 'rb') as dbfile:
         db = pkl.load(dbfile)
@@ -170,17 +170,17 @@ def replay_from_pkl(args):
         # timer.start_loop()
         # breakpoint()
         # absolute action
-        target_pos, target_quat = db['cartesian_pose_cmd'][i][:3], db['cartesian_pose_cmd'][i][3:]
-        target_axis_angle = quat2axisangle(target_quat)
-        action = np.concatenate([target_pos, target_axis_angle])
+        # target_pos, target_quat = db['cartesian_pose_cmd'][i][:3], db['cartesian_pose_cmd'][i][3:]
+        # target_axis_angle = quat2axisangle(target_quat)
+        # action = np.concatenate([target_pos, target_axis_angle])
 
         # relative action
-        # deltas = db["arm_action"][i]
-        # deltas[3:6] = quat2axisangle(mat2quat(euler2mat(deltas[3:6])))
+        deltas = db["arm_action"][i]
+        deltas[3:6] = quat2axisangle(mat2quat(euler2mat(deltas[3:6])))
         robot_interface.control(
                 controller_type=db["controller_type"],
-                action=action,
-                controller_cfg=CMD_ACTION_CONTROLLER,
+                action=deltas,
+                controller_cfg=DEFAULT_CONTROLLER,
             )
 
         robot_interface.gripper_control(db["gripper_action"][i])

@@ -81,6 +81,10 @@ class FrankaArmOperator(Operator):
         self.notify_component_start('franka arm operator')
         # Subscribers for the transformed hand keypoints
         self.record = record
+
+        # TODO: See if we can remove these since we dont use them or
+        # find out if it is better to copy the old pub/sub layout
+        # remote coords path oculus -> keypoint_transform -> franka
         self._transformed_hand_keypoint_subscriber = ZMQKeypointSubscriber(
             host=host,
             port=transformed_keypoints_port,
@@ -126,7 +130,7 @@ class FrankaArmOperator(Operator):
         self.arm_teleop_state = ARM_TELEOP_STOP # We will start as the cont
 
         # Subscribers for the resolution scale and teleop state
-        self._arm_resolution_subscriber = ZMQKeypointSubscriber(
+        self._arm_resolution_subscriber = ZMQKeypointSubscriber(  # TODO: See if we can remove this since we dont use them
             host = host,
             port = arm_resolution_port,
             topic = 'button'
@@ -153,10 +157,6 @@ class FrankaArmOperator(Operator):
         self.gripper_cmd = -1
         self.below_thresh = False
 
-        self.headset_init_R = None
-
-        # Controller Tracking
-        self.last_remote_pose = None
         self.logs = []
 
 
@@ -305,7 +305,7 @@ class FrankaArmOperator(Operator):
 
         # Get the difference in translation between these two cart poses
         diff_in_translation = unscaled_cart_pose[:3] - current_cart_pose[:3]
-        scaled_diff_in_translation = diff_in_translation * 0.5  # translation_scale
+        scaled_diff_in_translation = diff_in_translation * 0.25  # translation_scale
         # print('SCALED_DIFF_IN_TRANSLATION: {}'.format(scaled_diff_in_translation))
 
         scaled_cart_pose = np.zeros(7)
@@ -408,39 +408,22 @@ class FrankaArmOperator(Operator):
             return # It means we are not on the arm mode yet instead of blocking it is directly returning
 
         # Get the moving hand frame
-        # print(f"X: {moving_hand_frame[0, 0]} Y: {moving_hand_frame[0, 1]}, Z: {moving_hand_frame[0, 2]}")
         self.hand_moving_H = self._turn_frame_to_homo_mat(moving_hand_frame)
-
-        # self.logs.append(moving_hand_frame[0])
 
         # Transformation code
         H_HI_HH = copy(self.hand_init_H) # Homo matrix that takes P_HI  to P_HH - Point in Inital Hand Frame to Point in current hand Frame
         H_HT_HH = copy(self.hand_moving_H) # Homo matrix that takes P_HT to P_HH
         H_RI_RH = copy(self.robot_init_H) # Homo matrix that takes P_RI to P_RH
 
-        # Rotation from allegro to franka
-        # H_A_R = np.array(
-        #     [[1/np.sqrt(2), 1/np.sqrt(2), 0, 0],
-        #      [-1/np.sqrt(2), 1/np.sqrt(2), 0, 0],
-        #      [0, 0, 1, -0.06], # The height of the allegro mount is 6cm
-        #      [0, 0, 0, 1]])
 
         H_HT_HI = np.linalg.pinv(H_HI_HH) @ H_HT_HH # Homo matrix that takes P_HT to P_HI
-        # H_RT_RH = H_RI_RH @ H_A_R @ H_HT_HI @ np.linalg.pinv(H_A_R) # Homo matrix that takes P_RT to P_RH
         H_RT_RH = H_RI_RH @ H_HT_HI # Homo matrix that takes P_RT to P_RH
-        # self.robot_moving_H = copy(H_RT_RH)
 
         # Use the resolution scale to get the final cart pose
-        final_pose = copy(self._get_scaled_cart_pose(H_RT_RH))
-        # final_pose = self._homo2cart(copy(H_RT_RH))
+        final_pose = copy(self._get_scaled_cart_pose(H_RT_RH))  # this scales actions by 0.5
+        # final_pose = self._homo2cart(copy(H_RT_RH))  # use this for unscaled actions
 
-        # Use a Filter
-        # if self.use_filter:
-        #     final_pose = self.comp_filter(final_pose)
-        # Move the robot arm
-        # print(final_pose)
-
-        ## Add Gripper control. Gripper cmd should be in [-1, 1]
+        # Add Gripper control. Gripper cmd should be in [-1, 1]
         gripper_cmd = self._get_gripper_message()
         self.arm_control(final_pose, gripper_cmd)
 

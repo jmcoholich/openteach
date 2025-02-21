@@ -5,9 +5,9 @@ defaults:
   - override hydra/job_logging: disabled
 
 robot_cam_serial_numbers:
-  - '102122072431'
-  - '102122070622'
-  - '102422074653'
+  # - '102122072431'  # needs to be high res for recording
+  - '102122070622'  # not used
+  - '102422074653'  # robot camera
 
 cam_configs:  # if the width and height are changed, they also need to be changed in constants.py
   width: 640
@@ -18,7 +18,7 @@ cam_configs:  # if the width and height are changed, they also need to be change
   depth: True
 
 oculus_cam: 0 # First camera
-num_cams: 3
+num_cams: 2
 
 hydra:
   output_subdir: null

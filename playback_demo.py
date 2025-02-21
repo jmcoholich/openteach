@@ -16,7 +16,7 @@ from deoxys.utils.config_utils import get_default_controller_config
 from deoxys.utils.log_utils import get_deoxys_example_logger
 from examples.osc_control import move_to_target_pose, deltas_move
 from deoxys.experimental.motion_utils import reset_joints_to
-from deoxys.utils.transform_utils import quat2axisangle, mat2euler, mat2quat, quat_distance, quat2mat, euler2mat
+from deoxys.utils.transform_utils import quat2axisangle, mat2euler, mat2quat, quat_distance, quat2mat, euler2mat, axisangle2quat, quat_multiply
 
 # General
 import numpy as np
@@ -41,7 +41,7 @@ parser.add_argument("demo", type=str, help="The name of the demonstration to vis
 
 DEFAULT_CONTROLLER = EasyDict({
     'controller_type': 'OSC_POSE',
-    'is_delta': True,
+    'is_delta': False,
     'traj_interpolator_cfg': {
         'traj_interpolator_type': 'LINEAR_POSE',
         'time_fraction': 0.3
@@ -139,10 +139,19 @@ def replay_from_rlds(args):
 def replay_from_pkl(args):
     home = os.path.expanduser("~")
     # Load demonstration data
-    filename = f"{home}/openteach/extracted_data/demonstration_{args.demo}/demo_{args.demo}.pkl"
+    filename = f"/home/ripl/Desktop/blocks/demo_000.pkl"
     # arm_cmd_file = f"/home/ripl/openteach/extracted_data/pick_coke/demonstration_coke18/franka_arm_tcp_commands.h5"
     with open(filename, 'rb') as dbfile:
         db = pkl.load(dbfile)
+    # breakpoint()
+    pos = db['eef_pos'].squeeze() + db['arm_action'][:, :3]
+    quat_rot_actions = [axisangle2quat(x) for x in db['arm_action'][:, 3:]]
+    rot = np.array([
+        quat2axisangle(quat_multiply(i, j)) for i,j in \
+            zip(quat_rot_actions, db['eef_quat'])
+            ])
+    arm_action = np.hstack((pos, rot))
+
     # breakpoint()
 
     # images = []
@@ -159,26 +168,20 @@ def replay_from_pkl(args):
     # breakpoint()
     robot_interface = FrankaInterface(
         os.path.join('/home/ripl/openteach/configs', 'deoxys.yml'), use_visualizer=False,
-        control_freq=1,  # setting control frequency here so we don't have to handle it with a timer
+        control_freq=5,  # setting control frequency here so we don't have to handle it with a timer
         state_freq=200
     )
     # timer = FrequencyTimer(15)
 
     # move robot to start position
     reset_joints_to(robot_interface, db['joint_pos'][0])
-    for i in range(0, len(db["arm_action"])):
+    for i in range(0, len(arm_action)):
         # timer.start_loop()
-        # breakpoint()
-        # absolute action
-        # target_pos, target_quat = db['cartesian_pose_cmd'][i][:3], db['cartesian_pose_cmd'][i][3:]
-        # target_axis_angle = quat2axisangle(target_quat)
-        # action = np.concatenate([target_pos, target_axis_angle])
 
-        # relative action
-        deltas = db["arm_action"][i]
-        deltas[3:6] = quat2axisangle(mat2quat(euler2mat(deltas[3:6])))
+        deltas = arm_action[i]
+
         robot_interface.control(
-                controller_type=db["controller_type"],
+                controller_type=DEFAULT_CONTROLLER["controller_type"],
                 action=deltas,
                 controller_cfg=DEFAULT_CONTROLLER,
             )

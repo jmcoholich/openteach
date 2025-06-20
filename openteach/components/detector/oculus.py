@@ -112,33 +112,20 @@ class OculusVRHandDetector(Component):
         while True:
             try:
                 self.timer.start_loop()
-                # Getting the raw keypoints
-                # raw_keypoints = self.raw_keypoint_socket.recv()
-                # print(raw_keypoints)
-                # Getting the button feedback
-                # button_feedback = self.button_keypoint_socket.recv()
 
                 # Getting remote message
-                # TypeMarker|x,y,z|q1,q2,q3,q4|gripper
+                # TypeMarker|x,y,z|q1,q2,q3,q4|gripper|offset_forward,offset_right,offset_up
                 remote_message = self.remote_socket.recv()
-                # print(remote_message)
                 remote_pose, gripper, offset_R = self._extract_remote_data(remote_message)
-                # print(rea_pose, lea_pose)
 
                 # Getting the Teleop Reset Status
                 pause_status = self.teleop_reset_socket.recv()
-                # Analyzing the resolution based on Button Feedback
-                # if button_feedback==b'Low':
-                #     button_feedback_num = ARM_LOW_RESOLUTION
-                # else:
-                #     button_feedback_num = ARM_HIGH_RESOLUTION
-                # Analyzing the Teleop Reset Status
                 if pause_status==b'Low':
                     pause_status = ARM_TELEOP_STOP
                 else:
                     pause_status = ARM_TELEOP_CONT
 
-                # Publish Remote Pose
+                # Publish Remote Pose with offsets and Gripper
                 self._publish_remote_message(remote_pose, offset_R)
                 self._publish_gripper_message(gripper)
 
@@ -149,9 +136,6 @@ class OculusVRHandDetector(Component):
                 print(e)
                 break
 
-        # self.raw_keypoint_socket.close()
-        # self.controller_input_socket.close()
-        # self.hand_keypoint_publisher.stop()
         self.remote_socket.close()
         self.teleop_reset_socket.close()
         self.pause_info_publisher.stop()

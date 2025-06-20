@@ -77,10 +77,12 @@ class FrankaArmOperator(Operator):
         arm_resolution_port = None,
         teleoperation_reset_port = None,
         record=None,
+        storage_location="extracted_data",
     ):
         self.notify_component_start('franka arm operator')
         # Subscribers for the transformed hand keypoints
         self.record = record
+        self.storage_location = storage_location
 
         # TODO: See if we can remove these since we dont use them or
         # find out if it is better to copy the old pub/sub layout
@@ -502,13 +504,15 @@ class FrankaArmOperator(Operator):
                     self._controller_tracking()
 
                     self.timer.end_loop()
+                # else:
+                #     print('No robot state.. try activating deadman switch')
             except KeyboardInterrupt:
                 # # save logs
                 # with open('logs.pkl', 'wb') as f:
                 #     pkl.dump(self.logs, f)
 
-                if self.record:
-                    path = os.path.join(os.getcwd(), 'extracted_data', f'deoxys_obs_cmd_history_{self.record}.pkl')
+                if self.record is not None and self.storage_location is not None:
+                    path = os.path.join(os.getcwd(), self.storage_location, f'deoxys_obs_cmd_history_{self.record}.pkl')
                     print('Saving the deoxys_obs_cmd_history to {}'.format(path))
                     with open(path, 'wb') as f:
                         pkl.dump(self.deoxys_obs_cmd_history, f)

@@ -8,58 +8,32 @@ using NetMQ;
 using NetMQ.Sockets;
 
 class GestureDetector : MonoBehaviour
-{   
+{
     // Controller Objects
     public OVRInput.Controller RightController;
-    // Hand objects
-    // public OVRSkeleton RightHandSkeleton;
-    public OVRCameraRig CameraRig;
-
+    [SerializeField] private ChangeColor changeColorScript;
+    private Color controllerColor = Color.red; // Default color for the controller mesh
     public Transform controllerTransform;
 
     // Menu and RayCaster GameObjects
     public GameObject MenuButton;
-    public GameObject ResolutionButton;
-    public GameObject HighResolutionButton;
-    public GameObject LowResolutionButton;
-
     public GameObject WristTracker;
     private GameObject LaserPointer;
     private LineRenderer LineRenderer;
 
-
-    // Hand Usage indicator
-    public RawImage StreamBorder;
-
     // Stream Enablers
-    bool StreamRelativeData = true;
     bool StreamAbsoluteData = false;
-
-
-    //Newly added
-    //bool HighResolution = false;
-    //bool LowResolution = false;
-    bool StreamResolution= true;
-    public HighResolutionButtonController HighResolutionButtonController;
-    public LowResolutionButtonController LowResolutionButtonController;
-
-
-
 
     // Network enablers
     private NetworkManager netConfig;
-    private PushSocket client3;
 
-    private string PauseAddress;
-
+    // Pause Socket
+    private PushSocket PauseClient;
     private string pauseState;
-
     private bool ShouldContinueArmTeleop = false;
+    private bool PauseConnectionEstablished = false;
 
-    private bool PauseEstablished = false;
-    private bool PauseCreated = false;
-
-    // Controller tracking
+    // Controller Socket
     private PushSocket RemoteClient;
     private string RemoteCommunicationAddress;
     private bool RemoteConnectionEstablished = false;
@@ -67,79 +41,95 @@ class GestureDetector : MonoBehaviour
     // Mode
     private int currentMode = 0;
 
+    // Start function
+    void Start()
+    {
+        AsyncIO.ForceDotNet.Force();
+        NetMQConfig.Cleanup(false);
+        GameObject netConfGameObject = GameObject.Find("NetworkConfigsLoader");
+
+        if (netConfGameObject == null)
+        {
+            Debug.LogError("NetworkConfigsLoader not found in the scene!");
+            return;  // Prevent further execution
+        }
+
+        netConfig = netConfGameObject.GetComponent<NetworkManager>();
+
+        if (netConfig == null)
+        {
+            Debug.LogError("NetworkManager component not found on NetworkConfigsLoader!");
+            return;  // Prevent further execution
+        }
+
+        LaserPointer = GameObject.Find("LaserPointer");
+        LineRenderer = LaserPointer.GetComponent<LineRenderer>();
+
+        // Initiate Push Socket
+        RemoteClient = new PushSocket();
+        ConnectRemoteClient(netConfig.getRemoteAddress());
+
+        // Initiate Push Socket for Pause
+        PauseClient = new PushSocket();
+        ConnectPauseClient(netConfig.getPauseAddress());
+    }
+
     // Starting the server connection
-    public void CreateRemoteTCPConnection()
+    public void ConnectRemoteClient(string address)
     {
         // Check if communication address is available
-        RemoteCommunicationAddress = netConfig.getRemoteAddress();
-        bool AddressAvailable = !String.Equals(RemoteCommunicationAddress, "tcp://:");
+        bool AddressAvailable = !String.Equals(address, "tcp://:");
 
         if (AddressAvailable)
         {
-            // Initiate Push Socket
-            RemoteClient = new PushSocket();
-            RemoteClient.Connect(RemoteCommunicationAddress);
+            RemoteCommunicationAddress = address;
+            RemoteClient.Connect(address);
             RemoteConnectionEstablished = true;
-            RemoteClient.SendFrame("Connected");
+            Debug.Log("Connected to Remote Client at: " + address);
         }
 
         // Setting color to green to indicate control
         if (RemoteConnectionEstablished)
         {
-            StreamBorder.color = Color.green;
+            controllerColor = Color.red; // Start in red since were not streaming the controller
             ToggleMenuButton(false);
-        } else
+        }
+        else
         {
-            StreamBorder.color = Color.red;
+            controllerColor = Color.magenta; // Set the controller color to magenta to indicate an issue
             ToggleMenuButton(true);
+            Debug.LogWarning("Remote Client connection failed or address is not set correctly: " + address);
         }
     }
-  
+
+    public void ConnectPauseClient(string address)
+    {
+        // Check if communication address is available
+        bool PauseAvailable = !String.Equals(address, "tcp://:");
+
+        if (PauseAvailable)
+        {
+            PauseClient.Connect(address);
+            PauseConnectionEstablished = true;
+        }
+    }
+
 
     public void ToggleMenuButton(bool toggle)
     {
         MenuButton.SetActive(toggle);
         LineRenderer.enabled = toggle;
-    }
-
-    public void ToggleResolutionButton(bool toggle)
-    {
-        ResolutionButton.SetActive(toggle);
-        LineRenderer.enabled = toggle;
-    }
-
-    public void ToggleHighResolutionButton(bool toggle)
-    {
-        HighResolutionButton.SetActive(toggle);
-        
-    }
-
-    public void ToggleLowResolutionButton(bool toggle)
-    {
-        LowResolutionButton.SetActive(toggle);
-
-
-    }
-    // Start function
-    void Start()
-     {
-        // Getting the Network Config Updater gameobject
-        GameObject netConfGameObject = GameObject.Find("NetworkConfigsLoader");
-        netConfig = netConfGameObject.GetComponent<NetworkManager>();
-
-        LaserPointer = GameObject.Find("LaserPointer");
-        LineRenderer = LaserPointer.GetComponent<LineRenderer>();
 
     }
 
 
     public void SendRemoteData(String TypeMarker)
     {
-        // Message needs to contain Marker|x,y,z|ax,ay,az,aw|gripper
+        // Message needs to contain Marker|x,y,z|q1,q2,q3,q4|gripper|offset_forward,offset_right,offset_up
         Vector3 pos = OVRInput.GetLocalControllerPosition(RightController);
         Quaternion quat = OVRInput.GetLocalControllerRotation(RightController);
-        Vector3 offsetForward = pos + controllerTransform.forward * 0.1f;   
-        Vector3 offsetRight = pos + controllerTransform.right * 0.1f;   
+        Vector3 offsetForward = pos + controllerTransform.forward * 0.1f;
+        Vector3 offsetRight = pos + controllerTransform.right * 0.1f;
         Vector3 offsetUp = pos + controllerTransform.up * 0.1f;
 
 
@@ -151,59 +141,36 @@ class GestureDetector : MonoBehaviour
         message = message + offsetRight.x + "," + offsetRight.y + "," + offsetRight.z + "|";
         message = message + offsetUp.x + "," + offsetUp.y + "," + offsetUp.z;
 
-        RemoteClient.SendFrame(message);
-        byte[] recievedToken = RemoteClient.ReceiveFrameBytes();
+        bool sent = RemoteClient.TrySendFrame(message);
+        if (!sent) {
+            Debug.LogWarning("Message send failed or would block");
+        }
     }
 
 
     public void SendResetStatus()
     {
-        PauseAddress = netConfig.getPauseAddress();
-        bool PauseAvailable = !String.Equals(PauseAddress, "tcp://:");
-
-        if (PauseAvailable)
-        {   if (!PauseCreated)
-            // Initiate Push Socket
-            { 
-                Debug.Log("Address Available");
-                client3 = new PushSocket();
-                client3.Connect(PauseAddress);
-                PauseEstablished = true;
-                PauseCreated=true;
-            }
-            else 
+        if (PauseConnectionEstablished)
+        {
+            if (ShouldContinueArmTeleop)
             {
-                PauseEstablished=true;
-            }
-        }
-        else
-        {
-            PauseEstablished = false;
-        }
-        
-        if (PauseEstablished)
-        {
-            if (ShouldContinueArmTeleop){
                 pauseState = "High";
-            } else {
+            }
+            else
+            {
                 pauseState = "Low";
             }
-            client3.SendFrame(pauseState);
+            bool sent = PauseClient.TrySendFrame(pauseState);
+            if (!sent) {
+                Debug.LogWarning("Message send failed or would block");
+            }
         }
-        else 
-        {
-            
-            pauseState="None";
-            client3.SendFrame(pauseState);
-        }
-        
-
     }
-    
+
 
     public void StreamPauser()
     {
-        // Switching from Right hand control
+        // Check if B is pressed only on first frame down so hold does not toggle the mode
         bool modeChange = false;
         if (OVRInput.GetDown(OVRInput.RawButton.B))
         {
@@ -212,115 +179,69 @@ class GestureDetector : MonoBehaviour
             modeChange = true;
         }
 
+        // Streams Data
         if (modeChange && currentMode == 1)
         {
             OVRManager.display.RecenterPose();
-            StreamRelativeData = false;
             StreamAbsoluteData = true;
-            StreamResolution= false;
-            StreamBorder.color = Color.blue; // Blue for left hand stream
+            controllerColor = Color.green; // Set the controller color to green
             ToggleMenuButton(false);
-            ToggleResolutionButton(false);
             WristTracker.SetActive(true);
             ShouldContinueArmTeleop = true;
-            // SendCont();
-            
-        }
 
-        // // Switching from Left hand control
-        // if (OVRInput.Get(OVRInput.RawButton.Y))
-        // {
-        //     StreamRelativeData = true;
-        //     StreamAbsoluteData = false;
-        //     StreamResolution = false;
-        //     StreamBorder.color = Color.green; // Green for right hand stream
-        //     ToggleMenuButton(false);
-        //     ToggleResolutionButton(false);
-        //     WristTracker.SetActive(false);
-        //     ShouldContinueArmTeleop = false;
-        //     // SendPause();
-            
-        // }
+        }
 
         // Pausing Stream
-        if (modeChange && currentMode == 0)
+        if (modeChange && currentMode == 0)  // open menu
         {
-            StreamRelativeData = false;
             StreamAbsoluteData = false;
-            StreamResolution = false;
-            StreamBorder.color = Color.red; // Red color for no stream 
+            controllerColor = Color.red; // Set the controller color to red
             ToggleMenuButton(true);
-            //ToggleResolutionButton(false);
             WristTracker.SetActive(false);
             ShouldContinueArmTeleop = false;
-            
+
         }
 
-        // if (LeftHand.GetFingerIsPinching(OVRHand.HandFinger.Pinky))
-        // {
-        //     StreamRelativeData = false;
-        //     StreamAbsoluteData = false;
-        //     StreamResolution = true;
-        //     StreamBorder.color = Color.black; // Black color for resolution
-        //     ShouldContinueArmTeleop = false;
-        //     ToggleMenuButton(false);
-        //     ToggleResolutionButton(true);
-        //     WristTracker.SetActive(false);
-        //     // SendPause();
-
-        // }
     }
 
     void Update()
     {
+        changeColorScript.SetColor(controllerColor);  // Update controller color
         // Hand Tracking
         if (RemoteConnectionEstablished)
-        
-        {   
+
+        {
             SendResetStatus();
-            if (String.Equals(RemoteCommunicationAddress, netConfig.getRemoteAddress()))
-            {   
+            if (String.Equals(RemoteCommunicationAddress, netConfig.getRemoteAddress()) && !String.Equals(RemoteCommunicationAddress, "tcp://:"))
+            {
 
-                StreamPauser();
+                StreamPauser();  // check if B was pressed to bring up the menu
 
-                
-
+                // Stream Data
                 if (StreamAbsoluteData)
-                {   
                     SendRemoteData("absolute");
-                    ToggleResolutionButton(false);
-                    // SendCont();
-                   
-                }
-
-                if (StreamRelativeData)
-                {
-                    SendRemoteData("relative");
-                    ToggleResolutionButton(false);
-                    // SendPause();
-                    
-                }
-
-                if (StreamResolution)
-                {   
-                    ToggleHighResolutionButton(true);
-                    ToggleLowResolutionButton(true);
-                    // SendPause();
-                   
-                } 
-              
+                
             }
             else
             {
                 RemoteConnectionEstablished = false;
             }
-        
-        } else
-        {
-            StreamBorder.color = Color.red;
-            ToggleMenuButton(true);
-            //ToggleResolutionButton(false);
-            CreateRemoteTCPConnection();        
+
         }
+        else
+        {
+            Debug.LogWarning("Update function: connection not established");
+            ToggleMenuButton(true);
+            ConnectRemoteClient(netConfig.getRemoteAddress());
+            ConnectPauseClient(netConfig.getPauseAddress());
+        }
+    }
+
+    void OnApplicationQuit()
+    {
+        // Clean up NetMQ resources
+        PauseClient.Dispose();
+        RemoteClient.Dispose();
+        NetMQConfig.Cleanup(false);
     }
 }

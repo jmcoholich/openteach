@@ -1575,16 +1575,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   RightController: 2
-  CameraRig: {fileID: 782628378}
+  changeColorScript: {fileID: 1962133694}
   controllerTransform: {fileID: 1274392524}
   MenuButton: {fileID: 741250026}
   ResolutionButton: {fileID: 779833893}
-  HighResolutionButton: {fileID: 0}
-  LowResolutionButton: {fileID: 0}
   WristTracker: {fileID: 180354238}
-  StreamBorder: {fileID: 1242621770}
-  HighResolutionButtonController: {fileID: 633987599}
-  LowResolutionButtonController: {fileID: 259715468}
 --- !u!4 &223974228
 Transform:
   m_ObjectHideFlags: 0
@@ -4903,6 +4898,18 @@ PrefabInstance:
       propertyPath: isInsightPassthroughEnabled
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: 2323061994421614593, guid: 126d619cf4daa52469682f85c1378b4a, type: 3}
+      propertyPath: m_Materials.Array.size
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2323061994421614593, guid: 126d619cf4daa52469682f85c1378b4a, type: 3}
+      propertyPath: m_Materials.Array.data[1]
+      value: 
+      objectReference: {fileID: 2100000, guid: d7292a5e1ae17a64c95f3081d2c6be5a, type: 2}
+    - target: {fileID: 4932177930080547816, guid: 126d619cf4daa52469682f85c1378b4a, type: 3}
+      propertyPath: m_Enabled
+      value: 1
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 126d619cf4daa52469682f85c1378b4a, type: 3}
 --- !u!4 &782628376 stripped
@@ -4915,17 +4922,6 @@ Camera:
   m_CorrespondingSourceObject: {fileID: 2037080, guid: 126d619cf4daa52469682f85c1378b4a, type: 3}
   m_PrefabInstance: {fileID: 782628375}
   m_PrefabAsset: {fileID: 0}
---- !u!114 &782628378 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 11400010, guid: 126d619cf4daa52469682f85c1378b4a, type: 3}
-  m_PrefabInstance: {fileID: 782628375}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1985308836}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: df9f338034892c44ebb62d97894772f1, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!1 &794477185
 GameObject:
   m_ObjectHideFlags: 0
@@ -10912,6 +10908,24 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1935971134}
   m_CullTransparentMesh: 1
+--- !u!1 &1962133688 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 4932177930083663612, guid: 126d619cf4daa52469682f85c1378b4a, type: 3}
+  m_PrefabInstance: {fileID: 782628375}
+  m_PrefabAsset: {fileID: 0}
+--- !u!114 &1962133694
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1962133688}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c18c1857d9d730142a00e7c6578975f9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  myMaterial: {fileID: 2100000, guid: d7292a5e1ae17a64c95f3081d2c6be5a, type: 2}
 --- !u!1 &1965389154
 GameObject:
   m_ObjectHideFlags: 0

@@ -185,6 +185,11 @@ def make_combined_video(folder, demo_number):
     }
     all_cams_started_time = np.max([x[0] for x in rgb_timestamps] + [x[0] for x in depth_timestamps])
     cam_stopped = np.min([x[-1] for x in rgb_timestamps] + [x[-1] for x in depth_timestamps])
+    x = rgb_timestamps[0]
+    print((x[1:] - x[:-1]).max())
+    print((x[1:] - x[:-1]).min())
+    print((x[1:] - x[:-1]).mean())
+#    breakpoint()
     for i in tqdm(range(len(cmd_data['index'])), desc="Processing data..."):
         # once the robot is stopped (by releasing deadman switch), the robot state stops updating but the commands continue
         # detect this and skip these frames
@@ -617,25 +622,34 @@ def make_combined_video(folder, demo_number):
 
 
 def make_combined_frame(depth_frames, rgb_frames, cartesian_frames, joint_state_plot, i, max_depth_value, frames_dir):
+    # get shape of rgb frames
+    h, w, _ = rgb_frames[0].shape
     # create a new frame
-    frame = np.zeros((360 * 2 + 480, 640 * 3, 3), dtype=np.uint8)
+    frame = np.zeros((h * 2 + 480, w * 3, 3), dtype=np.uint8)
 
     # add depth frames. Depth frames are single channel, so need to use a colormap to convert them to rgb
     for j, x in enumerate(depth_frames):
-        frame[360:720, j*640:(j+1)*640] = (plt.cm.viridis(x / max_depth_value)[:, :, :3] * 255).astype(np.uint8)
+        frame[h:h*2, j*w:(j+1)*w] = (plt.cm.viridis(x / max_depth_value)[:, :, :3] * 255).astype(np.uint8)
         if j == 2:
             # add a "2x" label to the bottom right corner with cv2
-            cv2.putText(frame, "2x", (640*3 - 50, 720 - 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+            cv2.putText(frame, "2x", (w*3 - 50, 720 - 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
 
     # add rgb frames
     for j, x in enumerate(rgb_frames):
-        frame[0:360, j*640:(j+1)*640] = x[:, :, ::-1]
+        frame[0:h, j*w:(j+1)*w] = x[:, :, ::-1]
 
     # add cartesian frames
-    # frame[360*2:, :640] = (cartesian_frames[:, :, :3]).astype(np.uint8)
+    # frame[h*2:, :w] = (cartesian_frames[:, :, :3]).astype(np.uint8)
 
+
+    joint_state_plot = np.pad(
+    joint_state_plot,
+    ((0, max(0, frame[h*2:, w:].shape[0] - joint_state_plot.shape[0])),
+     (0, max(0, frame[h*2:, w:].shape[1] - joint_state_plot.shape[1])),
+     (0, 0)),
+    mode='constant')
     # add joint state_frame
-    frame[360*2:, 640:] = (joint_state_plot[..., :3]).astype(np.uint8)
+    frame[h*2:, w:] = (joint_state_plot[..., :3]).astype(np.uint8)
 
     # save_combined frames
     plt.imsave(f"{frames_dir}/frame_{i:03d}.png", frame)

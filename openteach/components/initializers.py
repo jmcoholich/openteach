@@ -258,7 +258,7 @@ class Collector(ProcessInstantiator):
                 ))
         else:
 
-            for cam_idx in range(self.configs.num_cams):
+            for cam_idx in range(len(self.configs.robot_cam_serial_numbers)):
                 self.processes.append(Process(
                     target = self._start_rgb_component,
                     args = (cam_idx, )

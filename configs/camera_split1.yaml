@@ -6,8 +6,8 @@ defaults:
 
 robot_cam_serial_numbers:
   - '102122072431'  # needs to be high res for recording
-  - '102122070622'  # not used
-  - '102422074653'  # robot camera
+  - '102122070622'  # high res overview
+  # - '102422074653'  # robot camera
 
 cam_configs:  # if the width and height are changed, they also need to be changed in constants.py
   width: 1920

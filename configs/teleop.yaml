@@ -9,6 +9,7 @@ defaults:
 operate: true
 sim_env: false
 run_xela: false
+storage_location: extracted_data/
 record:
 
 # Visualize 3D and 2D plots

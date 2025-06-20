@@ -71,20 +71,9 @@ xdotool type 'conda activate openteach && cd ~/openteach'
 sleep 0.25
 xdotool key Return
 sleep 0.25
-xdotool type 'python robot_camera.py --config-name=camera_hd'
+xdotool type 'python robot_camera.py'
 sleep 0.25
 xdotool key Return
-
-xdotool key ctrl+shift+o
-sleep 0.25
-xdotool type 'conda activate openteach && cd ~/openteach'
-sleep 0.25
-xdotool key Return
-sleep 0.25
-xdotool type 'python robot_camera.py cam_port_offset=10006'
-sleep 0.25
-xdotool key Return
-
 
 xdotool key alt+Down
 xdotool key alt+Left

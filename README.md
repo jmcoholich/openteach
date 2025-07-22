@@ -1,7 +1,7 @@
 # Modified OPEN TEACH for use with Quest 3 Controllers
 
 #### Authors: Jeremiah Coholich and Justin Wit
-##### Original OPEN TEACH Authors: Aadhithya Iyer ,Zhuoran Peng, Yinlong Dai, Irmak Guzey, Siddhant Haldar, Soumith Chintala, Lerrel Pinto
+#### Original OPEN TEACH Authors: Aadhithya Iyer ,Zhuoran Peng, Yinlong Dai, Irmak Guzey, Siddhant Haldar, Soumith Chintala, Lerrel Pinto
 [Paper](https://arxiv.org/abs/2403.07870) [Website](https://open-teach.github.io/)
 
 We have modified OPEN TEACH simplifying the teleoperation stack and enabling teleoperation with the Quest 3 controller for Franka Arm with a gripper.
@@ -21,10 +21,20 @@ This repo consists of two parts:
 - Updated teleoperation control stack and data recording
 - .apk file for the app
 
+Note that we removed the requirement for ROS and the xx repo entirely. Now mostly everything happens in the file XXX
+
+<!-- Add image before.png -->
+![Original OPEN TEACH control flow](before.png)
+![Control flow with our modifications](after.png)
+
 
 ## Code Installation
 
 Install [Deoxys Control](https://github.com/UT-Austin-RPL/deoxys_control).
+
+```bash
+conda env create -f environment.yml
+```
 
 <!-- This is the official implementation of the Open Teach including unity scripts for the VR application, teleoperation pipeline and demonstration collection pipeline.
 

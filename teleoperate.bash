@@ -1,5 +1,5 @@
 #!/bin/bash
-
+NUC_IP=${1:-172.16.0.3}
 # Start Terminator
 terminator &
 
@@ -11,22 +11,22 @@ xdotool key ctrl+shift+e
 sleep 0.25
 xdotool key ctrl+Tab
 sleep 0.25
-xdotool type 'ssh 172.16.0.3'
+xdotool type "ssh $NUC_IP"
 sleep 0.25
 xdotool key Return
 sleep 2.0
-xdotool type 'cd deoxys_control/deoxys && ./auto_scripts/auto_arm.sh config/charmander.yml'
+xdotool type "cd deoxys_control/deoxys && ./auto_scripts/auto_arm.sh config/charmander.yml"
 sleep 0.25
 xdotool key Return
 sleep 0.25
 
 xdotool key ctrl+shift+o
 sleep 0.25
-xdotool type 'ssh 172.16.0.3'
+xdotool type "ssh $NUC_IP"
 sleep 0.25
 xdotool key Return
 sleep 2.0
-xdotool type 'cd deoxys_control/deoxys && ./auto_scripts/auto_gripper.sh config/charmander.yml'
+xdotool type "cd deoxys_control/deoxys && ./auto_scripts/auto_gripper.sh config/charmander.yml"
 sleep 0.25
 xdotool key Return
 sleep 0.25

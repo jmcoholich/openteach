@@ -5,7 +5,11 @@ Original OPEN TEACH Authors: Aadhithya Iyer, Zhuoran Peng, Yinlong Dai, Irmak Gu
 [OPEN TEACH Paper](https://arxiv.org/abs/2403.07870)
 [OPEN TEACH Website](https://open-teach.github.io/)
 
-This OPEN TEACH fork simplifies the software stack and enables teleoperation with the Quest 3 controller instead of hand tracking. We have only used this code for teleoperating a Franka Emika Panda arm with the Franka gripper in the real world with a Meta Quest 3.
+This OPEN TEACH fork simplifies the software stack and enables teleoperation with the Quest 3 controller instead of hand tracking. We have only used this code for teleoperating a Franka Emika Panda arm with the Franka gripper in the real world with a Meta Quest 3 (video below).
+
+[![Watch the video](https://img.youtube.com/vi/IGMm5zwZs3o/0.jpg)](https://youtu.be/IGMm5zwZs3o)
+
+<sub>(Click the image to watch the video — hold Ctrl/Cmd to open in a new tab)</sub>
 
 
 ## Summary of Changes

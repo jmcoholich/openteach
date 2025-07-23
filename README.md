@@ -11,9 +11,10 @@ This OPEN TEACH fork simplifies the software stack and enables teleoperation wit
 ## Summary of Changes
 
 Previously we found that using the vision-based hand detection for teleoperation added a lot of noise to movements, had difficult grasp actuation with  clicking fingers, and was not necessary for parallel-jaw grippers.
-Features
+
+Features of our changes:
 - Improved tracking performance
-- Stop and reposition hands with button
+- Stop and reposition hand with button
 - Trigger-actuated grasping
 - Remove the camera streaming window from the app (we often found that it was in the way and block our pass-through view of the robot)
 
@@ -26,7 +27,7 @@ This repo consists of two parts:
 - .apk file for the app
 
 
-**We removed the requirement for ROS and the OpenTeach-Controllers repository entirely.** Many of our changes and additions can be found in the file `openteach/components/operators/franka.py`
+**We removed the requirement for ROS and the OpenTeach-Controllers repository entirely.** Many of our changes and additions can be found in the file [`openteach/components/operators/franka.py`](openteach/components/operators/franka.py)
 
 <!-- Add image before.png -->
 ![Original OPEN TEACH control flow](before.png)
@@ -56,21 +57,25 @@ Open Teach consists of two parts.
 #### Installation
 This can be done in two ways.
 
-1. You can install the application directly into your Quest using the APK file we provide using SideQuest.
-2. Inorder to have more flexibility and modify the VR APK we have also released the source code corresponding to it. The APK is made in Unity 2021.3.5f1. To ensure clean builds with no errors using this version is recommended.
-3. For building the apk from source , add the zipped code files to Unity and within the settings in File menu run Build and Run. The targeted device in Build settings should be the Quest you are connecting to. Also users might need Meta account with Meta Quest Developer Hub and will need to enable Developer mode for the Meta Quest Application.
-4. To setup the VR Application in Oculus Headset, enter the IP Address of the robot server. The robot server and the Oculus Headset should be in the same network.
+##### 1. Install Our APK
+
+You can install the application directly into your Quest using the [APK file](VR/APK/FrankaRemoteTrackingV2.apk) we provide using [SideQuest]('https://sidequestvr.com/').
+
+##### 2. Build from Source
+
+* Inorder to have more flexibility and modify the VR APK we have also released the source code corresponding to it. The APK is made in Unity 2021.3.5f1. To ensure clean builds with no errors using this version is recommended.
+* For building the apk from source , add the [VR code files](/VR/Franka-Bot-Unity/) to Unity and within the settings in File menu run Build and Run. The targeted device in Build settings should be the Quest you are connecting to. Also users might need Meta account with Meta Quest Developer Hub and will need to enable Developer mode for the Meta Quest Application.
+
 
 #### User Interface for Franka Arm + Franka Gripper:
 
+Only requires use of the right hand controller. Swich modes with the **B** button and operate the gripper with the **Trigger** button. Note switching to the 'Pause' mode while operating will stop sending commands to the robot and will reinitialize the origin after unpausing allowing the user to continue teleoperation from a new position.
 
-(JUSTIN)
-| Pinch ( Left Hand) | Mode                 | Stream Border Color |
-| ------------------ | -------------------- | ------------------- |
-| Index Pinch        | Only Hand Mode       | Green               |
-| Middle Pinch       | Arm + Hand Mode      | Blue                |
-| Ring Pinch         | Pause                | Red                 |
-| Pinky Pinch        | Resolution Selection | Black               |
+ Mode                  | Remote Color Indicator |
+| -------------------- | ---------------------- |
+| Network Config       | Pink                   |
+| Teleoperate          | Green                  |
+| Pause                | Red                    |
 
 <!-- **Note: Here the teleoperation is just like mimicking the human hand and arm actions** -->
 
@@ -89,15 +94,14 @@ Since both the hands are being used here for teleoperation and gripper mode sele
 **Note: Here the teleoperation is not mimicking the arm actions. Like other bimanual teleoperation methods we imagine we are holding the end effector of the arm and rotating and translating accordingly** -->
 
 
-The VR APK files are available [here](/VR/APK/).
+<!-- The VR APK files are available [here](/VR/APK/). -->
 
-After you install the APK file. You will be prompted with a blank screen with red border with a Menu button on it. Click the Menu button (Ensure you have Hand tracking enabled in the Oculus.), you will see IP: Not Defined. Just Click on Change IP and enter the IP using the dropdown (The VR and the Robot should be under the same network provider). Once the IP is enter go back to the screen where you clicked Change IP and Click Stream. The screen border will become green and your App is ready to stream the controller position data.
+After you install the APK file. You will be prompted with a pink controller and a menu button. If you do not see a laser pointer from the remote click B. Click the Menu button (Note you will need to use the trigger button to select.) You will see IP: Not Defined. Just click on 'Change IP Address' and enter the IP using the dropdown (The VR and the Robot should be under the same network provider). Once the IP is entered click 'Change' and then click 'Stream'. The remote will become red and your App is ready to stream the controller position data.
 
 #### Note: Remember to enter your same IP on the server host address variable [config](/configs/network.yaml)
 
-Once finished setting up the APK proceed to [teleop](/docs/teleop_data_collect.md).
+Once finished setting up the APK proceed to **Running Teleoperation**.
 
-If Teleoperation server is not started, the APK will work for sometime and stop as there are ports to send the information to.
 
 <!-- ### Server Code Installation
 
@@ -133,7 +137,7 @@ The script `teleoperate.bash` uses [xdotool](https://github.com/jordansissel/xdo
 ```bash
 bash teleoperate.bash <NUC_IP_ADDR>
 ```
-
+### Breakdown of automated script:
 Run on the NUC
 
 ```bash

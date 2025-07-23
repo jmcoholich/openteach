@@ -1,6 +1,6 @@
 # OPEN TEACH for Quest 3 Controller Teleoperation
 
-#### Created by Jeremiah Coholich and Justin Wit
+#### Fork authors: [Jeremiah Coholich](https://www.jeremiahcoholich.com/) and [Justin Wit](https://www.linkedin.com/in/justin-wit/)
 Original OPEN TEACH Authors: Aadhithya Iyer, Zhuoran Peng, Yinlong Dai, Irmak Guzey, Siddhant Haldar, Soumith Chintala, Lerrel Pinto
 [OPEN TEACH Paper](https://arxiv.org/abs/2403.07870)
 [OPEN TEACH Website](https://open-teach.github.io/)
@@ -203,6 +203,4 @@ Citation for the original OPEN TEACH paper:
       archivePrefix={arXiv},
       primaryClass={cs.RO}
 }
-
-
-
+```

@@ -179,6 +179,21 @@ python reset_robot_joints.py
 cd ~/openteach
 python reset_gripper.py
 ```
+## Data files 
+After stopping the `teleop.py` script, a file named `deoxys_obs_cmd_history_<demo name>.pkl` will be saved in `openteach/extracted_data`. This pkl file will contain all robot state/observations (except camera inputs) and actions saved by `openteach/openteach/components/operators/franka.py`.
+
+After stopping the `data_collect.py` script, a folder named `demonstration_<demo name>` will be saved in the same folder. This folder contains the RGBD camera recordings. 
+
+To post-process this data, run 
+
+```bash
+python visualize_demo.py --demo_number <demo name>
+```
+
+This script will combine the camera observations and robot actions/proprioception into a single pkl file `openteach/extracted_data/demonstration_<demo name>/demo_<demo name>.pkl`. Additionally, the script will save a video of the demo at `openteach/extracted_data/demonstration_<demo name>/demo_<demo name>.mp4`. Below is a link to an example of such a video.
+
+[![Watch the video](https://img.youtube.com/vi/8bc508QxUwo/0.jpg)](https://youtu.be/8bc508QxUwo)
+
 
 <!-- ### Policy Learning
 

@@ -1,10 +1,14 @@
-# Modified OPEN TEACH for use with Quest 3 Controllers
+# OPEN TEACH for Quest 3 Controller Teleoperation
 
-#### Authors: Jeremiah Coholich and Justin Wit
-#### Original OPEN TEACH Authors: Aadhithya Iyer ,Zhuoran Peng, Yinlong Dai, Irmak Guzey, Siddhant Haldar, Soumith Chintala, Lerrel Pinto
-[Paper](https://arxiv.org/abs/2403.07870) [Website](https://open-teach.github.io/)
+#### Created by Jeremiah Coholich and Justin Wit
+Original OPEN TEACH Authors: Aadhithya Iyer, Zhuoran Peng, Yinlong Dai, Irmak Guzey, Siddhant Haldar, Soumith Chintala, Lerrel Pinto
+[OPEN TEACH Paper](https://arxiv.org/abs/2403.07870)
+[OPEN TEACH Website](https://open-teach.github.io/)
 
-We have modified OPEN TEACH simplifying the teleoperation stack and enabling teleoperation with the Quest 3 controller for Franka Arm with a gripper.
+This OPEN TEACH fork simplifies the software stack and enables teleoperation with the Quest 3 controller instead of hand tracking. We have only used this code for teleoperating a Franka Emika Panda arm with the Franka gripper in the real world with a Meta Quest 3.
+
+
+## Summary of Changes
 
 Previously we found that using the vision-based hand detection for teleoperation added a lot of noise to movements, had difficult grasp actuation with  clicking fingers, and was not necessary for parallel-jaw grippers.
 Features
@@ -21,7 +25,8 @@ This repo consists of two parts:
 - Updated teleoperation control stack and data recording
 - .apk file for the app
 
-Note that we removed the requirement for ROS and the xx repo entirely. Now mostly everything happens in the file XXX
+
+**We removed the requirement for ROS and the OpenTeach-Controllers repository entirely.** Many of our changes and additions can be found in the file `openteach/components/operators/franka.py`
 
 <!-- Add image before.png -->
 ![Original OPEN TEACH control flow](before.png)
@@ -32,9 +37,11 @@ Note that we removed the requirement for ROS and the xx repo entirely. Now mostl
 
 Install [Deoxys Control](https://github.com/UT-Austin-RPL/deoxys_control).
 
+Clone this repository and create the conda environment:
 ```bash
 conda env create -f environment.yml
 ```
+(We highly recommend using [mamba](https://github.com/mamba-org/mamba) instead of conda for faster environment creation.)
 
 <!-- This is the official implementation of the Open Teach including unity scripts for the VR application, teleoperation pipeline and demonstration collection pipeline.
 
@@ -44,7 +51,7 @@ Open Teach consists of two parts.
 
 - [x] Policy training for various dexterous manipulation tasks across different robots and simulations. -->
 
-### VR Installation and User Interface
+## VR Installation and User Interface
 
 #### Installation
 This can be done in two ways.

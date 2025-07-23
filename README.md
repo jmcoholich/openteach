@@ -10,6 +10,10 @@ This OPEN TEACH fork simplifies the software stack and enables teleoperation wit
 
 ## Summary of Changes
 
+<!-- Add image before.png -->
+![Original OPEN TEACH control flow](before.png)
+![Control flow with our modifications](after.png)
+
 Previously we found that using the vision-based hand detection for teleoperation added a lot of noise to movements, had difficult grasp actuation with  clicking fingers, and was not necessary for parallel-jaw grippers.
 
 Features of our changes:
@@ -29,9 +33,7 @@ This repo consists of two parts:
 
 **We removed the requirement for ROS and the OpenTeach-Controllers repository entirely.** Many of our changes and additions can be found in the file [`openteach/components/operators/franka.py`](openteach/components/operators/franka.py)
 
-<!-- Add image before.png -->
-![Original OPEN TEACH control flow](before.png)
-![Control flow with our modifications](after.png)
+
 
 
 ## Code Installation
@@ -63,15 +65,15 @@ You can install the application directly into your Quest using the [APK file](VR
 
 ##### 2. Build from Source
 
-* Inorder to have more flexibility and modify the VR APK we have also released the source code corresponding to it. The APK is made in Unity 2021.3.5f1. To ensure clean builds with no errors using this version is recommended.
+* In order to have more flexibility and modify the VR APK we have also released the source code corresponding to it. The APK is made in Unity 2021.3.5f1. To ensure clean builds with no errors using this version is recommended.
 * For building the apk from source , add the [VR code files](/VR/Franka-Bot-Unity/) to Unity and within the settings in File menu run Build and Run. The targeted device in Build settings should be the Quest you are connecting to. Also users might need Meta account with Meta Quest Developer Hub and will need to enable Developer mode for the Meta Quest Application.
 
 
 #### User Interface for Franka Arm + Franka Gripper:
 
-Only requires use of the right hand controller. Swich modes with the **B** button and operate the gripper with the **Trigger** button. Note switching to the 'Pause' mode while operating will stop sending commands to the robot and will reinitialize the origin after unpausing allowing the user to continue teleoperation from a new position.
+Only requires use of the right hand controller. Swich modes with the **B** button and operate the gripper with the **Trigger** button. Note switching to the 'Pause' mode while operating will stop sending commands to the robot and will reinitialize the origin after unpausing, allowing the user to continue teleoperation from a new position.
 
- Mode                  | Remote Color Indicator |
+ Mode                  | Remote Indicator |
 | -------------------- | ---------------------- |
 | Network Config       | Pink                   |
 | Teleoperate          | Green                  |
@@ -96,7 +98,7 @@ Since both the hands are being used here for teleoperation and gripper mode sele
 
 <!-- The VR APK files are available [here](/VR/APK/). -->
 
-After you install the APK file. You will be prompted with a pink controller and a menu button. If you do not see a laser pointer from the remote click B. Click the Menu button (Note you will need to use the trigger button to select.) You will see IP: Not Defined. Just click on 'Change IP Address' and enter the IP using the dropdown (The VR and the Robot should be under the same network provider). Once the IP is entered click 'Change' and then click 'Stream'. The remote will become red and your App is ready to stream the controller position data.
+After you install the APK file, launch the app on the headset. You will be prompted with a pink controller and a menu button. If you do not see a laser pointer from the remote click **B**. Click the Menu button then click on 'Change IP Address' and enter the IP using the dropdown (use the trigger button to scroll). The VR and the Robot should be under the same network provider. Once the IP is entered click 'Change' and then click 'Stream'. The remote will become red and your app is ready to stream the controller position data.
 
 #### Note: Remember to enter your same IP on the server host address variable [config](/configs/network.yaml)
 
@@ -183,12 +185,12 @@ python reset_robot_joints.py
 cd ~/openteach
 python reset_gripper.py
 ```
-## Data files 
+## Data files
 After stopping the `teleop.py` script, a file named `deoxys_obs_cmd_history_<demo name>.pkl` will be saved in `openteach/extracted_data`. This pkl file will contain all robot state/observations (except camera inputs) and actions saved by `openteach/openteach/components/operators/franka.py`.
 
-After stopping the `data_collect.py` script, a folder named `demonstration_<demo name>` will be saved in the same folder. This folder contains the RGBD camera recordings. 
+After stopping the `data_collect.py` script, a folder named `demonstration_<demo name>` will be saved in the same folder. This folder contains the RGBD camera recordings.
 
-To post-process this data, run 
+To post-process this data, run
 
 ```bash
 python visualize_demo.py --demo_number <demo name>

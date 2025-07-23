@@ -190,7 +190,7 @@ To post-process this data, run
 python visualize_demo.py --demo_number <demo name>
 ```
 
-This script will combine the camera observations and robot actions/proprioception into a single pkl file `openteach/extracted_data/demonstration_<demo name>/demo_<demo name>.pkl`. Additionally, the script will save a video of the demo at `openteach/extracted_data/demonstration_<demo name>/demo_<demo name>.mp4`. Below is a link to an example of such a video.
+This script will combine the camera observations and robot actions/proprioception into a single pkl file `openteach/extracted_data/demonstration_<demo name>/demo_<demo name>.pkl`. Additionally, the script will save a video of the demo at `openteach/extracted_data/demonstration_<demo name>/demo_<demo name>.mp4`. Below is a link to an example of such a video. (Clicking the image will navigate to Youtube and play the video.)
 
 [![Watch the video](https://img.youtube.com/vi/8bc508QxUwo/0.jpg)](https://youtu.be/8bc508QxUwo)
 

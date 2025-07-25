@@ -20,7 +20,7 @@ class RGBImageRecorder(Recorder):
         sim=False
     ):
         self.notify_component_start('RGB stream: {}'.format(image_stream_port))
-        
+
         # Subscribing to the image stream port
         self._host, self._image_stream_port = host, image_stream_port
         self.image_subscriber = ZMQCameraSubscriber(
@@ -43,16 +43,16 @@ class RGBImageRecorder(Recorder):
         # Initializing the recorder
         if self.sim==True:
             self.recorder = cv2.VideoWriter(
-                self._recorder_file_name, 
-                cv2.VideoWriter_fourcc(*'XVID'), 
-                CAM_FPS_SIM, 
+                self._recorder_file_name,
+                cv2.VideoWriter_fourcc(*'XVID'),
+                CAM_FPS_SIM,
                 IMAGE_RECORD_RESOLUTION_SIM
             )
         else:
             self.recorder = cv2.VideoWriter(
-                self._recorder_file_name, 
-                cv2.VideoWriter_fourcc(*'XVID'), 
-                CAM_FPS, 
+                self._recorder_file_name,
+                cv2.VideoWriter_fourcc(*'XVID'),
+                CAM_FPS,
                 IMAGE_RECORD_RESOLUTION
             )
         self.timestamps = []
@@ -75,13 +75,13 @@ class RGBImageRecorder(Recorder):
             except KeyboardInterrupt:
                     self.record_end_time = time.time()
                     break
-            
+
         # Closing the socket
         self.image_subscriber.stop()
 
         # Displaying statistics
         self._display_statistics(self.num_image_frames)
-        
+
         # Saving the metadata
         self._add_metadata(self.num_image_frames)
         self.metadata['timestamps'] = self.timestamps
@@ -105,7 +105,7 @@ class DepthImageRecorder(Recorder):
         filename
     ):
         self.notify_component_start('Depth stream: {}'.format(image_stream_port))
-        
+
         # Subscribing to the image stream port
         self._host, self._image_stream_port = host, image_stream_port
         self.image_subscriber = ZMQCameraSubscriber(
@@ -138,7 +138,7 @@ class DepthImageRecorder(Recorder):
             try:
                 self.timer.start_loop()
                 depth_data, timestamp = self.image_subscriber.recv_depth_image()
-                self.depth_frames.append(depth_data) 
+                self.depth_frames.append(depth_data)
                 self.timestamps.append(timestamp)
 
                 self.num_image_frames += 1
@@ -152,7 +152,7 @@ class DepthImageRecorder(Recorder):
 
         # Displaying statistics
         self._display_statistics(self.num_image_frames)
-        
+
         # Saving the metadata
         self._add_metadata(self.num_image_frames)
         self.metadata['recorder_ip_address'] = self._host
@@ -163,12 +163,12 @@ class DepthImageRecorder(Recorder):
         with h5py.File(self._recorder_file_name, "w") as file:
             stacked_frames = np.array(self.depth_frames, dtype = np.uint16)
             file.create_dataset("depth_images", data = stacked_frames, compression="gzip", compression_opts = 6)
-            
+
             timestamps = np.array(self.timestamps, np.float64)
             file.create_dataset("timestamps", data = timestamps, compression="gzip", compression_opts = 6)
-            
+
             file.update(self.metadata)
-            
+
         print('Saved compressed depth data in {}.'.format(self._recorder_file_name))
 
 class FishEyeImageRecorder(Recorder):
@@ -180,7 +180,7 @@ class FishEyeImageRecorder(Recorder):
         filename
     ):
         self.notify_component_start('RGB stream: {}'.format(image_stream_port))
-        
+
         # Subscribing to the image stream port
         print("Image Stream Port", image_stream_port)
         self._host, self._image_stream_port = host, image_stream_port
@@ -201,15 +201,15 @@ class FishEyeImageRecorder(Recorder):
 
         # Initializing the recorder
         self.recorder = cv2.VideoWriter(
-            self._recorder_file_name, 
-            cv2.VideoWriter_fourcc(*'XVID'), 
-            CAM_FPS, 
+            self._recorder_file_name,
+            cv2.VideoWriter_fourcc(*'XVID'),
+            CAM_FPS,
             IMAGE_RECORD_RESOLUTION
         )
         self.timestamps = []
         self.frames = []
 
-       
+
 
 
     def stream(self):
@@ -226,7 +226,7 @@ class FishEyeImageRecorder(Recorder):
                 self.timestamps.append(timestamp)
 
                 self.frames.append(np.array(image))
-    
+
                 self.num_image_frames += 1
                 self.timer.end_loop()
             except KeyboardInterrupt:
@@ -236,7 +236,7 @@ class FishEyeImageRecorder(Recorder):
 
         # Displaying statistics
         self._display_statistics(self.num_image_frames)
-        
+
         # Saving the metadata
         self._add_metadata(self.num_image_frames)
         self.metadata['timestamps'] = self.timestamps

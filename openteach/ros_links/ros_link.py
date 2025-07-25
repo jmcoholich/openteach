@@ -26,7 +26,7 @@ class DexArmControl():
 
     # State information function
     def get_robot_state(self):
-        # Get the robot joint state 
+        # Get the robot joint state
         raw_joint_state =self.robot_joint_state
         joint_state = dict(
             position = np.array(raw_joint_state.position, dtype = np.float32),
@@ -47,7 +47,7 @@ class DexArmControl():
             timestamp = raw_joint_state.header.stamp.secs + (raw_joint_state.header.stamp.nsecs * 1e-9)
         )
         return joint_state
-        
+
     # Get the robot joint/cartesian position
     def get_robot_position(self):
        #Get Robot Position

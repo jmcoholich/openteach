@@ -12,11 +12,11 @@ from openteach.constants import DEPLOY_FREQ, VR_FREQ
 class DeployServer(Component):
     def __init__(self, configs):
         self.configs = configs
-        
+
         # Initializing the camera subscribers
         self._init_robot_subscribers()
 
-        # Initializing the sensor subscribers 
+        # Initializing the sensor subscribers
         if configs.use_sensor:
             self._init_sensor_subscribers()
 
@@ -58,7 +58,7 @@ class DeployServer(Component):
                         else:
                             self._robots[robot].move_coords(robot_action_dict[robot])
 
-                    else: 
+                    else:
                         print('Moving allegro to given angles')
                         self._robots[robot].move(robot_action_dict[robot])
                     print('Applying action {} on robot: {}'.format(robot_action_dict[robot], robot))
@@ -80,7 +80,7 @@ class DeployServer(Component):
         return data
 
     def _get_sensor_states(self):
-        data = dict() 
+        data = dict()
         for sensor_name in self._sensors.keys():
             data[sensor_name] = self._sensors[sensor_name].get_sensor_state() # For xela this will be dict {sensor_values: [...], timestamp: [...]}
 
@@ -98,7 +98,7 @@ class DeployServer(Component):
     def _send_both_state(self):
         combined = dict()
         robot_states = self._get_robot_states()
-        combined['robot_state'] = robot_states 
+        combined['robot_state'] = robot_states
         if self.configs.use_sensor:
             sensor_states = self._get_sensor_states()
             combined['sensor_state'] = sensor_states
@@ -126,7 +126,7 @@ class DeployServer(Component):
                 success = self._perform_robot_action(robot_action)
                 print('success: {}'.format(success))
                 # More accurate sleep
-                
+
                 self.timer.end_loop()
 
                 if success:

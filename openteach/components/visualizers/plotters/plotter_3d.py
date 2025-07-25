@@ -10,7 +10,7 @@ class PlotHand3D(Plotter):
         self.ax = self.fig.add_subplot(111, projection='3d')
 
         # Loading Joint information
-        self.joint_information = OCULUS_JOINTS  
+        self.joint_information = OCULUS_JOINTS
         self.view_limits = OCULUS_VIEW_LIMITS
 
         # Setting the visualizer limits
@@ -35,18 +35,18 @@ class PlotHand3D(Plotter):
         for key in ['knuckles', 'thumb', 'index', 'middle', 'ring', 'pinky']:
             for idx in range(len(self.joint_information[key]) - 1):
                 self._plot_line(
-                    X[self.joint_information[key][idx]], 
-                    X[self.joint_information[key][idx + 1]], 
-                    Y[self.joint_information[key][idx]], 
+                    X[self.joint_information[key][idx]],
+                    X[self.joint_information[key][idx + 1]],
+                    Y[self.joint_information[key][idx]],
                     Y[self.joint_information[key][idx + 1]],
-                    Z[self.joint_information[key][idx]], 
+                    Z[self.joint_information[key][idx]],
                     Z[self.joint_information[key][idx + 1]]
                 )
 
     def draw(self, X, Y, Z):
         # Setting plotting limits
         self._set_limits()
-        
+
         # Plotting the hand bones
         self._draw_hand(X, Y, Z)
         plt.draw()
@@ -64,7 +64,7 @@ class PlotHandDirection(Plotter):
     def __init__(self):
         self.fig = plt.figure()
         self.ax = self.fig.add_subplot(111, projection = '3d')
-        
+
         self._set_limits()
 
     def _set_limits(self):

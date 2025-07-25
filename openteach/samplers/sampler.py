@@ -13,7 +13,7 @@ class Sampler(ABC):
         self.data_type = data_type
         self._min_action_distance = min_action_distance
 
-        # Obtaining all the timestamp arrays 
+        # Obtaining all the timestamp arrays
         self._get_image_frame_timestamps()
         self._get_robot_data()
         self._get_sensor_data()
@@ -98,7 +98,7 @@ class Sampler(ABC):
         latest_timestamp = None
         for data_type in self.image_frame_timestamps.keys():
             latest_timestamp = self._get_latest_timestamp(
-                timestamp_arrays = self.image_frame_timestamps[data_type], 
+                timestamp_arrays = self.image_frame_timestamps[data_type],
                 latest_timestamp = latest_timestamp
             )
 
@@ -112,7 +112,7 @@ class Sampler(ABC):
         # Allegro starting index
         self._chosen_allegro_idxs = [self._get_matching_timestamp(self._allegro_timestamps, latest_timestamp)]
         # self._chosen_kinova_idxs = [self._get_matching_timestamp(self._kinova_timestamps, latest_timestamp)]
-        
+
 
     # To sample frames from a fixed timestamp
     def _sample_images(self, instance_timestamp):
@@ -130,13 +130,13 @@ class Sampler(ABC):
                     return False
                 else:
                     image_idx = self._get_matching_timestamp(clipped_image_timestamp_array, instance_timestamp) + latest_used_idx + 1
-               
-                
+
+
                 if image_idx is None: # If no matches left
                     return False
 
-                new_image_frame_idxs[data_type].append(image_idx)                        
-        
+                new_image_frame_idxs[data_type].append(image_idx)
+
         for data_type in self._chosen_frame_idxs.keys():
             for cam_idx in range(len(self._chosen_frame_idxs[data_type])):
                 self._chosen_frame_idxs[data_type][cam_idx].append(new_image_frame_idxs[data_type][cam_idx])
@@ -165,9 +165,9 @@ class Sampler(ABC):
                 os.path.join(self.data_path, 'cam_{}_rgb_video.avi'.format(cam_idx))
             )
             writer = cv2.VideoWriter(
-                store_path, 
-                cv2.VideoWriter_fourcc(*'XVID'), 
-                SAMPLE_WRITER_FPS, 
+                store_path,
+                cv2.VideoWriter_fourcc(*'XVID'),
+                SAMPLE_WRITER_FPS,
                 IMAGE_RECORD_RESOLUTION
             )
 
@@ -175,21 +175,21 @@ class Sampler(ABC):
             print('Writing the frames.')
             while capture.isOpened():
                 ret, frame = capture.read()
-                if ret == True: 
+                if ret == True:
                     if counter in self._chosen_frame_idxs['rgb'][cam_idx]:
                         writer.write(frame)
                         num_frames_recorded += 1
                     counter += 1
-                else: 
+                else:
                     break
-                
- 
+
+
             # When everything done, release the video capture object
             print('Storing {} frames'.format(num_frames_recorded))
             print('Saving video in {}'.format(store_path))
             writer.release()
             capture.release()
-        
+
     def get_sampled_depth_frames(self, cam_idx):
         if self.data_type == 'depth' or self.data_type == 'all':
             depth_data = self._get_hdf5_data(

@@ -14,7 +14,7 @@ class FrequencyTimer(object):
 
     def end_loop(self):
         wait_time = self.time_available + self.start_time
-        
+
         while time.time_ns() < wait_time:
             continue
 

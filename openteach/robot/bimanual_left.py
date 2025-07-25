@@ -34,7 +34,7 @@ class BimanualLeft(RobotWrapper):
     # State information functions
     def get_joint_state(self):
         return self._controller.get_arm_joint_state()
-    
+
     def get_joint_velocity(self):
         pass
 
@@ -46,13 +46,13 @@ class BimanualLeft(RobotWrapper):
 
     def get_joint_position(self):
         return self._controller.get_arm_position()
-    
+
     def get_cartesian_position(self):
         return self._controller.get_arm_cartesian_coords()
 
     def reset(self):
         return self._controller._init_xarm_control()
-    
+
     def get_pose(self):
         return self._controller.get_arm_pose()
 
@@ -75,7 +75,7 @@ class BimanualLeft(RobotWrapper):
 
     def get_gripper_state_from_socket(self):
         self._gripper_state_subscriber = ZMQKeypointSubscriber(
-                host = '10.19.216.156', 
+                host = '10.19.216.156',
                 port = 8115,
                 topic = 'gripper_left'
             )
@@ -85,11 +85,11 @@ class BimanualLeft(RobotWrapper):
             timestamp = time.time()
         )
         return gripper_state_dict
-    
+
 
     def get_cartesian_state_from_socket(self):
         self.cartesian_state_subscriber = ZMQKeypointSubscriber(
-                host = '10.19.216.156', 
+                host = '10.19.216.156',
                 port = 8116,
                 topic = 'cartesian'
             )
@@ -99,10 +99,10 @@ class BimanualLeft(RobotWrapper):
             timestamp = time.time()
         )
         return cartesian_state_dict
-    
+
     def get_joint_state_from_socket(self):
         self._joint_state_subscriber = ZMQKeypointSubscriber(
-                host = '10.19.216.156', 
+                host = '10.19.216.156',
                 port = 8117,
                 topic = 'joint'
             )
@@ -114,10 +114,10 @@ class BimanualLeft(RobotWrapper):
         )
         #self._controller.set_gripper_status(gripper_state)
         return joint_state_dict
-    
+
     def get_cartesian_commanded_position(self):
         self.cartesian_state_subscriber = ZMQKeypointSubscriber(
-                host = '10.19.216.156', 
+                host = '10.19.216.156',
                 port = 8121,
                 topic = 'cartesian'
             )
@@ -129,24 +129,24 @@ class BimanualLeft(RobotWrapper):
         )
         #self._controller.set_gripper_status(gripper_state)
         return cartesian_state_dict
-    
+
     def get_robot_actual_cartesian_position(self):
         cartesian_state=self.get_cartesian_position()
         cartesian_dict = dict(
             cartesian_position = np.array(cartesian_state, dtype=np.float32),
             timestamp = time.time()
         )
-        
+
         return cartesian_dict
-    
-   
+
+
     def get_robot_actual_joint_position(self):
         joint_state_dict=self._controller.get_arm_joint_state()
         return joint_state_dict
-    
+
     def get_gripper_state(self):
         gripper_state_dict= self._controller.get_gripper_state()
         return gripper_state_dict
 
-    
+
 

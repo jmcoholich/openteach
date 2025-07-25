@@ -3,14 +3,14 @@ from openteach.components import Component
 from openteach.utils.timer import FrequencyTimer
 from openteach.utils.network import create_pull_socket, ZMQKeypointPublisher
 
-# This class is used to detect the hand keypoints from the VR and publish them.            
+# This class is used to detect the hand keypoints from the VR and publish them.
 class OculusVRTwoHandDetector(Component):
-    def __init__(self, 
-                 host, 
+    def __init__(self,
+                 host,
                  oculus_right_port,
                  oculus_left_port,
-                 keypoint_pub_port, 
-                 button_port, 
+                 keypoint_pub_port,
+                 button_port,
                  button_publish_port
     ):
         self.notify_component_start('vr detector')
@@ -31,7 +31,7 @@ class OculusVRTwoHandDetector(Component):
         self.button_socket_publisher = ZMQKeypointPublisher(
             host = host,
             port = button_publish_port
-        ) 
+        )
         self.timer = FrequencyTimer(VR_FREQ)
 
 
@@ -40,7 +40,7 @@ class OculusVRTwoHandDetector(Component):
         return data_token.decode().strip()
 
     # Function to Extract the Keypoints from the String Token sent by the VR
-    def _extract_data_from_token(self, token):        
+    def _extract_data_from_token(self, token):
         data = self._process_data_token(token)
         information = dict()
         keypoint_vals = [0] if data.startswith('absolute') else [1]
@@ -51,14 +51,14 @@ class OculusVRTwoHandDetector(Component):
             vector_vals = vector_str.split(',')
             for float_str in vector_vals[:3]:
                 keypoint_vals.append(float(float_str))
-            
+
         information['keypoints'] = keypoint_vals
         return information
 
     # Function to Publish the right hand transformed Keypoints
     def _publish_right_data(self, keypoint_dict):
         self.hand_keypoint_publisher.pub_keypoints(
-            keypoint_array = keypoint_dict['keypoints'], 
+            keypoint_array = keypoint_dict['keypoints'],
             topic_name = 'right'
         )
 
@@ -72,11 +72,11 @@ class OculusVRTwoHandDetector(Component):
     # Function to Publish the Resolution Button Feedback
     def _publish_button_data(self,button_feedback):
         self.button_socket_publisher.pub_keypoints(
-            keypoint_array = button_feedback, 
+            keypoint_array = button_feedback,
             topic_name = 'button'
         )
 
-    # Function to publish the left/right hand keypoints and button Feedback 
+    # Function to publish the left/right hand keypoints and button Feedback
     def stream(self):
 
         while True:

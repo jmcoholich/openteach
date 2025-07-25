@@ -18,7 +18,7 @@ class FishEyeCamera(Component):
         #self.output_file = output_file
         self._stream_configs = stream_configs
         self._stream_oculus = stream_oculus
-       
+
 
         # Different publishers to avoid overload
         self.rgb_publisher = ZMQCameraPublisher(
@@ -26,7 +26,7 @@ class FishEyeCamera(Component):
             port = stream_configs['port']#(0 if self.cam_id == 24 else self.cam_id)
         )
 
-        
+
         if self._stream_oculus:
             self.rgb_viz_publisher = ZMQCompressedImageTransmitter(
                 host = stream_configs['host'],
@@ -41,14 +41,14 @@ class FishEyeCamera(Component):
         self._start_fisheye()
 
     def _start_fisheye(self):
-        
+
         print("Cam Id is ", self.cam_id)
         self.cap = cv2.VideoCapture(self.cam_id)
-       
-       
+
+
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 680)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-       
+
         print("Cap is ", self.cap.isOpened())
         # Check if the camera is opened successfully, wait until it is
         while not self.cap.isOpened():
@@ -66,7 +66,7 @@ class FishEyeCamera(Component):
         self.notify_component_start('FishEye')
         print(f"Started the pipeline for FishEye camera: {self.cam_id}!")
         print("Starting stream on {}:{}...\n".format(self._stream_configs['host'], self._stream_configs['port']))
-        
+
         if self._stream_oculus:
             print('Starting oculus stream on port: {}\n'.format(self._stream_configs['port'] + VIZ_PORT_OFFSET))
 
@@ -90,4 +90,3 @@ class FishEyeCamera(Component):
         self.rgb_publisher.stop()
         if self._stream_oculus:
             self.rgb_viz_publisher.stop()
-        

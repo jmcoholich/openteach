@@ -43,7 +43,7 @@ class AllegroSampler(Sampler):
         #         required_data= 'orientations',
         #         dtype = np.float32
         #     )
-        
+
         # self._kinova_states= np.concatenate([self.kinova_positions, self.kinova_orientations], axis=1)
 
     def sample_data(self):
@@ -57,8 +57,8 @@ class AllegroSampler(Sampler):
 
         print('Starting sampling process.')
         for current_idx in tqdm(range(
-            self._chosen_allegro_idxs[-1], 
-            self._allegro_states.shape[0], 
+            self._chosen_allegro_idxs[-1],
+            self._allegro_states.shape[0],
             ALLEGRO_SAMPLE_OFFSET
         )):
             # Check if next state is valid
@@ -66,13 +66,13 @@ class AllegroSampler(Sampler):
                 current_state = self._robot.get_fingertip_coords(self._allegro_states[current_idx])
             else:
                 break
-            
+
             # Check if action distance is greater than minimum action distance
             if get_distance(current_state, previous_state) > self._min_action_distance:
                 # Update the index information
                 self._chosen_allegro_idxs.append(current_idx)
                 print("Choosen idxs",self._chosen_allegro_idxs)
-                
+
                 previous_idx = current_idx
                 previous_state = current_state
 
@@ -81,7 +81,7 @@ class AllegroSampler(Sampler):
                 # kinova_idx=self._get_matching_timestamp(self._kinova_timestamps, current_timestamp)
                 # self._chosen_kinova_idxs.append(kinova_idx)
                 #self.chosen_timestamps.append(current_timestamp)
-                # Finding corresponding image idxs  
+                # Finding corresponding image idxs
                 success = self._sample_images(current_timestamp)
 
                 if not success:
@@ -91,7 +91,7 @@ class AllegroSampler(Sampler):
         print('Extracted number of states: {}'.format(len(self._chosen_allegro_idxs)))
 
     def kinova_data(self):
-        
+
             self._data=self._get_hdf5_data(self.kinova_state_file,'joint_angles',np.float64)
             self.time_stamps=self._get_hdf5_timestamps(self.kinova_state_file)
             self.positions=[]
@@ -108,13 +108,13 @@ class AllegroSampler(Sampler):
     @property
     def sampled_allegro_states(self):
         return self._allegro_states[self._chosen_allegro_idxs]
-    
+
     @property
     def sampled_kinova_states(self):
             return self._kinova_states[self._chosen_kinova_idxs]
-    
+
     def sampled_robot_idxs(self):
-        return self._chosen_allegro_idxs 
+        return self._chosen_allegro_idxs
 
 
 
@@ -143,11 +143,11 @@ class KinovaSampler_old(Sampler):
                 required_data= 'orientations',
                 dtype = np.float32
             )
-        
+
         self._kinova_states= np.concatenate([self.kinova_positions, self.kinova_orientations], axis=1)
 
     def kinova_data(self):
-        
+
         self._data=self._get_hdf5_data(self.kinova_state_file,'joint_angles',np.float64)
         self.time_stamps=self._get_hdf5_timestamps(self.kinova_state_file)
         self.positions=[]
@@ -160,17 +160,17 @@ class KinovaSampler_old(Sampler):
             self.positions.append(self._data[idx])
         print(len(self.positions))
         np.save(self.data_path / "processed_1" / "kinova_states_new.npy",np.array(self.positions))
-        
+
 
     @property
     def sampled_robot_states(self):
         return self._robot_states[self._chosen_robot_idxs]
-    
+
     @property
     def sampled_kinova_states(self):
             return self._kinova_states[self._chosen_kinova_idxs]
-   
-    
+
+
 
 
 class KinovaSampler(Sampler):
@@ -180,7 +180,7 @@ class KinovaSampler(Sampler):
 
         def _get_robot_data(self):
             print('Obtaining all the timestamps.')
-            
+
             self.kinova_state_file = os.path.join(self.data_path, 'kinova_cartesian_states.h5')
             self._kinova_timestamps = self._get_hdf5_timestamps(
                 hdf5_file_path = self.kinova_state_file
@@ -197,7 +197,7 @@ class KinovaSampler(Sampler):
                 required_data= 'orientations',
                 dtype = np.float32
             )
-        
+
             self._kinova_states= np.concatenate([self.kinova_positions, self.kinova_orientations], axis=1)
 
             self.allegro_state_file = os.path.join(self.data_path, 'allegro_joint_states.h5')
@@ -223,8 +223,8 @@ class KinovaSampler(Sampler):
 
             print('Starting sampling process.')
             for current_idx in tqdm(range(
-                self._chosen_kinova_idxs[-1], 
-                self._kinova_states.shape[0], 
+                self._chosen_kinova_idxs[-1],
+                self._kinova_states.shape[0],
                 ALLEGRO_SAMPLE_OFFSET
             )):
                 # Check if next state is valid
@@ -232,7 +232,7 @@ class KinovaSampler(Sampler):
                     current_state = self._kinova_states[current_idx]
                 else:
                     break
-                
+
                 # Check if action distance is greater than minimum action distance
                 if get_distance(current_state, previous_state) > self._min_action_distance:
                     # Update the index information
@@ -245,7 +245,7 @@ class KinovaSampler(Sampler):
                     allegro_idx=self._get_matching_timestamp(self._allegro_timestamps, current_timestamp)
                     self._chosen_allegro_idxs.append(allegro_idx)
 
-                    # Finding corresponding image idxs  
+                    # Finding corresponding image idxs
                     success = self._sample_images(current_timestamp)
 
                     if not success:
@@ -255,7 +255,7 @@ class KinovaSampler(Sampler):
             print('Extracted number of states: {}'.format(len(self._chosen_kinova_idxs)))
 
         def kinova_data(self):
-        
+
             self._data=self._get_hdf5_data(self.allegro_state_file,'joint_angles',np.float64)
             self.time_stamps=self._get_hdf5_timestamps(self.allegro_state_file)
             self.positions=[]

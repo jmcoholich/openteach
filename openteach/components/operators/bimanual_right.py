@@ -44,7 +44,7 @@ class BimanualArmOperator(Operator):
         self,
         host, transformed_keypoints_port,
         use_filter=False,
-        arm_resolution_port = None, 
+        arm_resolution_port = None,
         gripper_port =None,
         cartesian_publisher_port = None,
         joint_publisher_port = None,
@@ -92,21 +92,21 @@ class BimanualArmOperator(Operator):
         # Define Robot object
         self._robot = Bimanual(ip=RIGHT_ARM_IP)
         self.robot.reset()
-       
-       
-       
-        
+
+
+
+
         # Get the initial pose of the robot
         home_pose=np.array(self.robot.get_cartesian_position())
         self.robot_init_H = self.robot_pose_aa_to_affine(home_pose)
-        self._timer = FrequencyTimer(BIMANUAL_VR_FREQ) 
+        self._timer = FrequencyTimer(BIMANUAL_VR_FREQ)
 
         # Use the filter
         self.use_filter = use_filter
         if use_filter:
             robot_init_cart = self._homo2cart(self.robot_init_H)
             self.comp_filter = Filter(robot_init_cart, comp_ratio=0.8)
-            
+
         # Class variables
         self.gripper_flag=1
         self.pause_flag=1
@@ -134,8 +134,8 @@ class BimanualArmOperator(Operator):
     @property
     def transformed_arm_keypoint_subscriber(self):
         return self._transformed_arm_keypoint_subscriber
-        
-    
+
+
     def robot_pose_aa_to_affine(self,pose_aa: np.ndarray) -> np.ndarray:
         """Converts a robot pose in axis-angle format to an affine matrix.
         Args:
@@ -149,7 +149,7 @@ class BimanualArmOperator(Operator):
         translation = np.array(pose_aa[:3]) / SCALE_FACTOR
 
         return np.block([[rotation, translation[:, np.newaxis]],[0, 0, 0, 1]])
-    
+
     #Function to differentiate between real and simulated robot
     def return_real(self):
         return True
@@ -160,21 +160,21 @@ class BimanualArmOperator(Operator):
         for i in range(10):
             data = self.transformed_arm_keypoint_subscriber.recv_keypoints(flags=zmq.NOBLOCK)
             if data is not None:
-                break 
+                break
         if data is None:
             return None
         return np.asanyarray(data).reshape(4, 3)
-    
+
     # Function to get the resolution scale mode
     def _get_resolution_scale_mode(self):
         data = self._arm_resolution_subscriber.recv_keypoints()
         res_scale = np.asanyarray(data).reshape(1)[0] # Make sure this data is one dimensional
         return res_scale
-    
+
     # Function to get the arm teleop state from the hand keypoints
     def _get_arm_teleop_state_from_hand_keypoints(self):
         pause_state ,pause_status,pause_right =self.get_pause_state_from_hand_keypoints()
-        pause_status =np.asanyarray(pause_status).reshape(1)[0] 
+        pause_status =np.asanyarray(pause_status).reshape(1)[0]
 
         return pause_state,pause_status,pause_right
 
@@ -201,7 +201,7 @@ class BimanualArmOperator(Operator):
             [t, R], axis=0
         )
         return cart
-    
+
 
     # Get the scaled cartesian pose
     def _get_scaled_cart_pose(self, moving_robot_homo_mat):
@@ -217,7 +217,7 @@ class BimanualArmOperator(Operator):
         # Get the difference in translation between these two cart poses
         diff_in_translation = unscaled_cart_pose[:3] - current_cart_pose[:3]
         scaled_diff_in_translation = diff_in_translation * self.resolution_scale
-        
+
         scaled_cart_pose = np.zeros(6)
         scaled_cart_pose[3:] = unscaled_cart_pose[3:] # Get the rotation directly
         scaled_cart_pose[:3] = current_cart_pose[:3] + scaled_diff_in_translation # Get the scaled translation only
@@ -249,34 +249,34 @@ class BimanualArmOperator(Operator):
             self.gripper_cnt+=1
             if self.gripper_cnt==1:
                 self.prev_gripper_flag = self.gripper_flag
-                self.gripper_flag = not self.gripper_flag 
+                self.gripper_flag = not self.gripper_flag
                 gripper_fl=True
-        else: 
+        else:
             self.gripper_cnt=0
         gripper_state = np.asanyarray(self.gripper_flag).reshape(1)[0]
-        status= False  
+        status= False
         if gripper_state!= self.prev_gripper_flag:
             status= True
-        return gripper_state , status , gripper_fl 
-   
+        return gripper_state , status , gripper_fl
+
     # Toggle the robot to pause/resume using ring/middle finger pinch, both finger modes are supported to avoid any hand pose noise issue
     def get_pause_state_from_hand_keypoints(self):
         transformed_hand_coords= self._transformed_hand_keypoint_subscriber.recv_keypoints()
         ring_distance = np.linalg.norm(transformed_hand_coords[OCULUS_JOINTS['ring'][-1]]- transformed_hand_coords[OCULUS_JOINTS['thumb'][-1]])
         middle_distance = np.linalg.norm(transformed_hand_coords[OCULUS_JOINTS['middle'][-1]]- transformed_hand_coords[OCULUS_JOINTS['thumb'][-1]])
-        thresh = 0.03 
+        thresh = 0.03
         pause_right= True
         if ring_distance < thresh  or middle_distance < thresh:
             self.pause_cnt+=1
             if self.pause_cnt==1:
                 self.prev_pause_flag=self.pause_flag
-                self.pause_flag = not self.pause_flag       
+                self.pause_flag = not self.pause_flag
         else:
             self.pause_cnt=0
         pause_state = np.asanyarray(self.pause_flag).reshape(1)[0]
-        pause_status= False  
+        pause_status= False
         if pause_state!= self.prev_pause_flag:
-            pause_status= True 
+            pause_status= True
         return pause_state , pause_status , pause_right
 
     # Function to apply retargeted angles
@@ -297,20 +297,20 @@ class BimanualArmOperator(Operator):
             self.resolution_scale = 0.6
 
 
-        if moving_hand_frame is None: 
+        if moving_hand_frame is None:
             return # It means we are not on the arm mode yet instead of blocking it is directly returning
-        
+
         self.hand_moving_H = self._turn_frame_to_homo_mat(moving_hand_frame)
 
         # Transformation code
         H_HI_HH = copy(self.hand_init_H) # Homo matrix that takes P_HI to P_HH - Point in Inital Hand Frame to Point in Home Hand Frame
         H_HT_HH = copy(self.hand_moving_H) # Homo matrix that takes P_HT to P_HH
         H_RI_RH = copy(self.robot_init_H) # Homo matrix that takes P_RI to P_RH
-       
+
         H_HT_HI = np.linalg.pinv(H_HI_HH) @ H_HT_HH # Homo matrix that takes P_HT to P_HI
 
         # Here there are two matrices because the rotation is asymmetric and we imagine we are holding the endeffector and moving the robot.
-        H_R_V= np.array([[0 , 0, -1, 0], 
+        H_R_V= np.array([[0 , 0, -1, 0],
                         [0 , -1, 0, 0],
                         [-1, 0, 0, 0],
                         [0, 0 ,0 , 1]])
@@ -323,7 +323,7 @@ class BimanualArmOperator(Operator):
 
         H_HT_HI_r=(pinv(H_R_V) @ H_HT_HI @ H_R_V)[:3,:3] # Finding th
         H_HT_HI_t=(pinv(H_T_V) @ H_HT_HI @ H_T_V)[:3,3]
-         
+
         relative_affine = np.block(
         [[ H_HT_HI_r,  H_HT_HI_t.reshape(3, 1)], [0, 0, 0, 1]])
         target_translation = H_RI_RH[:3,3] + relative_affine[:3,3]
@@ -344,7 +344,7 @@ class BimanualArmOperator(Operator):
         if gripper_flag ==1 and status_change is True:
             self.gripper_correct_state=gripper_state
             self.robot.set_gripper_state(self.gripper_correct_state*800)
-        
+
         # We save the states here during teleoperation as saving directly at 90Hz seems to be too fast for XArm.
         self.gripper_publisher.pub_keypoints(self.gripper_correct_state,"gripper_right")
         position=self.robot.get_cartesian_position()
@@ -352,11 +352,11 @@ class BimanualArmOperator(Operator):
         self.cartesian_publisher.pub_keypoints(position,"cartesian")
         self.joint_publisher.pub_keypoints(joint_position,"joint")
         self.cartesian_command_publisher.pub_keypoints(final_pose, "cartesian")
-        
+
         if self.arm_teleop_state == ARM_TELEOP_CONT and gripper_flag == False:
             self.robot.arm_control(final_pose)
 
-       
-        
+
+
 
 

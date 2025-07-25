@@ -9,496 +9,239 @@ using NetMQ.Sockets;
 
 class GestureDetector : MonoBehaviour
 {
-    // Hand objects
-    public OVRHand LeftHand;
-    public OVRHand RightHand;
-    public OVRSkeleton LeftHandSkeleton;
-    public OVRSkeleton RightHandSkeleton;
-    public OVRPassthroughLayer PassthroughLayerManager;
-    private List<OVRBone> RightHandFingerBones;
+    // Controller Objects
+    public OVRInput.Controller RightController;
+    [SerializeField] private ChangeColor changeColorScript;
+    private Color controllerColor = Color.red; // Default color for the controller mesh
+    public Transform controllerTransform;
 
     // Menu and RayCaster GameObjects
     public GameObject MenuButton;
-    public GameObject ResolutionButton;
-    public GameObject HighResolutionButton;
-    public GameObject LowResolutionButton;
-
     public GameObject WristTracker;
     private GameObject LaserPointer;
     private LineRenderer LineRenderer;
 
-
-    // Hand Usage indicator
-    public RawImage StreamBorder;
-
     // Stream Enablers
-    bool StreamRelativeData = true;
     bool StreamAbsoluteData = false;
-
-
-    //Newly added
-    //bool HighResolution = false;
-    //bool LowResolution = false;
-    bool StreamResolution= true;
-    public HighResolutionButtonController HighResolutionButtonController;
-    public LowResolutionButtonController LowResolutionButtonController;
-
-
-
 
     // Network enablers
     private NetworkManager netConfig;
-    private PushSocket client;
-    private PushSocket client2;
-    private PushSocket client3;
-    private string communicationAddress;
-    private string ResolutionAddress;
 
-    private string PauseAddress;
-
-    private string state;
+    // Pause Socket
+    private PushSocket PauseClient;
     private string pauseState;
-    private bool connectionEstablished = false;
-
-    private bool resolutionconnectionEstablished = false;
-
     private bool ShouldContinueArmTeleop = false;
+    private bool PauseConnectionEstablished = false;
 
-    private bool PauseEstablished = false;
-    private bool resolutioncreated = false;
-    private bool PauseCreated = false;
+    // Controller Socket
+    private PushSocket RemoteClient;
+    private string RemoteCommunicationAddress;
+    private bool RemoteConnectionEstablished = false;
+
+    // Mode
+    private int currentMode = 0;
+
+    // Start function
+    void Start()
+    {
+        AsyncIO.ForceDotNet.Force();
+        NetMQConfig.Cleanup(false);
+        GameObject netConfGameObject = GameObject.Find("NetworkConfigsLoader");
+
+        if (netConfGameObject == null)
+        {
+            Debug.LogError("NetworkConfigsLoader not found in the scene!");
+            return;  // Prevent further execution
+        }
+
+        netConfig = netConfGameObject.GetComponent<NetworkManager>();
+
+        if (netConfig == null)
+        {
+            Debug.LogError("NetworkManager component not found on NetworkConfigsLoader!");
+            return;  // Prevent further execution
+        }
+
+        LaserPointer = GameObject.Find("LaserPointer");
+        LineRenderer = LaserPointer.GetComponent<LineRenderer>();
+
+        // Initiate Push Socket
+        RemoteClient = new PushSocket();
+        ConnectRemoteClient(netConfig.getRemoteAddress());
+
+        // Initiate Push Socket for Pause
+        PauseClient = new PushSocket();
+        ConnectPauseClient(netConfig.getPauseAddress());
+    }
 
     // Starting the server connection
-    public void CreateTCPConnection()
-     {
+    public void ConnectRemoteClient(string address)
+    {
         // Check if communication address is available
-        communicationAddress = netConfig.getKeypointAddress();
-        bool AddressAvailable = !String.Equals(communicationAddress, "tcp://:");
+        bool AddressAvailable = !String.Equals(address, "tcp://:");
 
         if (AddressAvailable)
         {
-            // Initiate Push Socket
-            client = new PushSocket();
-            client.Connect(communicationAddress);
-            connectionEstablished = true;
+            RemoteCommunicationAddress = address;
+            RemoteClient.Connect(address);
+            RemoteConnectionEstablished = true;
+            Debug.Log("Connected to Remote Client at: " + address);
         }
 
         // Setting color to green to indicate control
-        if (connectionEstablished)
+        if (RemoteConnectionEstablished)
         {
-            StreamBorder.color = Color.green;
+            controllerColor = Color.red; // Start in red since were not streaming the controller
             ToggleMenuButton(false);
-        } else
+        }
+        else
         {
-            StreamBorder.color = Color.red;
+            controllerColor = Color.magenta; // Set the controller color to magenta to indicate an issue
             ToggleMenuButton(true);
+            Debug.LogWarning("Remote Client connection failed or address is not set correctly: " + address);
         }
     }
 
-   
+    public void ConnectPauseClient(string address)
+    {
+        // Check if communication address is available
+        bool PauseAvailable = !String.Equals(address, "tcp://:");
 
-   
+        if (PauseAvailable)
+        {
+            PauseClient.Connect(address);
+            PauseConnectionEstablished = true;
+        }
+    }
+
 
     public void ToggleMenuButton(bool toggle)
     {
         MenuButton.SetActive(toggle);
         LineRenderer.enabled = toggle;
+
     }
 
-    public void ToggleResolutionButton(bool toggle)
+
+    public void SendRemoteData(String TypeMarker)
     {
-        ResolutionButton.SetActive(toggle);
-        LineRenderer.enabled = toggle;
-    }
-
-    public void ToggleHighResolutionButton(bool toggle)
-    {
-        HighResolutionButton.SetActive(toggle);
-        
-    }
-
-    public void ToggleLowResolutionButton(bool toggle)
-    {
-        LowResolutionButton.SetActive(toggle);
+        // Message needs to contain Marker|x,y,z|q1,q2,q3,q4|gripper|offset_forward,offset_right,offset_up
+        Vector3 pos = OVRInput.GetLocalControllerPosition(RightController);
+        Quaternion quat = OVRInput.GetLocalControllerRotation(RightController);
+        Vector3 offsetForward = pos + controllerTransform.forward * 0.1f;
+        Vector3 offsetRight = pos + controllerTransform.right * 0.1f;
+        Vector3 offsetUp = pos + controllerTransform.up * 0.1f;
 
 
-    }
-    // Start function
-    void Start()
-     {
-        // Getting the Network Config Updater gameobject
-        GameObject netConfGameObject = GameObject.Find("NetworkConfigsLoader");
-        netConfig = netConfGameObject.GetComponent<NetworkManager>();
+        string message = TypeMarker + "|";
+        message = message + pos.x + "," + pos.y + "," + pos.z + "|";
+        message = message + quat.w + "," + quat.x + "," + quat.y + "," + quat.z + "|";
+        message = message + OVRInput.Get(OVRInput.RawButton.RIndexTrigger) + "|";
+        message = message + offsetForward.x + "," + offsetForward.y + "," + offsetForward.z + "|";
+        message = message + offsetRight.x + "," + offsetRight.y + "," + offsetRight.z + "|";
+        message = message + offsetUp.x + "," + offsetUp.y + "," + offsetUp.z;
 
-        LaserPointer = GameObject.Find("LaserPointer");
-        LineRenderer = LaserPointer.GetComponent<LineRenderer>();
-
-        // Initializing the hand skeleton
-        RightHandFingerBones = new List<OVRBone>(RightHandSkeleton.Bones);
-        
-        
-    }
-
-
-    // Function to serialize the Vector3 List
-    public static string SerializeVector3List(List<Vector3> gestureData)
-    {
-        string vectorString = "";
-        foreach (Vector3 vec in gestureData)
-            vectorString = vectorString + vec.x + "," + vec.y + "," + vec.z + "|";
-
-        // Clipping last element and using a semi colon instead
-        if (vectorString.Length > 0)
-            vectorString = vectorString.Substring(0, vectorString.Length - 1) + ":";
-
-        return vectorString;
-    }
-
-    public void SendHandData(String TypeMarker)
-    {
-        // Getting bone positional information
-        List<Vector3> rightHandGestureData = new List<Vector3>();
-        foreach (var bone in RightHandFingerBones)
-        {
-            Vector3 bonePosition = bone.Transform.position;
-            rightHandGestureData.Add(bonePosition);
-        }
-
-        // Creating a string from the vectors
-        string RightHandDataString = SerializeVector3List(rightHandGestureData);
-        RightHandDataString = TypeMarker + ":" + RightHandDataString;
-
-        client.SendFrame(RightHandDataString);
-        byte[] recievedToken = client.ReceiveFrameBytes();
-    }
-
-
-    public void SendResolution()
-    {
-       
-        //printf("Address available", Address)
-       
-        // client2.SendFrame("None");
-        // byte[] recievedToken = client2.ReceiveFrameBytes();
-        ResolutionAddress = netConfig.getResolutionAddress();
-        bool Available = !String.Equals(ResolutionAddress, "tcp://:");
-
-        if (Available)
-        {   if (!resolutioncreated)
-            // Initiate Push Socket
-            { 
-                Debug.Log("Address Available");
-                client2 = new PushSocket();
-                client2.Connect(ResolutionAddress);
-                resolutionconnectionEstablished = true;
-                resolutioncreated=true;
-            }
-            else 
-            {
-                resolutionconnectionEstablished=true;
-            }
-        }
-        else
-        {
-            resolutionconnectionEstablished = false;
-        }
-        
-        if (resolutionconnectionEstablished)
-        {
-            if (HighResolutionButtonController.HighResolution)
-            {   
-                state="High";
-                client2.SendFrame(state);
-                Debug.Log("High Button was clicked!");
-                //recievedToken = client2.ReceiveFrameBytes();
-                
-                //byte[] recievedToken2 = client2.ReceiveFrameBytes();
-            }
-
-            else if (LowResolutionButtonController.LowResolution)
-            {   
-                state="Low";
-                client2.SendFrame(state);
-                Debug.Log("Low Button was clicked!");
-                // byte[] recievedToken2 = client2.ReceiveFrameBytes();
-                
-                
-            }
-
-            else 
-            {   
-
-                client2.SendFrame("None"); 
-                //recievedToken = client2.ReceiveFrameBytes();  
-                Debug.Log("No button was pressed");
-                //byte[] recievedToken2 = client2.ReceiveFrameBytes();
-
-            }
-        }
-        else
-        {
-            client2.SendFrame("None");
+        bool sent = RemoteClient.TrySendFrame(message);
+        if (!sent) {
+            Debug.LogWarning("Message send failed or would block");
         }
     }
+
 
     public void SendResetStatus()
     {
-       
-        //printf("Address available", Address)
-       
-        // client2.SendFrame("None");
-        // byte[] recievedToken = client2.ReceiveFrameBytes();
-        PauseAddress = netConfig.getPauseAddress();
-        bool PauseAvailable = !String.Equals(PauseAddress, "tcp://:");
-
-        if (PauseAvailable)
-        {   if (!PauseCreated)
-            // Initiate Push Socket
-            { 
-                Debug.Log("Address Available");
-                client3 = new PushSocket();
-                client3.Connect(PauseAddress);
-                PauseEstablished = true;
-                PauseCreated=true;
-            }
-            else 
+        if (PauseConnectionEstablished)
+        {
+            if (ShouldContinueArmTeleop)
             {
-                PauseEstablished=true;
-            }
-        }
-        else
-        {
-            PauseEstablished = false;
-        }
-        
-        if (PauseEstablished)
-        {
-            if (ShouldContinueArmTeleop){
                 pauseState = "High";
-            } else {
+            }
+            else
+            {
                 pauseState = "Low";
             }
-            client3.SendFrame(pauseState);
-        }
-        else 
-        {
-            
-            pauseState="None";
-            client3.SendFrame(pauseState);
-        }
-        
-
-    }
-    
-    public void SendCont()
-    {
-       
-        //printf("Address available", Address)
-       
-        // client2.SendFrame("None");
-        // byte[] recievedToken = client2.ReceiveFrameBytes();
-        PauseAddress = netConfig.getPauseAddress();
-        bool PauseAvailable = !String.Equals(PauseAddress, "tcp://:");
-
-        if (PauseAvailable)
-        {   if (!PauseCreated)
-            // Initiate Push Socket
-            { 
-                Debug.Log("Address Available");
-                client3 = new PushSocket();
-                client3.Connect(PauseAddress);
-                PauseEstablished = true;
-                PauseCreated=true;
-            }
-            else 
-            {
-                PauseEstablished=true;
+            bool sent = PauseClient.TrySendFrame(pauseState);
+            if (!sent) {
+                Debug.LogWarning("Message send failed or would block");
             }
         }
-        else
-        {
-            PauseEstablished = false;
-        }
-        
-        if (PauseEstablished)
-        {
-           
-            pauseState="High";
-            client3.SendFrame(pauseState);
-            
-        }
-        else 
-        {
-            
-            pauseState="None";
-            client3.SendFrame(pauseState);
-        }
-        
-
     }
 
-    public void SendPause()
-    {
-       
-        //printf("Address available", Address)
-       
-        // client2.SendFrame("None");
-        // byte[] recievedToken = client2.ReceiveFrameBytes();
-        PauseAddress = netConfig.getPauseAddress();
-        bool PauseAvailable = !String.Equals(PauseAddress, "tcp://:");
-
-        if (PauseAvailable)
-        {   if (!PauseCreated)
-            // Initiate Push Socket
-            { 
-                Debug.Log("Address Available");
-                client3 = new PushSocket();
-                client3.Connect(PauseAddress);
-                PauseEstablished = true;
-                PauseCreated=true;
-            }
-            else 
-            {
-                PauseEstablished=true;
-            }
-        }
-        else
-        {
-            PauseEstablished = false;
-        }
-        
-        if (PauseEstablished)
-        {
-           
-            pauseState="Low";
-            client3.SendFrame(pauseState);
-            
-        }
-        else 
-        {
-            
-            pauseState="None";
-            client3.SendFrame(pauseState);
-        }
-        
-
-    }
-    
 
     public void StreamPauser()
     {
-        // Switching from Right hand control
-        if (LeftHand.GetFingerIsPinching(OVRHand.HandFinger.Middle))
+        // Check if B is pressed only on first frame down so hold does not toggle the mode
+        bool modeChange = false;
+        if (OVRInput.GetDown(OVRInput.RawButton.B))
         {
-            StreamRelativeData = false;
-            StreamAbsoluteData = true;
-            StreamResolution= false;
-            StreamBorder.color = Color.blue; // Blue for left hand stream
-            ToggleMenuButton(false);
-            ToggleResolutionButton(false);
-            WristTracker.SetActive(true);
-            ShouldContinueArmTeleop = true;
-            // SendCont();
-            
+            currentMode += 1;
+            currentMode %= 2;
+            modeChange = true;
         }
 
-        // Switching from Left hand control
-        if (LeftHand.GetFingerIsPinching(OVRHand.HandFinger.Index))
+        // Streams Data
+        if (modeChange && currentMode == 1)
         {
-            StreamRelativeData = true;
-            StreamAbsoluteData = false;
-            StreamResolution = false;
-            StreamBorder.color = Color.green; // Green for right hand stream
+            OVRManager.display.RecenterPose();
+            StreamAbsoluteData = true;
+            controllerColor = Color.green; // Set the controller color to green
             ToggleMenuButton(false);
-            ToggleResolutionButton(false);
-            WristTracker.SetActive(false);
-            ShouldContinueArmTeleop = false;
-            // SendPause();
-            
+            WristTracker.SetActive(true);
+            ShouldContinueArmTeleop = true;
+
         }
 
         // Pausing Stream
-        if (LeftHand.GetFingerIsPinching(OVRHand.HandFinger.Ring))
+        if (modeChange && currentMode == 0)  // open menu
         {
-            StreamRelativeData = false;
             StreamAbsoluteData = false;
-            StreamResolution = false;
-            StreamBorder.color = Color.red; // Red color for no stream 
+            controllerColor = Color.red; // Set the controller color to red
             ToggleMenuButton(true);
-            //ToggleResolutionButton(false);
             WristTracker.SetActive(false);
             ShouldContinueArmTeleop = false;
-            
-        }
-
-        if (LeftHand.GetFingerIsPinching(OVRHand.HandFinger.Pinky))
-        {
-            StreamRelativeData = false;
-            StreamAbsoluteData = false;
-            StreamResolution = true;
-            StreamBorder.color = Color.black; // Black color for resolution
-            ShouldContinueArmTeleop = false;
-            ToggleMenuButton(false);
-            ToggleResolutionButton(true);
-            WristTracker.SetActive(false);
-            // SendPause();
 
         }
+
     }
 
     void Update()
     {
-        if (connectionEstablished)
-        
-        {   
-            
-            SendResolution();
+        changeColorScript.SetColor(controllerColor);  // Update controller color
+        // Hand Tracking
+        if (RemoteConnectionEstablished)
+
+        {
             SendResetStatus();
-            if (String.Equals(communicationAddress, netConfig.getKeypointAddress()))
-            {   
+            if (String.Equals(RemoteCommunicationAddress, netConfig.getRemoteAddress()) && !String.Equals(RemoteCommunicationAddress, "tcp://:"))
+            {
 
-                StreamPauser();
+                StreamPauser();  // check if B was pressed to bring up the menu
 
-                
-
+                // Stream Data
                 if (StreamAbsoluteData)
-                {   SendHandData("absolute");
-                    ToggleResolutionButton(false);
-                    // SendCont();
-                   
-                }
-
-                if (StreamRelativeData)
-                {
-                    SendHandData("relative");
-                    ToggleResolutionButton(false);
-                    // SendPause();
-                    
-                }
-
-                if (StreamResolution)
-                {   
-                    ToggleHighResolutionButton(true);
-                    ToggleLowResolutionButton(true);
-                    // SendPause();
-                   
-                } 
-              
+                    SendRemoteData("absolute");
+                
             }
             else
             {
-                connectionEstablished = false;
+                RemoteConnectionEstablished = false;
             }
-        
-        } else
-        {
-            StreamBorder.color = Color.red;
-            ToggleMenuButton(true);
-            //ToggleResolutionButton(false);
-            CreateTCPConnection();
-            
-            
+
         }
-        //SendResolution();
+        else
+        {
+            Debug.LogWarning("Update function: connection not established");
+            ToggleMenuButton(true);
+            ConnectRemoteClient(netConfig.getRemoteAddress());
+            ConnectPauseClient(netConfig.getPauseAddress());
+        }
+    }
+
+    void OnApplicationQuit()
+    {
+        // Clean up NetMQ resources
+        PauseClient.Dispose();
+        RemoteClient.Dispose();
+        NetMQConfig.Cleanup(false);
     }
 }

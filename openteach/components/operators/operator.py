@@ -8,18 +8,18 @@ class Operator(Component, ABC):
     def timer(self):
         return self._timer
 
-    # This function is used to create the robot
-    @property
-    @abstractmethod
-    def robot(self):
-        return self._robot
+    # # This function is used to create the robot
+    # @property
+    # @abstractmethod
+    # def robot(self):
+    #     return self._robot
 
     # This function is the subscriber for the hand keypoints
     @property
     @abstractmethod
     def transformed_hand_keypoint_subscriber(self):
         return self._transformed_hand_keypoint_subscriber
-    
+
     #This function is the subscriber for the arm keypoints
     @property
     @abstractmethod
@@ -42,14 +42,14 @@ class Operator(Component, ABC):
                         if self.robot.get_joint_position() is not None:
                             #print("######")
                             self.timer.start_loop()
-                            
+
                             # Retargeting function
                             self._apply_retargeted_angles()
 
                             self.timer.end_loop()
                     else:
                         self.timer.start_loop()
-                        
+
                         # Retargeting function
                         self._apply_retargeted_angles()
 
@@ -57,7 +57,7 @@ class Operator(Component, ABC):
 
                 except KeyboardInterrupt:
                     break
-        
+
         self.transformed_arm_keypoint_subscriber.stop()
         self.transformed_hand_keypoint_subscriber.stop()
         print('Stopping the teleoperator!')

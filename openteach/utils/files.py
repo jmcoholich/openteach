@@ -1,5 +1,5 @@
 import os
-import pickle 
+import pickle
 import yaml
 import numpy as np
 import openteach
@@ -16,10 +16,10 @@ def get_path_in_package(relative_path):
     return os.path.join(list(openteach.__path__)[0], relative_path)
 
 def store_pickle_data(path, dictionary):
-    with open(path, 'ab') as file:
+    with open(path, 'wb') as file:
         pickle.dump(dictionary, file)
 
-def get_pickle_data(path):    
+def get_pickle_data(path):
     with open(path, 'rb') as file:
         return pickle.load(file)
 

@@ -10,6 +10,7 @@ public class NetworkConfiguration
     public string camPortNum;
     public string graphPortNum;
     public string resolutionPortNum;
+    public string remotePortNum;
 
     public string PausePortNum;
 
@@ -39,6 +40,14 @@ public class NetworkManager : MonoBehaviour
             return "tcp://:";
         else
             return "tcp://" + netConfig.IPAddress + ":" + netConfig.keyptPortNum;
+    }
+
+    public string getRemoteAddress()
+    {
+        if (IPNotFound)
+            return "tcp://:";
+        else
+            return "tcp://" + netConfig.IPAddress + ":" + netConfig.remotePortNum;
     }
 
     public string getCamAddress()
@@ -80,9 +89,11 @@ public class NetworkManager : MonoBehaviour
     {
         netConfig.IPAddress = IPAddress;
         IPNotFound = false;
+        Debug.Log("IP Address Changed to: " + IPAddress);
 
         // Storing in the Oculus Player Preferences Dict
         PlayerPrefs.SetString("ipAddress", IPAddress);
+        PlayerPrefs.Save();
     }
 
 
@@ -92,7 +103,15 @@ public class NetworkManager : MonoBehaviour
         netConfig = JsonUtility.FromJson<NetworkConfiguration>(jsonFile.text);
 
         if (PlayerPrefs.HasKey("ipAddress"))
+        {
+            Debug.Log("IP Address found in PlayerPrefs: |" + PlayerPrefs.GetString("ipAddress") + "|STOP");
             netConfig.IPAddress = PlayerPrefs.GetString("ipAddress");
+        }
+        else
+        {
+            Debug.Log("No IP Address found in PlayerPrefs, setting to undefined.");
+            netConfig.IPAddress = "undefined"; // Default value if not set
+        }
 
         if (!netConfig.isIPAllocated())
             IPNotFound = true;

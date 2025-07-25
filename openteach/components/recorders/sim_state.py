@@ -6,7 +6,7 @@ import numpy as np
 from .recorder import Recorder
 from openteach.utils.timer import FrequencyTimer
 from openteach.constants import *
-from openteach.utils.network import ZMQKeypointSubscriber, ZMQKeypointPublisher 
+from openteach.utils.network import ZMQKeypointSubscriber, ZMQKeypointPublisher
 
 
 # To record robot information
@@ -26,7 +26,7 @@ class SimInformationRecord(Recorder):
         timestampsubscribeport = port_configs['timestampssubscribeport']
         endeff_publish_port= port_configs['endeff_publish_port']
         endeffpossubscribeport= port_configs['endeffpossubscribeport']
-        
+
         # Subscriber for desired angles
         self.subscriber =  ZMQKeypointSubscriber(
             host = host,
@@ -52,7 +52,7 @@ class SimInformationRecord(Recorder):
             host = host,
             port = endeff_publish_port,
             topic= 'endeff_coords'
-        ) 
+        )
 
         # Publisher for End effector position
         self.endeffector_pos_subscriber =  ZMQKeypointSubscriber(
@@ -60,10 +60,10 @@ class SimInformationRecord(Recorder):
                 port = endeffpossubscribeport,
                 topic= 'endeff_coords'
             )
-        
-    
 
-        
+
+
+
         self.timer = FrequencyTimer(VR_FREQ)
         self.timestampsubscribeport= timestampsubscribeport
         self.recorder_function_key = recorder_function_key
@@ -110,17 +110,17 @@ class SimInformationRecord(Recorder):
                         actual_endeff_coords=self.end_eff_coords_actual.recv_keypoints()
                     else:
                         actual_endeff_coords=self.endeffector_pos_subscriber.recv_keypoints()
-               
+
                 # timestamps= self.timestampsubscriber.recv_keypoints()
                 # proprio
-                for key in ['position', 'timestamps']:  
+                for key in ['position', 'timestamps']:
                     if self.robot=='allegro':
                         if self.recorder_function_key == 'joint_states':
                             if key not in self.robot_information.keys():
                                 if key =='timestamps':
                                     self.robot_information[key]=[timestamps]
                                 elif key =='position':
-                                    self.robot_information[key]=[actual_joint_angles]   
+                                    self.robot_information[key]=[actual_joint_angles]
                             else:
                                 if key =='timestamps':
                                     self.robot_information[key].append(timestamps)
@@ -131,7 +131,7 @@ class SimInformationRecord(Recorder):
                                 if key =='timestamps':
                                     self.robot_information[key]=[timestamps]
                                 elif key =='position':
-                                    self.robot_information[key]=[commanded_joint_angles]   
+                                    self.robot_information[key]=[commanded_joint_angles]
                             else:
                                 if key =='timestamps':
                                     self.robot_information[key].append(timestamps)
@@ -143,7 +143,7 @@ class SimInformationRecord(Recorder):
                                 if key =='timestamps':
                                     self.robot_information[key]=[timestamps]
                                 elif key =='position':
-                                    self.robot_information[key]=[actual_joint_angles]   
+                                    self.robot_information[key]=[actual_joint_angles]
                             else:
                                 if key =='timestamps':
                                     self.robot_information[key].append(timestamps)
@@ -156,7 +156,7 @@ class SimInformationRecord(Recorder):
                                 if key =='timestamps':
                                     self.robot_information[key]=[timestamps]
                                 elif key =='position':
-                                    self.robot_information[key]=[commanded_joint_angles]   
+                                    self.robot_information[key]=[commanded_joint_angles]
                             else:
                                 if key =='timestamps':
                                     self.robot_information[key].append(timestamps)
@@ -168,19 +168,19 @@ class SimInformationRecord(Recorder):
                                 if key =='timestamps':
                                     self.robot_information[key]=[timestamps]
                                 elif key =='position':
-                                    self.robot_information[key]=[commanded_endeff_coords]   
+                                    self.robot_information[key]=[commanded_endeff_coords]
                             else:
                                 if key =='timestamps':
                                     self.robot_information[key].append(timestamps)
                                 elif key =='position':
                                     self.robot_information[key].append(commanded_endeff_coords)
-                        
+
                         else:
                             if key not in self.robot_information.keys():
                                 if key =='timestamps':
                                     self.robot_information[key]=[timestamps]
                                 elif key =='position':
-                                    self.robot_information[key]=[actual_endeff_coords]   
+                                    self.robot_information[key]=[actual_endeff_coords]
 
                             else:
                                 if key =='timestamps':
@@ -193,19 +193,19 @@ class SimInformationRecord(Recorder):
                                 if key =='timestamps':
                                     self.robot_information[key]=[timestamps]
                                 elif key =='position':
-                                    self.robot_information[key]=[actual_endeff_coords]   
+                                    self.robot_information[key]=[actual_endeff_coords]
                             else:
                                 if key =='timestamps':
                                     self.robot_information[key].append(timestamps)
                                 elif key =='position':
                                     self.robot_information[key].append(actual_endeff_coords)
-                                
+
                         else:
                             if key not in self.robot_information.keys():
                                 if key =='timestamps':
                                     self.robot_information[key]=[timestamps]
                                 elif key =='position':
-                                    self.robot_information[key]=[commanded_endeff_coords]   
+                                    self.robot_information[key]=[commanded_endeff_coords]
                             else:
                                 if key =='timestamps':
                                     self.robot_information[key].append(timestamps)
@@ -221,7 +221,7 @@ class SimInformationRecord(Recorder):
 
         # Displaying statistics
         self._display_statistics(self.num_datapoints)
-        
+
         # Saving the metadata
         self._add_metadata(self.num_datapoints)
 

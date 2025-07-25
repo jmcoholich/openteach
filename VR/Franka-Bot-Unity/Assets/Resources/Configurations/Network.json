@@ -1,8 +1,9 @@
 ﻿{
-  "IPAddress": "undefined",
+  "IPAddress": "",
   "keyptPortNum": "8087",
   "camPortNum": "10505",
   "graphPortNum": "15001",
   "resolutionPortNum": "8095",
-  "PausePortNum": "8100"
+  "PausePortNum": "8100", 
+  "remotePortNum": "8125"
 }

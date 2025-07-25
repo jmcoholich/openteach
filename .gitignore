@@ -6,6 +6,7 @@ holo_bot.egg-info
 
 # Cache Folders
 *__pycache__*
+*.egg-info
 
 # Debugging scripts
 debuggers/

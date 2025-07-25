@@ -2,7 +2,7 @@ from copy import deepcopy as copy
 #Holo-bot Components
 from openteach.utils.network import ZMQKeypointSubscriber, ZMQKeypointPublisher
 from .operator import Operator
-from shapely.geometry import Point, Polygon 
+from shapely.geometry import Point, Polygon
 from shapely.ops import nearest_points
 from .calibrators.allegro import OculusThumbBoundCalibrator
 # from openteach.robot.allegro.allegro import AllegroHand
@@ -26,9 +26,9 @@ from isaacgym.torch_utils import *
 
 class AllegroHandSimOperator(Operator):
     def __init__(
-            self,  
+            self,
             host,
-            transformed_keypoints_port, 
+            transformed_keypoints_port,
             finger_configs,
             stream_configs,stream_oculus,
             jointanglepublishport,
@@ -63,7 +63,7 @@ class AllegroHandSimOperator(Operator):
         self.finger_joint_solver = AllegroJointControl()
 
 
-       
+
         # Initializing the queues
         self.moving_average_queues = {
             'thumb': [],
@@ -75,7 +75,7 @@ class AllegroHandSimOperator(Operator):
         # Calibrating to get the thumb bounds
         self._calibrate_bounds()
         self._stream_oculus=stream_oculus
-        self.stream_configs=stream_configs 
+        self.stream_configs=stream_configs
 
         # Getting the bounds for the allegro hand
         allegro_bounds_path = get_path_in_package('components/operators/configs/allegro.yaml')
@@ -97,15 +97,15 @@ class AllegroHandSimOperator(Operator):
     @property
     def robot(self):
         return self._robot
-    
+
     def return_real(self):
         return False
 
-    
+
     @property
     def transformed_hand_keypoint_subscriber(self):
         return self._hand_transformed_keypoint_subscriber
-    
+
     @property
     def transformed_arm_keypoint_subscriber(self):
         return self._arm_transformed_keypoint_subscriber
@@ -115,7 +115,7 @@ class AllegroHandSimOperator(Operator):
         self.notify_component_start('calibration')
         calibrator = OculusThumbBoundCalibrator(self._host, self._port)
         self.hand_thumb_bounds = calibrator.get_bounds() # Provides [thumb-index bounds, index-middle bounds, middle-ring-bounds]
-        print(f'THUMB BOUNDS IN THE OPERATOR: {self.hand_thumb_bounds}')  
+        print(f'THUMB BOUNDS IN THE OPERATOR: {self.hand_thumb_bounds}')
 
     # Get Finger Coordinates
     def _get_finger_coords(self):
@@ -132,18 +132,18 @@ class AllegroHandSimOperator(Operator):
         for idx, thumb_bounds in enumerate(self.hand_thumb_bounds):
             if coord_in_bound(thumb_bounds[:4], thumb_keypoints[:2]) > -1:
                 return self.fingertip_solver.thumb_motion_2D(
-                    hand_coordinates = thumb_keypoints, 
+                    hand_coordinates = thumb_keypoints,
                     xy_hand_bounds = thumb_bounds[:4],
                     yz_robot_bounds = self.allegro_bounds['thumb_bounds'][idx]['projective_bounds'],
                     robot_x_val = self.allegro_bounds['x_coord'],
-                    moving_avg_arr = self.moving_average_queues['thumb'], 
+                    moving_avg_arr = self.moving_average_queues['thumb'],
                     curr_angles = curr_angles
                 )
         return curr_angles
 
     # Get Thumb 3D Angles
     def _get_3d_thumb_angles(self, thumb_keypoints, curr_angles):
-        
+
         # We will be using polygon implementations of shapely library to test this
         planar_point = Point(thumb_keypoints)
         planar_thumb_bounds = Polygon(self.hand_thumb_bounds[:4])
@@ -158,10 +158,10 @@ class AllegroHandSimOperator(Operator):
             yz_robot_bounds = self.allegro_bounds['thumb_bounds'][0]['projective_bounds'], # NOTE: We assume there is only one bound now
             z_hand_bound = self.hand_thumb_bounds[4],
             x_robot_bound = self.allegro_bounds['thumb_bounds'][0]['x_bounds'],
-            moving_avg_arr = self.moving_average_queues['thumb'], 
+            moving_avg_arr = self.moving_average_queues['thumb'],
             curr_angles = curr_angles
         )
-    
+
     # Generate Frozen Angles
     def _generate_frozen_angles(self, joint_angles, finger_type):
         for idx in range(ALLEGRO_JOINTS_PER_FINGER):
@@ -174,11 +174,11 @@ class AllegroHandSimOperator(Operator):
 
     # Apply Retargeted Angles
     def _apply_retargeted_angles(self):
-        
-        print("Applying retargeted angles") 
+
+        print("Applying retargeted angles")
         hand_keypoints = self._get_finger_coords()
-        desired_joint_angles=copy(self.joint_angle_subscriber.recv_keypoints())  
-        print("Desired Joint Agnels", desired_joint_angles)     
+        desired_joint_angles=copy(self.joint_angle_subscriber.recv_keypoints())
+        print("Desired Joint Agnels", desired_joint_angles)
         # Movement for the index finger
         if not self.finger_configs['freeze_index'] and not self.finger_configs['no_index']:
             desired_joint_angles = self.finger_joint_solver.calculate_finger_angles(
@@ -193,7 +193,7 @@ class AllegroHandSimOperator(Operator):
             self._generate_frozen_angles(desired_joint_angles, 'index')
             print("No index")
             pass
-        
+
         # Movement for the middle finger
         if not self.finger_configs['freeze_middle'] and not self.finger_configs['no_middle']:
             desired_joint_angles = self.finger_joint_solver.calculate_finger_angles(
@@ -220,10 +220,10 @@ class AllegroHandSimOperator(Operator):
             )
         elif self.finger_configs['freeze_ring']:
             self._generate_frozen_angles(desired_joint_angles, 'ring')
-        else: 
+        else:
             print("No ring")
             pass
-       
+
 
         # Movement for the thumb finger - we disable 3D motion just for the thumb
         if not self.finger_configs['freeze_thumb'] and not self.finger_configs['no_thumb']:
@@ -235,10 +235,9 @@ class AllegroHandSimOperator(Operator):
             print("No thumb")
 
         self.joint_angle_publisher.pub_keypoints(desired_joint_angles,'desired_angles')
-       
-        
-       
-    
 
-    
-    
+
+
+
+
+

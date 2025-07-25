@@ -6,14 +6,17 @@ detector:
   host: ${host_address}
   oculus_port: ${oculus_reciever_port}
   keypoint_pub_port: ${keypoint_port}
-  button_port: ${resolution_button_port}
-  button_publish_port: ${resolution_button_publish_port}
+  # button_port: ${resolution_button_port}
+  # button_publish_port: ${resolution_button_publish_port}
   teleop_reset_port: ${teleop_reset_port}
   teleop_reset_publish_port: ${teleop_reset_publish_port}
+  remote_port: ${remote_port}
+  remote_publish_port: ${remote_message_port}
+  gripper_message_port: ${gripper_message_port}
 
 # Transformation classes used to transform the keypoints
 transforms:
-  - 
+  -
     _target_: openteach.components.detector.keypoint_transform.TransformHandPositionCoords
     host: ${host_address}
     keypoint_port: ${keypoint_port}
@@ -31,23 +34,30 @@ visualizers:
 
 # Operators used to retarget the keypoints
 operators:
-  - 
+  -
     _target_: openteach.components.operators.franka.FrankaArmOperator
     host: ${host_address}
     transformed_keypoints_port: ${transformed_position_keypoint_port}
-    arm_resolution_port: ${resolution_button_publish_port} 
+    remote_message_port: ${remote_message_port}
+    gripper_message_port: ${gripper_message_port}
+    arm_resolution_port: ${resolution_button_publish_port}
     use_filter: False
     teleoperation_reset_port: ${teleop_reset_publish_port}
+    # gripper_port: ${gripper_publish_port_right}
 
 # List of controller classes used
 controllers:
   -
     _target_: openteach.robot.franka.FrankaArm
-    record: False
+    record_type: False
 
 
-# Information to be recorded by the robot 
+# Information to be recorded by the robot
+# Robot recording moved to the teleoperator
 recorded_data:
-  - 
-    - joint_states
-    - cartesian_states
+  -
+    # - deoxys_obs_cmd
+    # - joint_states
+    # - cartesian_states
+    # - gripper_state
+    # - arm_tcp_commands

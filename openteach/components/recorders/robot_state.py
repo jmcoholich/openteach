@@ -50,7 +50,7 @@ class RobotInformationRecord(Recorder):
                     if attribute not in self.robot_information.keys():
                         self.robot_information[attribute] = [datapoint[attribute]]
                         continue
-                    
+
                     self.robot_information[attribute].append(datapoint[attribute])
 
                 self.num_datapoints += 1
@@ -61,12 +61,14 @@ class RobotInformationRecord(Recorder):
 
         # Displaying statistics
         self._display_statistics(self.num_datapoints)
-        
+
         # Saving the metadata
         self._add_metadata(self.num_datapoints)
 
         # Writing to dataset
         print('Compressing keypoint data...')
+        if self.robot._controller.franka.robot_interface._cmd_metadata is not None:
+            self.metadata.update(self.robot._controller.franka.robot_interface._cmd_metadata)
         with h5py.File(self._recorder_file_name, "w") as file:
             # Main data
             for key in self.robot_information.keys():

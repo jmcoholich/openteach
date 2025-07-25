@@ -5,7 +5,7 @@ Original OPEN TEACH Authors: Aadhithya Iyer, Zhuoran Peng, Yinlong Dai, Irmak Gu
 [OPEN TEACH Paper](https://arxiv.org/abs/2403.07870)
 [OPEN TEACH Website](https://open-teach.github.io/)
 
-This OPEN TEACH fork simplifies the software stack and enables teleoperation with the Quest 3 controller instead of hand tracking. We have only used this code for teleoperating a Franka Emika Panda arm with the Franka gripper in the real world with a Meta Quest 3. 
+This OPEN TEACH fork simplifies the software stack and enables teleoperation with the Quest 3 controller instead of hand tracking. We have only used this code for teleoperating a Franka Emika Panda arm with the Franka gripper in the real world with a Meta Quest 3.
 
 Below are videos showing a user teleoperating the robot and a visualization of recorded demonstration data.
 
@@ -20,7 +20,7 @@ Below are videos showing a user teleoperating the robot and a visualization of r
 ![Original OPEN TEACH control flow](before.png)
 ![Control flow with our modifications](after.png)
 
-Previously, we found that using the Meta Quest's hand tracker for teleoperation added noise and jitter and was not necessary for teleoperating an arm without a dexterous hand. Also, we found it difficult to make successful grasps, since the "pinch" movement to teleoperate a grasp interfered with the hand tracking, meaning that the end-effector would drift during grasp attempts.  
+Previously, we found that using the Meta Quest's hand tracker for teleoperation added noise and jitter and was not necessary for teleoperating an arm without a dexterous hand. Also, we found it difficult to make successful grasps, since the "pinch" movement to teleoperate a grasp interfered with the hand tracking, meaning that the end-effector would drift during grasp attempts.
 
 Our changes/additions to OPEN TEACH include:
 - Teleoperation with the Meta Quest 3 controller (much smoother)
@@ -176,3 +176,12 @@ Citation for the original OPEN TEACH paper:
       primaryClass={cs.RO}
 }
 ```
+
+## License
+This project is licensed under the MIT License.
+
+- Original code © 2024 Aadhithya Iyer
+- Fork and modifications © 2025 Jeremiah Coholich and Justin Wit
+
+See the [LICENSE](./LICENSE) file for full terms.
+

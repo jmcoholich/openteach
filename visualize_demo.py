@@ -47,7 +47,9 @@ def main():
         for file in os.listdir(data_root):
             if file.endswith(".pkl"):
                 continue
-            demo_number = file.split("_")[-1].split(".")[0]
+            # demo_number = file.split("_")[-1].split(".")[0]
+            assert file.startswith("demonstration_")
+            demo_number = file[14:]
             if os.path.exists(os.path.join(data_root, file, f"demo_{demo_number}.pkl")):
                 print(f"Demo {demo_number} already processed. Skipping...")
                 continue

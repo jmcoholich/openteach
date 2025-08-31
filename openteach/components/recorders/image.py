@@ -37,7 +37,8 @@ class RGBImageRecorder(Recorder):
 
         # Storage path for file
         self._filename = filename
-        self._recorder_file_name = os.path.join(storage_path, filename + '.avi')
+        self._recorder_file_name = os.path.join(storage_path, filename + '_xvid_lossy.avi')
+        self._recorder2_file_name = os.path.join(storage_path, filename + '.avi')
         self._metadata_filename = os.path.join(storage_path, filename + '.metadata')
 
         # Initializing the recorder
@@ -55,6 +56,12 @@ class RGBImageRecorder(Recorder):
                 CAM_FPS,
                 IMAGE_RECORD_RESOLUTION
             )
+            self.recorder2 = cv2.VideoWriter(
+                self._recorder2_file_name,
+                cv2.VideoWriter_fourcc(*'FFV1'),  # lossless codec
+                CAM_FPS,
+                IMAGE_RECORD_RESOLUTION
+            )
         self.timestamps = []
 
 
@@ -69,6 +76,7 @@ class RGBImageRecorder(Recorder):
                 self.timer.start_loop()
                 image, timestamp = self.image_subscriber.recv_rgb_image()
                 self.recorder.write(image)
+                self.recorder2.write(image)
                 self.timestamps.append(timestamp)
                 self.num_image_frames += 1
                 self.timer.end_loop()
@@ -91,6 +99,7 @@ class RGBImageRecorder(Recorder):
         # Storing the data
         print('Storing the final version of the video...')
         self.recorder.release()
+        self.recorder2.release()
         store_pickle_data(self._metadata_filename, self.metadata)
         print('Stored the video in {}.'.format(self._recorder_file_name))
         print('Stored the metadata in {}.'.format(self._metadata_filename))

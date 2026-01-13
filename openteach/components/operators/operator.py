@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from openteach.components import Component
-import numpy as np
 
 class Operator(Component, ABC):
     @property

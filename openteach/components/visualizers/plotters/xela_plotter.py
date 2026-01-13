@@ -122,7 +122,7 @@ class XelaCurvedPlotter(Plotter):
     # sensor_values: (16, 3) - 3 values for each tactile - x and y represents the position, z represents the pressure on the tactile point
         img_shape = (240, 240, 3) # For one sensor
         blank_image = np.ones(img_shape, np.uint8) * 255
-        if use_img == False:
+        if not use_img:
             img = ax.imshow(blank_image.copy())
         ax.set_title(title)
 
@@ -153,7 +153,7 @@ class XelaCurvedPlotter(Plotter):
         # sensor_values: (16, 3) - 3 values for each tactile - x and y represents the position, z represents the pressure on the tactile point
         img_shape = (240, 240, 3) # For one sensor
         blank_image = np.ones(img_shape, np.uint8) * 255
-        if use_img == False:
+        if not use_img:
             img = ax.imshow(blank_image.copy())
         ax.set_title(title)
 
@@ -191,7 +191,7 @@ class XelaCurvedPlotter(Plotter):
         # sensor_values: (16, 3) - 3 values for each tactile - x and y represents the position, z represents the pressure on the tactile point
         img_shape = (480, 960, 3) # For one sensor
         blank_image = np.ones(img_shape, np.uint8) * 255
-        if use_img == False:
+        if not use_img:
             img = ax.imshow(blank_image.copy())
         ax.set_title(title)
 
@@ -257,7 +257,7 @@ class XelaCurvedPlotter(Plotter):
                 # self.palm_sensor_values= palm_sensor_values
                 self.plot_tactile_palm(self.axs[k], sensor_values = palm_sensor_values, title=k)
                 # cnt_palm+=1
-            elif not 'empty' in k:
+            elif 'empty' not in k:
                 self.finger_sensor_values= finger_sensor_values
                 self.plot_tactile_sensor(self.axs[k], sensor_values=self.finger_sensor_values[cnt_finger], title=k)
                 cnt_finger+=1

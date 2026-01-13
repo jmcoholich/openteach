@@ -15,7 +15,6 @@ import os
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 import cv2
 import pickle as pkl
-from copy import copy
 
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 # Set global matplotlib settings for better quality
@@ -223,8 +222,8 @@ def make_combined_video(folder, demo_number):
             temp[temp < 0] = np.inf
             idx = np.argmin(temp)
             curr_depth_frames.append(depth_frames[j][idx])
-        output_data[f"rgb_frames"].append(curr_rgb_frames)
-        output_data[f"depth_frames"].append(curr_depth_frames)
+        output_data["rgb_frames"].append(curr_rgb_frames)
+        output_data["depth_frames"].append(curr_depth_frames)
 
     for k, v in output_data.items():
         output_data[k] = np.array(v)
@@ -671,7 +670,7 @@ def make_joint_state_plots(angles, gripper_pos, gripper_cmd, idcs):
         if i ==7:
             ax.plot(gripper_pos, antialiased=True)
             ax.plot(gripper_cmd, antialiased=True)
-            ax.set_title(f"Gripper", antialiased=True)
+            ax.set_title("Gripper", antialiased=True)
         else:
             ax.plot(angles[:, i], antialiased=True)
             # ax.plot(q_d[:, i], antialiased=True)
@@ -755,7 +754,7 @@ def make_cartesian_frame(pos, quats):
     ax.set_xlabel('X', antialiased=True)
     ax.set_ylabel('Y', antialiased=True)
     ax.set_zlabel('Z', antialiased=True)
-    plt.title(f"cartesian Pose", antialiased=True)
+    plt.title("cartesian Pose", antialiased=True)
     # calculate end point of cartesian. Multiple x unit vector by quaternion
     # for base_vec in [np.array([0.0, 0.0, 0.1]),np.array([0.0, 0.1, 0.0]),np.array([0.1, 0.0, 0.0])]:
     # zdiff = end[2] - pos[2]  # I want the largest negative z -diff

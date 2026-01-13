@@ -1,21 +1,17 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import zmq
 import time
 
-from mpl_toolkits.mplot3d import Axes3D
-from tqdm import tqdm
 
 from copy import deepcopy as copy
 from openteach.constants import *
 from openteach.utils.timer import FrequencyTimer
-from openteach.utils.network import ZMQKeypointSubscriber, ZMQKeypointPublisher
+from openteach.utils.network import ZMQKeypointSubscriber
 from openteach.utils.vectorops import *
 from openteach.utils.files import *
 # from openteach.robot.franka import FrankaArm
 from scipy.spatial.transform import Rotation, Slerp
 from .operator import Operator
-import random
 
 from deoxys.franka_interface import FrankaInterface
 from deoxys.utils import transform_utils
@@ -186,14 +182,14 @@ class FrankaArmOperator(Operator):
     def _get_hand_frame(self):
         for i in range(10):
             data = self.transformed_arm_keypoint_subscriber.recv_keypoints(flags=zmq.NOBLOCK)
-            if not data is None: break
+            if data is not None: break
         if data is None: return None
         return np.asanyarray(data).reshape(4, 3)
 
     def _get_remote_message(self):
         for i in range(10):
             data = self.remote_message_subscriber.recv_keypoints()
-            if not data is None: break
+            if data is not None: break
         if data is None: return None
         # pose is x, y, z, qx, qy, qz, qw
         # need to transform this to a (4,3) pose matrix

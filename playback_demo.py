@@ -11,30 +11,18 @@ cd deoxys_control/deoxys && ./auto_scripts/auto_gripper.sh config/charmander.yml
 
 # deoxys_control
 from deoxys.franka_interface import FrankaInterface
-import deoxys.proto.franka_interface.franka_controller_pb2 as franka_controller_pb2
-from deoxys.utils.config_utils import get_default_controller_config
-from deoxys.utils.log_utils import get_deoxys_example_logger
-from examples.osc_control import move_to_target_pose, deltas_move
 from deoxys.experimental.motion_utils import reset_joints_to
-from deoxys.utils.transform_utils import quat2axisangle, mat2euler, mat2quat, quat_distance, quat2mat, euler2mat, axisangle2quat, quat_multiply
+from deoxys.utils.transform_utils import quat2axisangle, mat2quat, euler2mat, axisangle2quat, quat_multiply
 
 # General
 import numpy as np
 import pickle as pkl
-import h5py
 import tensorflow_datasets as tfds
-import math
 import argparse
 import cv2
-from time import sleep
 import sys
-import importlib
-from scipy.spatial.transform import Rotation as R
 import os
-import time
-from openteach.utils.timer import FrequencyTimer
 from easydict import EasyDict
-from matplotlib import pyplot as plt
 
 parser = argparse.ArgumentParser()
 # parser.add_argument("demo", type=str, help="The name of the demonstration to visualize")
@@ -142,7 +130,7 @@ def replay_from_pkl(args):
     # filename = f"/home/ripl/openteach/extracted_data/cups_demonstrations/pickle_files/demo_cups_0.pkl"
     # filename = f"/home/ripl/openteach/extracted_data/sim_demo_coke/demo_pick_up_coke_SIM_448.pkl"
     # filename = f"/data3/rlbench_demos/slowest_grip/converted/pick_up_coke/demo_pick_up_coke_SIM_003.pkl"
-    filename = f"/data3/rlbench_demos/new_waypoints/converted/stack_blocks_simple/demo_stack_blocks_simple_SIM_000.pkl"
+    filename = "/data3/rlbench_demos/new_waypoints/converted/stack_blocks_simple/demo_stack_blocks_simple_SIM_000.pkl"
 
 
     # arm_cmd_file = f"/home/ripl/openteach/extracted_data/pick_coke/demonstration_coke18/franka_arm_tcp_commands.h5"

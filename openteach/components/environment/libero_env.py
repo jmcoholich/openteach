@@ -7,7 +7,6 @@ from openteach.components.environment.arm_env import Arm_Env
 from openteach.constants import *
 from openteach.utils.images import rescale_image
 
-import robosuite.utils.transform_utils as T
 from libero.libero import benchmark, get_libero_path
 
 from robosuite import load_controller_config

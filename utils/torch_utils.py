@@ -217,14 +217,6 @@ def rotate_vec_by_axisangle(vec, aa_vec):
 
 
 @torch.jit.script
-def quat_conjugate(q):
-    input_shape = q.shape
-    q = (-q).reshape(-1, input_shape[-1])
-    q[:, 3] = -q[:, 3]
-    return q.reshape(list(input_shape))
-
-
-@torch.jit.script
 def orientation_error(desired, current):
     """
     This function calculates a 3-dimensional orientation error vector for use in the

@@ -1,29 +1,20 @@
-from abc import ABC, abstractmethod
 
 import numpy as np
 #from utils import clamp, AssetDesc
-import math
-import hydra
-from copy import copy
-import gym
-from gym.spaces import Box
 #import torch
-from openteach.components import Component
 from openteach.utils.timer import FrequencyTimer
 from openteach.utils.network import ZMQCameraPublisher, ZMQCompressedImageTransmitter,ZMQKeypointPublisher,ZMQKeypointSubscriber
 from openteach.components.environment.hand_env import Hand_Env
 from openteach.constants import *
 
 
-import cv2
 # This is added to avoid any errors in case of multiple GPUs
 import os
 os.environ['MESA_VK_DEVICE_SELECT'] = '10de:24b0'
 os.environ["CUDA_VISIBLE_DEVICES"] = '0'
-from isaacgym import gymapi, gymutil
+from isaacgym import gymapi
 from isaacgym import gymtorch
 from isaacgym.torch_utils import *
-import time
 import torch
 
 import zmq

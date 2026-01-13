@@ -13,13 +13,8 @@ from openteach.utils.timer import FrequencyTimer
 from openteach.constants import *
 from openteach.components.recorders import *
 from openteach.components.sensors import *
-from openteach.utils.images import rotate_image, rescale_image
-from collections import deque
 
 #Isaac Gym components
-from isaacgym import gymapi, gymutil
-import gym
-from isaacgym import gymtorch
 from isaacgym.torch_utils import *
 
 

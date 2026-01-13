@@ -6,7 +6,6 @@ from openteach.robot.allegro.allegro_kdl import AllegroKDL
 from openteach.utils.vectorops import get_distance
 from openteach.constants import *
 from openteach.robot.kinova import KinovaArm
-import h5py
 
 class AllegroSampler(Sampler):
     def __init__(self, data_path, cam_idxs, data_type, min_action_distance):

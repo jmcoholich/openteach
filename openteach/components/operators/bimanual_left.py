@@ -1,9 +1,6 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import zmq
 
-from mpl_toolkits.mplot3d import Axes3D
-from tqdm import tqdm
 
 from copy import deepcopy as copy
 from openteach.constants import *
@@ -351,7 +348,7 @@ class BimanualLeftArmOperator(Operator):
         self.joint_publisher.pub_keypoints(joint_position,"joint")
         self.cartesian_command_publisher.pub_keypoints(final_pose,"cartesian")
 
-        if self.arm_teleop_state == ARM_TELEOP_CONT and gripper_flag == False:
+        if self.arm_teleop_state == ARM_TELEOP_CONT and not gripper_flag:
             self.robot.arm_control(final_pose)
 
 

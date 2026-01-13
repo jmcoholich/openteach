@@ -4,7 +4,7 @@ import time
 import h5py
 import numpy as np
 from .recorder import Recorder
-from openteach.constants import VR_FREQ,CAM_FPS,DEPTH_RECORD_FPS,IMAGE_RECORD_RESOLUTION,CAM_FPS_SIM,IMAGE_RECORD_RESOLUTION_SIM
+from openteach.constants import CAM_FPS,DEPTH_RECORD_FPS,IMAGE_RECORD_RESOLUTION,CAM_FPS_SIM,IMAGE_RECORD_RESOLUTION_SIM
 from openteach.utils.files import store_pickle_data
 from openteach.utils.network import ZMQCameraSubscriber
 from openteach.utils.timer import FrequencyTimer
@@ -30,7 +30,7 @@ class RGBImageRecorder(Recorder):
         )
         self.sim = sim
         # Timer
-        if self.sim==True:
+        if self.sim:
             self.timer = FrequencyTimer(CAM_FPS_SIM)
         else:
             self.timer = FrequencyTimer(CAM_FPS)
@@ -42,7 +42,7 @@ class RGBImageRecorder(Recorder):
         self._metadata_filename = os.path.join(storage_path, filename + '.metadata')
 
         # Initializing the recorder
-        if self.sim==True:
+        if self.sim:
             self.recorder = cv2.VideoWriter(
                 self._recorder_file_name,
                 cv2.VideoWriter_fourcc(*'XVID'),

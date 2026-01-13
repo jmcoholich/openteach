@@ -2,7 +2,6 @@ import numpy as np
 from abc import ABC
 from copy import deepcopy as copy
 from .allegro_kdl import AllegroKDL
-from openteach.utils.network import ZMQKeypointPublisher, ZMQKeypointSubscriber
 from openteach.utils.files import *
 from openteach.utils.vectorops import *
 

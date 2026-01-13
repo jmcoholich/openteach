@@ -1,12 +1,11 @@
 import os
 import time
 import h5py
-import hydra
 import numpy as np
 from .recorder import Recorder
 from openteach.utils.timer import FrequencyTimer
 from openteach.constants import *
-from openteach.utils.network import ZMQKeypointSubscriber, ZMQKeypointPublisher
+from openteach.utils.network import ZMQKeypointSubscriber
 
 
 # To record robot information

@@ -1,7 +1,6 @@
 import zmq
 import time
 import numpy as np
-import matplotlib.pyplot as plt
 
 from copy import deepcopy as copy
 from .operator import Operator
@@ -12,7 +11,7 @@ from openteach.utils.vectorops import *
 from openteach.utils.network import ZMQKeypointSubscriber
 from openteach.utils.timer import FrequencyTimer
 from openteach.constants import *
-from scipy.spatial.transform import Rotation, Slerp
+from scipy.spatial.transform import Slerp
 from scipy.spatial.transform import Rotation as R
 
 # Rotation should be filtered when it's being sent
@@ -129,7 +128,7 @@ class KinovaArmOperator(Operator):
     def _get_hand_frame(self):
         for i in range(10):
             data = self.transformed_arm_keypoint_subscriber.recv_keypoints(flags=zmq.NOBLOCK)
-            if not data is None: break
+            if data is not None: break
         if data is None: return None
         return np.asanyarray(data).reshape(4, 3)
 

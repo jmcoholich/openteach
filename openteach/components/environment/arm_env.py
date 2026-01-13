@@ -1,11 +1,7 @@
 from abc import ABC, abstractmethod
 from openteach.components import Component
-from openteach.utils.network import ZMQCameraPublisher, ZMQCompressedImageTransmitter
 from openteach.constants import *
-from openteach.utils.timer import FrequencyTimer
-from openteach.utils.network import ZMQKeypointSubscriber, ZMQKeypointPublisher
-from openteach.utils.images import rotate_image, rescale_image
-import numpy as np
+from openteach.utils.images import rescale_image
 
 class Arm_Env(Component, ABC):
 

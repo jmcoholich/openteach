@@ -1,4 +1,3 @@
-from time import sleep
 # deoxys_control
 from deoxys.franka_interface import FrankaInterface
 

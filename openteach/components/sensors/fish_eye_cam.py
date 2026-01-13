@@ -1,14 +1,11 @@
 import numpy as np
-import pyrealsense2 as rs
 from openteach.components import Component
-from openteach.utils.images import rotate_image, rescale_image
+from openteach.utils.images import rescale_image
 from openteach.utils.timer import FrequencyTimer
 from openteach.utils.network import ZMQCameraPublisher, ZMQCompressedImageTransmitter
 from openteach.constants import *
-import subprocess as sp
 import cv2
 import time
-import multiprocessing as mp
 
 class FishEyeCamera(Component):
     def __init__(self,cam_index,stream_configs, stream_oculus = False):

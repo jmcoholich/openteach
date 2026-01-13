@@ -1,6 +1,5 @@
 import numpy as np
 
-from copy import deepcopy as copy
 
 from get_xela_values import XelaSensorControl , XelaCurvedSensorControl
 from openteach.components import Component
@@ -60,7 +59,7 @@ class XelaSensors(Component):
     def stream(self):
         # # Starting the xela stream
         self.notify_component_start('XELA sensors')
-        print(f"Started the XELA sensor pipeline for the hand")
+        print("Started the XELA sensor pipeline for the hand")
 
         while True:
             try:
@@ -95,7 +94,7 @@ class XelaCurvedSensors(Component):
                 self.timer.start_loop()
 
                 sensor_state = self._controller.get_sensor_state()
-                if not sensor_state is None:
+                if sensor_state is not None:
                     curr_sensor_palm_values,curr_sensor_fingertip_values, curr_sensor_finger_values, timestamp = sensor_state
                     if curr_sensor_palm_values is None and curr_sensor_finger_values is None and curr_sensor_fingertip_values is None:
                         self.timer.end_loop()
@@ -138,7 +137,7 @@ class XelaCurvedSensors(Component):
     def stream(self):
         # # Starting the xela stream
         self.notify_component_start('XELA sensors')
-        print(f"Started the XELA sensor pipeline for the hand")
+        print("Started the XELA sensor pipeline for the hand")
 
         while True:
            # try:

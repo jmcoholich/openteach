@@ -1,8 +1,6 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import zmq
 
-from tqdm import tqdm
 
 from copy import deepcopy as copy
 from openteach.constants import *
@@ -14,7 +12,6 @@ from scipy.spatial.transform import Rotation, Slerp
 from .operator import Operator
 from .calibrators.allegro import OculusThumbBoundCalibrator
 
-import robosuite.utils.transform_utils as T
 from scipy.spatial.transform import Rotation as R
 
 np.set_printoptions(precision=2, suppress=True)
@@ -143,7 +140,7 @@ class LiberoSimOperator(Operator):
 	def _get_hand_frame(self):
 		for i in range(10):
 			data = self.transformed_arm_keypoint_subscriber.recv_keypoints(flags=zmq.NOBLOCK)
-			if not data is None: break
+			if data is not None: break
 		if data is None: return None
 		return np.asanyarray(data).reshape(4, 3)
 
@@ -354,7 +351,7 @@ class LiberoSimOperator(Operator):
 			self.moving_average_limit,
 		)
 
-		if self.arm_teleop_state == ARM_TELEOP_CONT and gripper_flag == False:
+		if self.arm_teleop_state == ARM_TELEOP_CONT and not gripper_flag:
 			self.end_eff_position_publisher.pub_keypoints(averaged_action,"endeff_coords")
 		else:
 			self.end_eff_position_publisher.pub_keypoints(np.concatenate([np.zeros(6),[gripper_state]]),"endeff_coords")

@@ -3,7 +3,7 @@ from copy import deepcopy as copy
 from openteach.components import Component
 from openteach.constants import *
 from openteach.utils.vectorops import *
-from openteach.utils.network import ZMQKeypointPublisher, ZMQKeypointSubscriber,ZMQButtonFeedbackSubscriber
+from openteach.utils.network import ZMQKeypointPublisher, ZMQKeypointSubscriber
 from openteach.utils.timer import FrequencyTimer
 
 class TransformHandPositionCoords(Component):

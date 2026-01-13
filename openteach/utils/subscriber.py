@@ -2,7 +2,6 @@ import time
 from copy import copy
 from warnings import warn as Warnings
 
-import cv2
 import numpy as np
 import rospy
 from cv_bridge import CvBridge, CvBridgeError

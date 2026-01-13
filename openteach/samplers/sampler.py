@@ -175,7 +175,7 @@ class Sampler(ABC):
             print('Writing the frames.')
             while capture.isOpened():
                 ret, frame = capture.read()
-                if ret == True:
+                if ret:
                     if counter in self._chosen_frame_idxs['rgb'][cam_idx]:
                         writer.write(frame)
                         num_frames_recorded += 1

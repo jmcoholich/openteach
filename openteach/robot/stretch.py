@@ -1,8 +1,5 @@
 from openteach.ros_links.stretch import DexArmControl
 from .robot import RobotWrapper
-from openteach.utils.network import ZMQKeypointSubscriber
-import numpy as np
-import time
 
 class Stretch(RobotWrapper):
     def __init__(self, ip,record_type=None):

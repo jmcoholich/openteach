@@ -1,5 +1,4 @@
 import numpy as np
-from copy import deepcopy as copy
 from .allegro_kdl import AllegroKDL
 from openteach.ros_links.allegro_control import DexArmControl
 from openteach.constants import *

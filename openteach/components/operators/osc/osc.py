@@ -1,22 +1,13 @@
-from isaacgym import gymapi, gymutil
+from isaacgym import gymapi
 import numpy as np
 #from utils import clamp, AssetDesc
-import math
-import hydra
-from copy import copy
-import gym
-from gym.spaces import Box
 #import torch
 
 
 
 
 
-import cv2
-from plots.data_logging import Log, ListOfLogs, NoLog, SimpleLog
-from isaacgym import gymtorch
 from isaacgym.torch_utils import *
-import time
 #import torch
 
 #from isaacgymenvs.tasks.base.vec_task import VecTask
@@ -24,9 +15,7 @@ import time
 #gym=gymapi.aquire_gym()
 
 #@hydra.main(version_base = '1.2', config_path = 'configs', config_name = 'envs')
-from isaacgym import gymapi
 import torch
-import numpy as np
 from oscar.utils.torch_utils import quat_mul, quat2mat, orientation_error, axisangle2quat
 from .base_controller import Controller
 

@@ -1,5 +1,5 @@
 from copy import deepcopy as copy
-from openteach.utils.network import ZMQKeypointSubscriber, ZMQKeypointPublisher
+from openteach.utils.network import ZMQKeypointSubscriber
 from .operator import Operator
 
 from shapely.geometry import Point, Polygon

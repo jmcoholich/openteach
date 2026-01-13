@@ -1,9 +1,6 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import zmq
 
-from mpl_toolkits.mplot3d import Axes3D
-from tqdm import tqdm
 
 from copy import deepcopy as copy
 from openteach.constants import *
@@ -110,7 +107,7 @@ class StretchOperator(Operator):
     def _get_hand_frame(self):
         for i in range(10):
             data = self.transformed_arm_keypoint_subscriber.recv_keypoints(flags=zmq.NOBLOCK)
-            if not data is None: break
+            if data is not None: break
         if data is None: return None
         return np.asanyarray(data).reshape(4, 3)
 

@@ -1,6 +1,4 @@
-import os
 import pickle as pkl
-import numpy as np
 import matplotlib.pyplot as plt
 
 # path = 'logs_up_down_vertical_controller.pkl'

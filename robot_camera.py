@@ -13,7 +13,7 @@ for dev in devices:
     dev.hardware_reset()
     print(" done")
 
-import time; time.sleep(2)
+time.sleep(2)
 
 
 @hydra.main(version_base = '1.2', config_path = 'configs', config_name = 'camera')

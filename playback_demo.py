@@ -37,7 +37,7 @@ from easydict import EasyDict
 from matplotlib import pyplot as plt
 
 parser = argparse.ArgumentParser()
-parser.add_argument("demo", type=str, help="The name of the demonstration to visualize")
+# parser.add_argument("demo", type=str, help="The name of the demonstration to visualize")
 
 DEFAULT_CONTROLLER = EasyDict({
     'controller_type': 'OSC_POSE',
@@ -139,7 +139,12 @@ def replay_from_rlds(args):
 def replay_from_pkl(args):
     home = os.path.expanduser("~")
     # Load demonstration data
-    filename = f"/home/ripl/Desktop/blocks/demo_000.pkl"
+    # filename = f"/home/ripl/openteach/extracted_data/cups_demonstrations/pickle_files/demo_cups_0.pkl"
+    # filename = f"/home/ripl/openteach/extracted_data/sim_demo_coke/demo_pick_up_coke_SIM_448.pkl"
+    # filename = f"/data3/rlbench_demos/slowest_grip/converted/pick_up_coke/demo_pick_up_coke_SIM_003.pkl"
+    filename = f"/data3/rlbench_demos/new_waypoints/converted/stack_blocks_simple/demo_stack_blocks_simple_SIM_000.pkl"
+
+
     # arm_cmd_file = f"/home/ripl/openteach/extracted_data/pick_coke/demonstration_coke18/franka_arm_tcp_commands.h5"
     with open(filename, 'rb') as dbfile:
         db = pkl.load(dbfile)

@@ -1,7 +1,6 @@
 import hydra
-from flask import Flask, render_template, Response
 from application_manager import MonitoringApplication
-
+from flask import Flask, Response, render_template
 
 # Initializing the monitor class
 hydra.initialize(config_path = '../configs', version_base = '1.2')

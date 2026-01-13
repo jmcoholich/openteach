@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
+
 from openteach.components import Component
+
 
 class Operator(Component, ABC):
     @property

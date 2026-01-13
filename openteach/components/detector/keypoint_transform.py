@@ -1,10 +1,13 @@
-import numpy as np
 from copy import deepcopy as copy
+
+import numpy as np
+
 from openteach.components import Component
 from openteach.constants import *
-from openteach.utils.vectorops import *
 from openteach.utils.network import ZMQKeypointPublisher, ZMQKeypointSubscriber
 from openteach.utils.timer import FrequencyTimer
+from openteach.utils.vectorops import *
+
 
 class TransformHandPositionCoords(Component):
     def __init__(self, host, keypoint_port, transformation_port,moving_average_limit = 5):

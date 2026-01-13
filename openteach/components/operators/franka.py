@@ -1,25 +1,23 @@
+import pickle as pkl
+import time
+from copy import deepcopy as copy
+
 import numpy as np
 import zmq
-import time
-
-
-from copy import deepcopy as copy
-from openteach.constants import *
-from openteach.utils.timer import FrequencyTimer
-from openteach.utils.network import ZMQKeypointSubscriber
-from openteach.utils.vectorops import *
-from openteach.utils.files import *
-# from openteach.robot.franka import FrankaArm
-from scipy.spatial.transform import Rotation, Slerp
-from .operator import Operator
-
 from deoxys.franka_interface import FrankaInterface
 from deoxys.utils import transform_utils
-from deoxys.utils.config_utils import YamlConfig
-from deoxys.utils.config_utils import verify_controller_config
+from deoxys.utils.config_utils import YamlConfig, verify_controller_config
 
+# from openteach.robot.franka import FrankaArm
+from scipy.spatial.transform import Rotation, Slerp
 
-import pickle as pkl
+from openteach.constants import *
+from openteach.utils.files import *
+from openteach.utils.network import ZMQKeypointSubscriber
+from openteach.utils.timer import FrequencyTimer
+from openteach.utils.vectorops import *
+
+from .operator import Operator
 
 CONTROLLER_TYPE = "OSC_POSE"
 CONFIG_ROOT = '/home/ripl/openteach/configs'

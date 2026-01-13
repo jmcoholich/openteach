@@ -1,8 +1,12 @@
-from openteach.ros_links.bimanual import DexArmControl
-from .robot import RobotWrapper
-from openteach.utils.network import ZMQKeypointSubscriber
-import numpy as np
 import time
+
+import numpy as np
+from openteach.ros_links.bimanual import DexArmControl
+
+from openteach.utils.network import ZMQKeypointSubscriber
+
+from .robot import RobotWrapper
+
 
 class Bimanual(RobotWrapper):
     def __init__(self, ip,record_type=None):

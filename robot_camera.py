@@ -1,8 +1,11 @@
-import hydra
-from openteach.components import RealsenseCameras
 import time
+
+import hydra
+
 # https://github.com/IntelRealSense/librealsense/issues/6628#issuecomment-646558144
 import pyrealsense2 as rs
+
+from openteach.components import RealsenseCameras
 
 # initiating hardware reset
 ctx = rs.context()

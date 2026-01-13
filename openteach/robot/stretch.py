@@ -1,5 +1,7 @@
 from openteach.ros_links.stretch import DexArmControl
+
 from .robot import RobotWrapper
+
 
 class Stretch(RobotWrapper):
     def __init__(self, ip,record_type=None):

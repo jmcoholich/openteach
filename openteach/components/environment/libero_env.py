@@ -1,17 +1,23 @@
 import os
 import time
+
+import libero.libero.envs.bddl_utils as BDDLUtils
 import numpy as np
-from openteach.utils.timer import FrequencyTimer
-from openteach.utils.network import ZMQCameraPublisher, ZMQCompressedImageTransmitter,ZMQKeypointPublisher,ZMQKeypointSubscriber
+from libero.libero import benchmark, get_libero_path
+from libero.libero.envs import *
+from robosuite import load_controller_config
+
 from openteach.components.environment.arm_env import Arm_Env
 from openteach.constants import *
 from openteach.utils.images import rescale_image
+from openteach.utils.network import (
+	ZMQCameraPublisher,
+	ZMQCompressedImageTransmitter,
+	ZMQKeypointPublisher,
+	ZMQKeypointSubscriber,
+)
+from openteach.utils.timer import FrequencyTimer
 
-from libero.libero import benchmark, get_libero_path
-
-from robosuite import load_controller_config
-import libero.libero.envs.bddl_utils as BDDLUtils
-from libero.libero.envs import *
 
 # Libero Environment class
 class LiberoEnv(Arm_Env):

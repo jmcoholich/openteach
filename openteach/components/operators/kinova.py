@@ -1,18 +1,20 @@
-import zmq
 import time
-import numpy as np
-
 from copy import deepcopy as copy
-from .operator import Operator
-from scipy.spatial.transform import Rotation
+
+import numpy as np
+import zmq
+from scipy.spatial.transform import Rotation, Slerp
+from scipy.spatial.transform import Rotation as R
+
+from openteach.constants import *
 from openteach.robot.kinova import KinovaArm
 from openteach.utils.files import *
-from openteach.utils.vectorops import *
 from openteach.utils.network import ZMQKeypointSubscriber
 from openteach.utils.timer import FrequencyTimer
-from openteach.constants import *
-from scipy.spatial.transform import Slerp
-from scipy.spatial.transform import Rotation as R
+from openteach.utils.vectorops import *
+
+from .operator import Operator
+
 
 # Rotation should be filtered when it's being sent
 class Filter:

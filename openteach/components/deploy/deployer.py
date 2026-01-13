@@ -1,11 +1,12 @@
-import hydra
 import pickle
 
+import hydra
 
 from openteach.components import Component
+from openteach.constants import DEPLOY_FREQ
 from openteach.utils.network import create_response_socket
 from openteach.utils.timer import FrequencyTimer
-from openteach.constants import DEPLOY_FREQ
+
 
 class DeployServer(Component):
     def __init__(self, configs):

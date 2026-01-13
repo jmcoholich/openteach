@@ -1,10 +1,12 @@
 import numpy as np
 import pyrealsense2 as rs
+
 from openteach.components import Component
-from openteach.utils.images import rotate_image, rescale_image
-from openteach.utils.timer import FrequencyTimer
-from openteach.utils.network import ZMQCameraPublisher, ZMQCompressedImageTransmitter
 from openteach.constants import *
+from openteach.utils.images import rescale_image, rotate_image
+from openteach.utils.network import ZMQCameraPublisher, ZMQCompressedImageTransmitter
+from openteach.utils.timer import FrequencyTimer
+
 
 class RealsenseCamera(Component):
     def __init__(self, stream_configs, cam_serial_num, cam_id, cam_configs, stream_oculus = False):

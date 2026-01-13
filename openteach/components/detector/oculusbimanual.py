@@ -1,7 +1,8 @@
-from openteach.constants import VR_FREQ,  ARM_LOW_RESOLUTION, ARM_HIGH_RESOLUTION
 from openteach.components import Component
+from openteach.constants import ARM_HIGH_RESOLUTION, ARM_LOW_RESOLUTION, VR_FREQ
+from openteach.utils.network import ZMQKeypointPublisher, create_pull_socket
 from openteach.utils.timer import FrequencyTimer
-from openteach.utils.network import create_pull_socket, ZMQKeypointPublisher
+
 
 # This class is used to detect the hand keypoints from the VR and publish them.
 class OculusVRTwoHandDetector(Component):

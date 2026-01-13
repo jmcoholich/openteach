@@ -1,23 +1,24 @@
-import numpy as np
+from copy import deepcopy as copy
+
 import matplotlib.pyplot as plt
+import numpy as np
 import zmq
 
-from tqdm import tqdm
-
-from copy import deepcopy as copy
-from shapely.geometry import Point, Polygon
-from shapely.ops import nearest_points
-from openteach.constants import *
-from openteach.utils.timer import FrequencyTimer
-from openteach.utils.network import ZMQKeypointSubscriber, ZMQKeypointPublisher
-from openteach.robot.allegro.allegro_retargeters import AllegroKDLControl, AllegroJointControl
-from openteach.utils.vectorops import *
-from openteach.utils.files import *
 #from openteach.robot.franka import FrankaArm
 from scipy.spatial.transform import Rotation, Slerp
-from .operator import Operator
-from .calibrators.allegro import OculusThumbBoundCalibrator
+from shapely.geometry import Point, Polygon
+from shapely.ops import nearest_points
+from tqdm import tqdm
 
+from openteach.constants import *
+from openteach.robot.allegro.allegro_retargeters import AllegroJointControl, AllegroKDLControl
+from openteach.utils.files import *
+from openteach.utils.network import ZMQKeypointPublisher, ZMQKeypointSubscriber
+from openteach.utils.timer import FrequencyTimer
+from openteach.utils.vectorops import *
+
+from .calibrators.allegro import OculusThumbBoundCalibrator
+from .operator import Operator
 
 np.set_printoptions(precision=2, suppress=True)
 

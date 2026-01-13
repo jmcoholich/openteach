@@ -1,9 +1,11 @@
 import cv2
+
 from openteach.components import Component
 from openteach.constants import *
 from openteach.utils.images import *
 from openteach.utils.network import ZMQCameraSubscriber
 from openteach.utils.timer import FrequencyTimer
+
 
 class RobotImageVisualizer(Component):
     def __init__(self, host, cam_port_offset, cam_id):

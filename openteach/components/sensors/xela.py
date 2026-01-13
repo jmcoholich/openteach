@@ -1,10 +1,10 @@
 import numpy as np
+from get_xela_values import XelaCurvedSensorControl, XelaSensorControl
 
-
-from get_xela_values import XelaSensorControl , XelaCurvedSensorControl
 from openteach.components import Component
-from openteach.utils.timer import FrequencyTimer
 from openteach.constants import *
+from openteach.utils.timer import FrequencyTimer
+
 
 class XelaSensors(Component):
     def __init__(self, init_duration):

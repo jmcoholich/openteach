@@ -1,6 +1,9 @@
-from openteach.constants import *
-from .plotter import Plotter
 import matplotlib.pyplot as plt
+
+from openteach.constants import *
+
+from .plotter import Plotter
+
 
 class PlotHand3D(Plotter):
     def __init__(self):

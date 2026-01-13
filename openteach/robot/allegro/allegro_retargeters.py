@@ -1,9 +1,12 @@
-import numpy as np
 from abc import ABC
 from copy import deepcopy as copy
-from .allegro_kdl import AllegroKDL
+
+import numpy as np
+
 from openteach.utils.files import *
 from openteach.utils.vectorops import *
+
+from .allegro_kdl import AllegroKDL
 
 
 class AllegroKinematicControl(ABC):

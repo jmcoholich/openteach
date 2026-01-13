@@ -1,9 +1,11 @@
-import cv2
-import time
-import zmq
-import pickle
-import numpy as np
 import base64
+import pickle
+import time
+
+import cv2
+import numpy as np
+import zmq
+
 
 class FrequencyTimer(object):
     def __init__(self, frequency_rate):

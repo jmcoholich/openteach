@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
+
 from openteach.components import Component
 from openteach.constants import *
 from openteach.utils.images import rescale_image
+
 
 class Arm_Env(Component, ABC):
 

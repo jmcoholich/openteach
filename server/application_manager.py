@@ -1,7 +1,9 @@
-import zmq
 import base64
-import numpy as np
 import pickle
+
+import numpy as np
+import zmq
+
 
 class VideoStreamer(object):
     def __init__(self, host, cam_port):

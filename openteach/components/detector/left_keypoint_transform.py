@@ -1,10 +1,13 @@
-import numpy as np
 from copy import deepcopy as copy
+
+import numpy as np
+
 from openteach.components import Component
 from openteach.constants import *
-from openteach.utils.vectorops import *
 from openteach.utils.network import ZMQKeypointPublisher, ZMQKeypointSubscriber
 from openteach.utils.timer import FrequencyTimer
+from openteach.utils.vectorops import *
+
 
 # This class is used to transform the left hand coordinates from the VR to the robot frame.
 class TransformLeftHandPositionCoords(Component):

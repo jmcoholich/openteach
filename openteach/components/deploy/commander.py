@@ -1,6 +1,8 @@
 import pickle
+
 from openteach.constants import DEPTH_PORT_OFFSET
 from openteach.utils.network import ZMQCameraSubscriber, create_request_socket
+
 
 class DeployAPI(object):
     def __init__(self, configs, required_data):

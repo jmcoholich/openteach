@@ -1,5 +1,7 @@
 import hydra
+
 from openteach.components import Collector
+
 
 @hydra.main(version_base = '1.2', config_path = 'configs', config_name = 'collect_data')
 def main(configs):

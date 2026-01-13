@@ -1,5 +1,7 @@
 from openteach.ros_links.kinova_allegro_control import DexArmControl
+
 from .robot import RobotWrapper
+
 
 class KinovaArm(RobotWrapper):
     def __init__(self,record_type=None):

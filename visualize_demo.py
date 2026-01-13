@@ -6,17 +6,18 @@ Outputs
 - A .pkl file containing all processed data
 """
 
-import h5py
-import numpy as np
-import matplotlib.pyplot as plt
-import subprocess
-from tqdm import tqdm
 import os
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
-import cv2
 import pickle as pkl
+import subprocess
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 
+import cv2
+import h5py
+import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+from tqdm import tqdm
+
 # Set global matplotlib settings for better quality
 plt.rcParams['text.antialiased'] = True
 plt.rcParams['lines.antialiased'] = True
@@ -24,6 +25,7 @@ plt.rcParams['patch.antialiased'] = True
 
 import argparse
 import warnings
+
 warnings.filterwarnings( "ignore")
 DEBUG = False
 
@@ -784,7 +786,7 @@ def make_cartesian_frame(pos, quats):
         items = []
         items.append(ax.quiver(pos[i, 0], pos[i, 1], pos[i, 2], end[0], end[1], end[2], color='r'))
         alpha = 0.3
-        for vec, color in zip([pos[i], pos[i] + end], ['g', 'r']):
+        for vec, color in zip([pos[i], pos[i] + end], ['g', 'r'], strict=True):
             # plot the z-plane transparently
             items.append(
                 ax.plot_surface(

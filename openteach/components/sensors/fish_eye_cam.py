@@ -1,11 +1,14 @@
-import numpy as np
-from openteach.components import Component
-from openteach.utils.images import rescale_image
-from openteach.utils.timer import FrequencyTimer
-from openteach.utils.network import ZMQCameraPublisher, ZMQCompressedImageTransmitter
-from openteach.constants import *
-import cv2
 import time
+
+import cv2
+import numpy as np
+
+from openteach.components import Component
+from openteach.constants import *
+from openteach.utils.images import rescale_image
+from openteach.utils.network import ZMQCameraPublisher, ZMQCompressedImageTransmitter
+from openteach.utils.timer import FrequencyTimer
+
 
 class FishEyeCamera(Component):
     def __init__(self,cam_index,stream_configs, stream_oculus = False):

@@ -1,11 +1,12 @@
 import cv2
-import numpy as np
-
 import matplotlib
 import matplotlib.pyplot as plt
+import numpy as np
+
+from openteach.constants import *
 
 from .plotter import Plotter
-from openteach.constants import *
+
 
 class XelaPlotter(Plotter):
     def __init__(self, display_plot=True):

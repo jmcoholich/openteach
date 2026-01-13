@@ -1,5 +1,7 @@
 from openteach.ros_links.franka_allegro_control import DexArmControl
+
 from .robot import RobotWrapper
+
 
 class FrankaArm(RobotWrapper):
     def __init__(self, record_type=None):

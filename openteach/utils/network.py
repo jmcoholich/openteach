@@ -1,10 +1,12 @@
-import zmq
-import cv2
 import base64
-import numpy as np
 import pickle
-import blosc as bl
 import threading
+
+import blosc as bl
+import cv2
+import numpy as np
+import zmq
+
 
 # ZMQ Sockets
 def create_push_socket(host, port):

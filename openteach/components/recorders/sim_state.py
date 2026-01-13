@@ -1,11 +1,14 @@
 import os
 import time
+
 import h5py
 import numpy as np
-from .recorder import Recorder
-from openteach.utils.timer import FrequencyTimer
+
 from openteach.constants import *
 from openteach.utils.network import ZMQKeypointSubscriber
+from openteach.utils.timer import FrequencyTimer
+
+from .recorder import Recorder
 
 
 # To record robot information

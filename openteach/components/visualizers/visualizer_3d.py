@@ -1,8 +1,11 @@
 import numpy as np
-from .plotters.plotter_3d import *
+
 from openteach.components import Component
 from openteach.constants import OCULUS_NUM_KEYPOINTS
 from openteach.utils.network import ZMQKeypointSubscriber
+
+from .plotters.plotter_3d import *
+
 
 class Hand3DVisualizer(Component):
     def __init__(self, host, port):

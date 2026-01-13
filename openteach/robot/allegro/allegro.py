@@ -1,9 +1,12 @@
 import numpy as np
-from .allegro_kdl import AllegroKDL
 from openteach.ros_links.allegro_control import DexArmControl
+
 from openteach.constants import *
-from openteach.utils.files import get_yaml_data, get_path_in_package
 from openteach.robot.robot import RobotWrapper
+from openteach.utils.files import get_path_in_package, get_yaml_data
+
+from .allegro_kdl import AllegroKDL
+
 
 class AllegroHand(RobotWrapper):
     def __init__(self, **kwargs):

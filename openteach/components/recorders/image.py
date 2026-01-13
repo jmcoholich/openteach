@@ -1,13 +1,23 @@
 import os
-import cv2
 import time
+
+import cv2
 import h5py
 import numpy as np
-from .recorder import Recorder
-from openteach.constants import CAM_FPS,DEPTH_RECORD_FPS,IMAGE_RECORD_RESOLUTION,CAM_FPS_SIM,IMAGE_RECORD_RESOLUTION_SIM
+
+from openteach.constants import (
+    CAM_FPS,
+    CAM_FPS_SIM,
+    DEPTH_RECORD_FPS,
+    IMAGE_RECORD_RESOLUTION,
+    IMAGE_RECORD_RESOLUTION_SIM,
+)
 from openteach.utils.files import store_pickle_data
 from openteach.utils.network import ZMQCameraSubscriber
 from openteach.utils.timer import FrequencyTimer
+
+from .recorder import Recorder
+
 
 # To record realsense streams
 class RGBImageRecorder(Recorder):

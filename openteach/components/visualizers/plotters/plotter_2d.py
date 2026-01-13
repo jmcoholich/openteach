@@ -1,11 +1,15 @@
 import os
+
 import cv2
 import matplotlib
 import matplotlib.pyplot as plt
-from .plotter import Plotter
-from openteach.utils.network import ZMQCompressedImageTransmitter
-from openteach.utils.files import *
+
 from openteach.constants import *
+from openteach.utils.files import *
+from openteach.utils.network import ZMQCompressedImageTransmitter
+
+from .plotter import Plotter
+
 
 def plot_line(X1, X2, Y1, Y2):
     plt.plot([X1, X2], [Y1, Y2])

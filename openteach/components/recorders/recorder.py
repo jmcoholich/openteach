@@ -1,5 +1,6 @@
 from openteach.components import Component
 
+
 class Recorder(Component):
     def _add_metadata(self, datapoints):
         self.metadata = dict(

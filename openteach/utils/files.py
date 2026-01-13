@@ -1,8 +1,11 @@
 import os
 import pickle
-import yaml
+
 import numpy as np
+import yaml
+
 import openteach
+
 
 def make_dir(folder):
     if not os.path.exists(folder):

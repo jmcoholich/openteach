@@ -10,18 +10,25 @@ cd deoxys_control/deoxys && ./auto_scripts/auto_gripper.sh config/charmander.yml
 """
 
 # deoxys_control
-from deoxys.franka_interface import FrankaInterface
-from deoxys.experimental.motion_utils import reset_joints_to
-from deoxys.utils.transform_utils import quat2axisangle, mat2quat, euler2mat, axisangle2quat, quat_multiply
+import argparse
+import os
+import pickle as pkl
+import sys
+
+import cv2
 
 # General
 import numpy as np
-import pickle as pkl
 import tensorflow_datasets as tfds
-import argparse
-import cv2
-import sys
-import os
+from deoxys.experimental.motion_utils import reset_joints_to
+from deoxys.franka_interface import FrankaInterface
+from deoxys.utils.transform_utils import (
+    axisangle2quat,
+    euler2mat,
+    mat2quat,
+    quat2axisangle,
+    quat_multiply,
+)
 from easydict import EasyDict
 
 parser = argparse.ArgumentParser()
@@ -141,7 +148,7 @@ def replay_from_pkl(args):
     quat_rot_actions = [axisangle2quat(x) for x in db['arm_action'][:, 3:]]
     rot = np.array([
         quat2axisangle(quat_multiply(i, j)) for i,j in \
-            zip(quat_rot_actions, db['eef_quat'])
+            zip(quat_rot_actions, db['eef_quat'], strict=True)
             ])
     arm_action = np.hstack((pos, rot))
 

@@ -1,6 +1,7 @@
 # deoxys_control
 from deoxys.franka_interface import FrankaInterface
 
+
 def main():
     robot_interface = FrankaInterface("/home/ripl/deoxys_control/deoxys/config/charmander.yml", use_visualizer=False)  # hardcoded path to config
 

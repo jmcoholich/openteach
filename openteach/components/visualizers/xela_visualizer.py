@@ -1,5 +1,7 @@
-from .plotters.xela_plotter import *
 from openteach.components import Component
+
+from .plotters.xela_plotter import *
+
 
 class XelaVisualizer(Component):
     def __init__(

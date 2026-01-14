@@ -3,7 +3,7 @@ Combines and cleans data from franka arm and realsense cameras.
 
 Outputs
 - A video of the demonstration including joint angle plots and rgb and depth cams
-- A .pkl file containing all processed data
+- An .h5 file containing processed data
 """
 
 import os
@@ -46,12 +46,12 @@ def main():
         if not os.path.exists(data_root):
             raise FileNotFoundError(f"Folder {data_root} does not exist. Please check the folder name and try again.")
         for file in os.listdir(data_root):
-            if file.endswith(".pkl"):
+            if file.endswith((".pkl", ".h5")):
                 continue
             # demo_number = file.split("_")[-1].split(".")[0]
             assert file.startswith("demonstration_")
             demo_number = file[14:]
-            if os.path.exists(os.path.join(data_root, file, f"demo_{demo_number}.pkl")):
+            if os.path.exists(os.path.join(data_root, file, f"demo_{demo_number}.h5")):
                 print(f"Demo {demo_number} already processed. Skipping...")
                 continue
             make_combined_video(args.demo_folder, demo_number)
@@ -177,10 +177,20 @@ def make_combined_video(folder, demo_number):
         output_data[k] = np.array(v)
     output_data["controller_type"] = cmd_data["controller_type"]
     output_data["controller_cfg"] = cmd_data["controller_cfg"]
-    path = f"{demo_path}/demo_{demo_number}.pkl"
+    path = f"{demo_path}/demo_{demo_number}.h5"
     print(f"Saving processed data to {path}...")
-    with open(path, "wb") as f:
-        pkl.dump(output_data, f)
+    h5_keys = [
+        "rgb_frames",
+        "eef_pos",
+        "eef_quat",
+        "arm_action",
+        "gripper_action",
+        "gripper_state",
+        "eef_pose",
+    ]
+    with h5py.File(path, "w") as h5f:
+        for key in h5_keys:
+            h5f.create_dataset(key, data=output_data[key])
 
     # make video
     frames_dir = f"{demo_path}/combined_frames"
@@ -543,7 +553,7 @@ def run_cmd(command, env=None):
 
 
 def compile_video(vid_name, frames_dir, results_dir):
-    command = f"yes | ffmpeg -framerate 10 -i {frames_dir}/frame_%03d.png -c:v libx264 -pix_fmt yuv420p {results_dir}/{vid_name}.mp4"
+    command = f"yes | ffmpeg -framerate 60 -i {frames_dir}/frame_%03d.png -c:v libx264 -pix_fmt yuv420p {results_dir}/{vid_name}.mp4"
     run_cmd(command, env={'LD_PRELOAD': '/usr/lib/x86_64-linux-gnu/libffi.so.7'})
 
 

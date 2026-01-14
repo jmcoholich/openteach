@@ -169,7 +169,7 @@ class Sampler(ABC):
             )
             writer = cv2.VideoWriter(
                 store_path,
-                cv2.VideoWriter_fourcc(*'XVID'),
+                cv2.VideoWriter_fourcc(*'FFV1'),
                 SAMPLE_WRITER_FPS,
                 IMAGE_RECORD_RESOLUTION
             )

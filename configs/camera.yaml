@@ -12,7 +12,7 @@ robot_cam_serial_numbers:
 cam_configs:  # if the width and height are changed, they also need to be changed in constants.py
   width: 640
   height: 360
-  fps: 30
+  fps: 60
   processing_preset: 1 # High accuracy mode
   rotation_angle: 0
   depth: True

@@ -34,50 +34,48 @@ OCULUS_VIEW_LIMITS = {
     'z_limits': [-0.04, 0.04]
 }
 
-VR_FREQ = 5  # 15
-BIMANUAL_VR_FREQ = 90
-LIBERO_FREQ = 20
+VR_FREQ = 30  # set to 5 for ICRA submission.
+# BIMANUAL_VR_FREQ = 90
+# LIBERO_FREQ = 20
 
-# XELA Sensor parameters
-XELA_FPS = 100
-XELA_NUM_SENSORS = 18 # 3 in thumb 4 in other 3 fingers
-XELA_PALM_NUM_SENSORS = 3
-XELA_FINGERTIP_NUM_SENSORS = 4
-XELA_FINGER_NUM_SENSORS = 11
-XELA_PALM_NUM_TAXELS = 24
-XELA_FINGERTIP_NUM_TAXELS= 30
-XELA_FINGER_NUM_TAXELS= 16
-XELA_NUM_TAXELS = 16
+# # XELA Sensor parameters
+# XELA_FPS = 100
+# XELA_NUM_SENSORS = 18 # 3 in thumb 4 in other 3 fingers
+# XELA_PALM_NUM_SENSORS = 3
+# XELA_FINGERTIP_NUM_SENSORS = 4
+# XELA_FINGER_NUM_SENSORS = 11
+# XELA_PALM_NUM_TAXELS = 24
+# XELA_FINGERTIP_NUM_TAXELS= 30
+# XELA_FINGER_NUM_TAXELS= 16
+# XELA_NUM_TAXELS = 16
 # Robot parameters
 
-# Allegro
-ALLEGRO_JOINTS_PER_FINGER = 4
-ALLEGRO_JOINT_OFFSETS = {
-    'index': 0,
-    'middle': 4,
-    'ring': 8,
-    'thumb': 12
-}
+# # Allegro
+# ALLEGRO_JOINTS_PER_FINGER = 4
+# ALLEGRO_JOINT_OFFSETS = {
+#     'index': 0,
+#     'middle': 4,
+#     'ring': 8,
+#     'thumb': 12
+# }
 
-# Kinova
-KINOVA_VELOCITY_SCALING_FACTOR = 20
-KINOVA_SIM_VELOCITY_SCALING_FACTOR = 1
-KINOVA_SIM_VELOCITY_ROTATION_SCALING_FACTOR = 1
-KINOVA_HOME_CARTESIAN_INFO = {
-    'coords': [0.172573, -0.55799, 0.318008],
-    'quaternions': [0.49172106, 0.48226532, -0.54746997, 0.4752969],
-    'rotation_matrix': [
-         0,  1,  0,
-         0,  0, -1,
-        -1,  0,  0
-    ]
-}
+# # Kinova
+# KINOVA_VELOCITY_SCALING_FACTOR = 20
+# KINOVA_SIM_VELOCITY_SCALING_FACTOR = 1
+# KINOVA_SIM_VELOCITY_ROTATION_SCALING_FACTOR = 1
+# KINOVA_HOME_CARTESIAN_INFO = {
+#     'coords': [0.172573, -0.55799, 0.318008],
+#     'quaternions': [0.49172106, 0.48226532, -0.54746997, 0.4752969],
+#     'rotation_matrix': [
+#          0,  1,  0,
+#          0,  0, -1,
+#         -1,  0,  0
+#     ]
+# }
 
 # Realsense Camera parameters
-CAM_FPS = 6
+CAM_FPS = 60
 CAM_FPS_SIM = 60
-WIDTH = 1280
-HEIGHT = 720
 PROCESSING_PRESET = 1 # High accuracy post-processing mode
 VISUAL_RESCALE_FACTOR = 2
 VIZ_PORT_OFFSET = 500

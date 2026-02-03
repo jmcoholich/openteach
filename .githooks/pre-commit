@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Get staged Python files (safe for spaces)
+mapfile -d '' FILES < <(git diff --cached --name-only --diff-filter=ACM -z -- '*.py')
+
+# No Python files → allow commit
+(( ${#FILES[@]} == 0 )) && exit 0
+
+#echo "🔍 Running ruff format..."
+#ruff format "${FILES[@]}"
+
+echo "🔧 Running ruff check --fix..."
+ruff check --fix "${FILES[@]}"
+
+# If Ruff changed anything, abort commit
+if ! git diff --quiet -- "${FILES[@]}"; then
+  echo
+  echo "❌ Ruff made changes."
+  echo "👉 Please review them, git add, and commit again."
+  exit 1
+fi
+
+echo "✅ Ruff passed with no changes"
+

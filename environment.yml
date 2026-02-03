@@ -11,7 +11,7 @@ dependencies:
   - wheel=0.41.2
   - pytorch=1.12
   - torchvision=0.13
-  - pyyaml=6.0  
+  - pyyaml=6.0
 
   - pip:
       - blosc==1.11.1
@@ -47,4 +47,5 @@ dependencies:
       - shapely
       - rospkg
       - IPython
+      - ruff
 

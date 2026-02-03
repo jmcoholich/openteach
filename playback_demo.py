@@ -31,6 +31,8 @@ from deoxys.utils.transform_utils import (
 )
 from easydict import EasyDict
 
+from openteach.constants import VR_FREQ
+
 parser = argparse.ArgumentParser()
 # parser.add_argument("demo", type=str, help="The name of the demonstration to visualize")
 
@@ -89,7 +91,7 @@ CMD_ACTION_CONTROLLER = EasyDict({
 def replay_from_rlds(args):
     robot_interface = FrankaInterface(
         os.path.join('/home/ripl/openteach/configs', 'deoxys.yml'), use_visualizer=False,
-        control_freq=5,
+        control_freq=VR_FREQ,
         state_freq=200
     )
     reset_joint_positions = [
@@ -168,7 +170,7 @@ def replay_from_pkl(args):
     # breakpoint()
     robot_interface = FrankaInterface(
         os.path.join('/home/ripl/openteach/configs', 'deoxys.yml'), use_visualizer=False,
-        control_freq=5,  # setting control frequency here so we don't have to handle it with a timer
+        control_freq=VR_FREQ,  # setting control frequency here so we don't have to handle it with a timer
         state_freq=200
     )
     # timer = FrequencyTimer(15)

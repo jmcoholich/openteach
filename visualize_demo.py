@@ -187,6 +187,7 @@ def make_combined_video(folder, demo_number):
         "gripper_action",
         "gripper_state",
         "eef_pose",
+        "joint_pos",
     ]
     with h5py.File(path, "w") as h5f:
         for key in h5_keys:

@@ -1,5 +1,5 @@
 """
-This script is for replaying demonstrations from .pkl files and from the RLDS files
+This script is for replaying demonstrations from .h5 files and from the RLDS files
 for verification and debugging purposes.
 
 In order to run this script, you need to have the following running on the NUC
@@ -12,14 +12,15 @@ cd deoxys_control/deoxys && ./auto_scripts/auto_gripper.sh config/charmander.yml
 # deoxys_control
 import argparse
 import os
-import pickle as pkl
 import sys
 
 import cv2
+import h5py
 
 # General
 import numpy as np
-import tensorflow_datasets as tfds
+
+# import tensorflow_datasets as tfds
 from deoxys.experimental.motion_utils import reset_joints_to
 from deoxys.franka_interface import FrankaInterface
 from deoxys.utils.transform_utils import (
@@ -88,69 +89,71 @@ CMD_ACTION_CONTROLLER = EasyDict({
     }
 })
 
-def replay_from_rlds(args):
-    robot_interface = FrankaInterface(
-        os.path.join('/home/ripl/openteach/configs', 'deoxys.yml'), use_visualizer=False,
-        control_freq=VR_FREQ,
-        state_freq=200
-    )
-    reset_joint_positions = [
-            0.09162008114028396,
-            -0.19826458111314524,
-            -0.01990020486871322,
-            -2.4732269941140346,
-            -0.01307073642274261,
-            2.30396583422025,
-            0.8480939705504309,
-        ]
-    reset_joints_to(robot_interface, reset_joint_positions)
+# def replay_from_rlds(args):
+#     robot_interface = FrankaInterface(
+#         os.path.join('/home/ripl/openteach/configs', 'deoxys.yml'), use_visualizer=False,
+#         control_freq=VR_FREQ,
+#         state_freq=200
+#     )
+#     reset_joint_positions = [
+#             0.09162008114028396,
+#             -0.19826458111314524,
+#             -0.01990020486871322,
+#             -2.4732269941140346,
+#             -0.01307073642274261,
+#             2.30396583422025,
+#             0.8480939705504309,
+#         ]
+#     reset_joints_to(robot_interface, reset_joint_positions)
 
-    # Load demonstration data
-    sys.path.append("/home/ripl/rlds_dataset_builder")
-    # ds = tfds.load("franka_pick_coke_single", split='train')
-    ds = tfds.load("franka_pick_coke_single", split='train')
+#     # Load demonstration data
+#     sys.path.append("/home/ripl/rlds_dataset_builder")
+#     # ds = tfds.load("franka_pick_coke_single", split='train')
+#     ds = tfds.load("franka_pick_coke_single", split='train')
 
-    # timer = FrequencyTimer(15)
-    for episode in ds.take(1):
-        for st in episode['steps']:
-            # breakpoint()
-            # timer.start_loop()
-            deltas = st['action'].numpy()  # the action are deltas for (x, y, z, r, p, y, gripper)
-            cv2.imshow("image", st['observation']['image'].numpy()[:, :, ::-1])  # convert to BGR for cv2
-            if cv2.waitKey(1) & 0xFF == ord('q'):
-                break
+#     # timer = FrequencyTimer(15)
+#     for episode in ds.take(1):
+#         for st in episode['steps']:
+#             # breakpoint()
+#             # timer.start_loop()
+#             deltas = st['action'].numpy()  # the action are deltas for (x, y, z, r, p, y, gripper)
+#             cv2.imshow("image", st['observation']['image'].numpy()[:, :, ::-1])  # convert to BGR for cv2
+#             if cv2.waitKey(1) & 0xFF == ord('q'):
+#                 break
 
-            # convert rpy to exponential axis-angle
-            deltas[3:6] = quat2axisangle(mat2quat(euler2mat(deltas[3:6])))
-            print(deltas)
-            robot_interface.control(
-                    controller_type='OSC_POSE',
-                    action=deltas[:6],
-                    controller_cfg=DEFAULT_CONTROLLER,
-                )
-            robot_interface.gripper_control(deltas[6])
-            # timer.end_loop()
+#             # convert rpy to exponential axis-angle
+#             deltas[3:6] = quat2axisangle(mat2quat(euler2mat(deltas[3:6])))
+#             print(deltas)
+#             robot_interface.control(
+#                     controller_type='OSC_POSE',
+#                     action=deltas[:6],
+#                     controller_cfg=DEFAULT_CONTROLLER,
+#                 )
+#             robot_interface.gripper_control(deltas[6])
+#             # timer.end_loop()
 
 
 
-def replay_from_pkl(args):
+def replay_from_h5(args):
     home = os.path.expanduser("~")
     # Load demonstration data
-    # filename = f"/home/ripl/openteach/extracted_data/cups_demonstrations/pickle_files/demo_cups_0.pkl"
-    # filename = f"/home/ripl/openteach/extracted_data/sim_demo_coke/demo_pick_up_coke_SIM_448.pkl"
-    # filename = f"/data3/rlbench_demos/slowest_grip/converted/pick_up_coke/demo_pick_up_coke_SIM_003.pkl"
-    filename = "/data3/rlbench_demos/new_waypoints/converted/stack_blocks_simple/demo_stack_blocks_simple_SIM_000.pkl"
+    # filename = f"{home}/openteach/extracted_data/demonstration_1/demo_1.h5"
+    filename = "/home/jeremiah/openteach/extracted_data/demonstration_test_reversal/demo_test_reversal.h5"
 
-
-    # arm_cmd_file = f"/home/ripl/openteach/extracted_data/pick_coke/demonstration_coke18/franka_arm_tcp_commands.h5"
-    with open(filename, 'rb') as dbfile:
-        db = pkl.load(dbfile)
+    with h5py.File(filename, "r") as h5f:
+        eef_pos = np.atleast_2d(np.squeeze(np.array(h5f["eef_pos"])))
+        eef_quat = np.atleast_2d(np.squeeze(np.array(h5f["eef_quat"])))
+        arm_action = np.atleast_2d(np.squeeze(np.array(h5f["arm_action"])))
+        gripper_action = np.atleast_1d(np.squeeze(np.array(h5f["gripper_action"]))).reshape(-1)
+        joint_pos = None
+        if "joint_pos" in h5f:
+            joint_pos = np.atleast_2d(np.squeeze(np.array(h5f["joint_pos"])))
     # breakpoint()
-    pos = db['eef_pos'].squeeze() + db['arm_action'][:, :3]
-    quat_rot_actions = [axisangle2quat(x) for x in db['arm_action'][:, 3:]]
+    pos = eef_pos + arm_action[:, :3]
+    quat_rot_actions = [axisangle2quat(x) for x in arm_action[:, 3:]]
     rot = np.array([
         quat2axisangle(quat_multiply(i, j)) for i,j in \
-            zip(quat_rot_actions, db['eef_quat'], strict=True)
+            zip(quat_rot_actions, eef_quat, strict=True)
             ])
     arm_action = np.hstack((pos, rot))
 
@@ -176,7 +179,10 @@ def replay_from_pkl(args):
     # timer = FrequencyTimer(15)
 
     # move robot to start position
-    reset_joints_to(robot_interface, db['joint_pos'][0])
+    if joint_pos is not None:
+        reset_joints_to(robot_interface, joint_pos[0])
+    else:
+        print("No joint_pos dataset in h5; skipping joint reset.")
     for i in range(0, len(arm_action)):
         # timer.start_loop()
 
@@ -188,11 +194,11 @@ def replay_from_pkl(args):
                 controller_cfg=DEFAULT_CONTROLLER,
             )
 
-        robot_interface.gripper_control(db["gripper_action"][i])
+        robot_interface.gripper_control(gripper_action[i])
         # timer.end_loop()
 
 
 if __name__ == "__main__":
     args = parser.parse_args()
-    replay_from_pkl(args)
+    replay_from_h5(args)
     # replay_from_rlds(args)

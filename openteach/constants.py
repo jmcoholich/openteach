@@ -34,9 +34,9 @@ OCULUS_VIEW_LIMITS = {
     'z_limits': [-0.04, 0.04]
 }
 
-VR_FREQ = 30  # set to 5 for ICRA submission.
+VR_FREQ = 20  # set to 5 for ICRA submission.
 # BIMANUAL_VR_FREQ = 90
-# LIBERO_FREQ = 20
+LIBERO_FREQ = 20
 
 # # XELA Sensor parameters
 # XELA_FPS = 100

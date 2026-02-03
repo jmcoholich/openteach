@@ -39,7 +39,12 @@ This repo consists of two parts:
 ## Code Installation
 Install [Deoxys Control](https://github.com/UT-Austin-RPL/deoxys_control).
 
-Clone this repository and create the conda environment:
+Clone this repository:
+```bash
+GIT_LFS_SKIP_SMUDGE=1 git clone git@github.com:jmcoholich/openteach.git
+```
+
+Create the conda environment:
 ```bash
 conda env create -f environment.yml
 ```

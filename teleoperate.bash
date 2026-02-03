@@ -11,7 +11,7 @@ xdotool key ctrl+shift+e
 sleep 0.25
 xdotool key ctrl+Tab
 sleep 0.25
-xdotool type "ssh $NUC_IP"
+xdotool type "ssh ripl@$NUC_IP"
 sleep 0.25
 xdotool key Return
 sleep 2.0
@@ -22,7 +22,7 @@ sleep 0.25
 
 xdotool key ctrl+shift+o
 sleep 0.25
-xdotool type "ssh $NUC_IP"
+xdotool type "ssh ripl@$NUC_IP"
 sleep 0.25
 xdotool key Return
 sleep 2.0

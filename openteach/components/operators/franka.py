@@ -401,11 +401,13 @@ class FrankaArmOperator(Operator):
 
     def arm_control(self, cartesian_pose, gripper_cmd, playback_actions=None):
         current_quat, current_pos = self.robot_interface.last_eef_quat_and_pos
+        if current_quat is None:
+            raise RuntimeError("No reading from franka interface. Is FCI enabled?")
         current_mat = transform_utils.pose2mat(pose=(current_pos.flatten(), current_quat.flatten()))
 
         if playback_actions is not None:
             action, gripper_cmd = playback_actions
-            cartesian_pose = None
+            cartesian_pose = 0.0
         else:
             cartesian_pose = np.array(cartesian_pose, dtype=np.float32)
             target_pos, target_quat = cartesian_pose[:3], cartesian_pose[3:]
@@ -480,26 +482,29 @@ class FrankaArmOperator(Operator):
             except KeyboardInterrupt:
                 print("KeyboardInterrupt detected. Stopping the teleoperator and saving the recorded data...")
                 if self.record is not None and self.storage_location is not None:
-                    path = os.path.join(os.getcwd(), self.storage_location, f'deoxys_obs_cmd_history_{self.record}.h5')
-                    print('Saving the deoxys_obs_cmd_history to {}'.format(path))
-                    with h5py.File(path, 'w') as f:
-                        for key, value in self.deoxys_obs_cmd_history.items():
-                            f.create_dataset(key, data=np.array(value))
-                        f.attrs["controller_type"] = CONTROLLER_TYPE
-                        f.attrs["controller_cfg_json"] = json.dumps(self.velocity_controller_cfg, separators=(",", ":"), sort_keys=True)
-                        f.attrs["CONTROL_FREQ"] = CONTROL_FREQ
-                        f.attrs["STATE_FREQ"] = STATE_FREQ
-                        f.attrs["VR_FREQ"] = VR_FREQ
-                        f.attrs["ROTATION_VELOCITY_LIMIT"] = ROTATION_VELOCITY_LIMIT
-                        f.attrs["TRANSLATION_VELOCITY_LIMIT"] = TRANSLATION_VELOCITY_LIMIT
-                    print('\nSaved successfully!\n')
+                    self.save_obs_cmd_history()
                 break
             except Exception as e:
                 print(e)
 
-
         self.transformed_arm_keypoint_subscriber.stop()
         print('Stopping the teleoperator!')
+
+    def save_obs_cmd_history(self):
+        path = os.path.join(os.getcwd(), self.storage_location, f'deoxys_obs_cmd_history_{self.record}.h5')
+        print('Saving the deoxys_obs_cmd_history to {}'.format(path))
+        with h5py.File(path, 'w') as f:
+            for key, value in self.deoxys_obs_cmd_history.items():
+                print(key, value)
+                f.create_dataset(key, data=np.array(value))
+            f.attrs["controller_type"] = CONTROLLER_TYPE
+            f.attrs["controller_cfg_json"] = json.dumps(self.velocity_controller_cfg, separators=(",", ":"), sort_keys=True)
+            f.attrs["CONTROL_FREQ"] = CONTROL_FREQ
+            f.attrs["STATE_FREQ"] = STATE_FREQ
+            f.attrs["VR_FREQ"] = VR_FREQ
+            f.attrs["ROTATION_VELOCITY_LIMIT"] = ROTATION_VELOCITY_LIMIT
+            f.attrs["TRANSLATION_VELOCITY_LIMIT"] = TRANSLATION_VELOCITY_LIMIT
+        print('\nSaved successfully!\n')
 
 
 ###############################################################################

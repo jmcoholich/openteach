@@ -28,6 +28,7 @@ from openteach.components.operators.franka import (
 from openteach.constants import VR_FREQ
 
 parser = argparse.ArgumentParser()
+parser.add_argument("--reverse", action="store_true", help="Reverse the demonstration playback.")
 
 def check_nuc_hash_and_diff():
     """This is to ensure there are no changes on the NUC that would affect playback."""
@@ -103,6 +104,16 @@ def replay_from_h5(args):
         if not controller_type == "OSC_POSE":
             raise NotImplementedError("Only` OSC_POSE controller is supported in playback.")
 
+    demo_number = os.path.basename(filename).split(".")[0][5:]
+    recording_name = demo_number + "_playback"
+    if args.reverse:
+        if not controller_cfg["is_delta"]:
+            raise NotImplementedError
+        recording_name += "_reversed"
+        arm_action = -arm_action[::-1]
+        gripper_action = gripper_action[::-1]
+        joint_pos = joint_pos[::-1]
+
     operator = FrankaArmOperator(
         network_cfg["host_address"],
         None,
@@ -111,9 +122,9 @@ def replay_from_h5(args):
         use_filter=False,
         arm_resolution_port = None,
         teleoperation_reset_port = None,
-        record=None,
-        storage_location="recorded_playbacks",
+        record=recording_name,
     )
+
     operator.velocity_controller_cfg = controller_cfg
     # move robot to start position
     reset_joints_to(operator.robot_interface, joint_pos[0])
@@ -122,6 +133,7 @@ def replay_from_h5(args):
         playback_actions = (arm_action[i], gripper_action[i])
         operator.arm_control(None, None, playback_actions=playback_actions)
         operator.timer.end_loop()
+    operator.save_obs_cmd_history()
 
 
 if __name__ == "__main__":

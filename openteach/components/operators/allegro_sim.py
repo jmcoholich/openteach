@@ -5,6 +5,7 @@ from isaacgym.torch_utils import *
 from shapely.geometry import Point, Polygon
 from shapely.ops import nearest_points
 
+from openteach.components.operators.operator_base import Operator
 from openteach.components.recorders import *
 from openteach.components.sensors import *
 from openteach.constants import *
@@ -19,7 +20,6 @@ from openteach.utils.timer import FrequencyTimer
 from openteach.utils.vectorops import coord_in_bound
 
 from .calibrators.allegro import OculusThumbBoundCalibrator
-from .operator import Operator
 
 
 class AllegroHandSimOperator(Operator):

@@ -19,8 +19,6 @@ import h5py
 
 # General
 import numpy as np
-
-# import tensorflow_datasets as tfds
 from deoxys.experimental.motion_utils import reset_joints_to
 from deoxys.franka_interface import FrankaInterface
 from deoxys.utils.transform_utils import (
@@ -88,50 +86,6 @@ CMD_ACTION_CONTROLLER = EasyDict({
         'alpha_eef_vel': 1.0
     }
 })
-
-# def replay_from_rlds(args):
-#     robot_interface = FrankaInterface(
-#         os.path.join('/home/ripl/openteach/configs', 'deoxys.yml'), use_visualizer=False,
-#         control_freq=VR_FREQ,
-#         state_freq=200
-#     )
-#     reset_joint_positions = [
-#             0.09162008114028396,
-#             -0.19826458111314524,
-#             -0.01990020486871322,
-#             -2.4732269941140346,
-#             -0.01307073642274261,
-#             2.30396583422025,
-#             0.8480939705504309,
-#         ]
-#     reset_joints_to(robot_interface, reset_joint_positions)
-
-#     # Load demonstration data
-#     sys.path.append("/home/ripl/rlds_dataset_builder")
-#     # ds = tfds.load("franka_pick_coke_single", split='train')
-#     ds = tfds.load("franka_pick_coke_single", split='train')
-
-#     # timer = FrequencyTimer(15)
-#     for episode in ds.take(1):
-#         for st in episode['steps']:
-#             # breakpoint()
-#             # timer.start_loop()
-#             deltas = st['action'].numpy()  # the action are deltas for (x, y, z, r, p, y, gripper)
-#             cv2.imshow("image", st['observation']['image'].numpy()[:, :, ::-1])  # convert to BGR for cv2
-#             if cv2.waitKey(1) & 0xFF == ord('q'):
-#                 break
-
-#             # convert rpy to exponential axis-angle
-#             deltas[3:6] = quat2axisangle(mat2quat(euler2mat(deltas[3:6])))
-#             print(deltas)
-#             robot_interface.control(
-#                     controller_type='OSC_POSE',
-#                     action=deltas[:6],
-#                     controller_cfg=DEFAULT_CONTROLLER,
-#                 )
-#             robot_interface.gripper_control(deltas[6])
-#             # timer.end_loop()
-
 
 
 def replay_from_h5(args):

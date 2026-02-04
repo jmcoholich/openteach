@@ -3,6 +3,7 @@ from copy import deepcopy as copy
 from shapely.geometry import Point, Polygon
 from shapely.ops import nearest_points
 
+from openteach.components.operators.operator_base import Operator
 from openteach.constants import *
 from openteach.robot.allegro.allegro import AllegroHand
 from openteach.robot.allegro.allegro_retargeters import AllegroJointControl, AllegroKDLControl
@@ -12,7 +13,6 @@ from openteach.utils.timer import FrequencyTimer
 from openteach.utils.vectorops import coord_in_bound
 
 from .calibrators.allegro import OculusThumbBoundCalibrator
-from .operator import Operator
 
 
 class AllegroHandOperator(Operator):

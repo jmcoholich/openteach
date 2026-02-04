@@ -6,14 +6,13 @@ import zmq
 from scipy.spatial.transform import Rotation, Slerp
 from scipy.spatial.transform import Rotation as R
 
+from openteach.components.operators.operator_base import Operator
 from openteach.constants import *
 from openteach.robot.kinova import KinovaArm
 from openteach.utils.files import *
 from openteach.utils.network import ZMQKeypointSubscriber
 from openteach.utils.timer import FrequencyTimer
 from openteach.utils.vectorops import *
-
-from .operator import Operator
 
 
 # Rotation should be filtered when it's being sent

@@ -1,7 +1,8 @@
-import pickle as pkl
+import json
 import time
 from copy import deepcopy as copy
 
+import h5py
 import numpy as np
 import zmq
 from deoxys.franka_interface import FrankaInterface
@@ -11,13 +12,12 @@ from deoxys.utils.config_utils import YamlConfig, verify_controller_config
 # from openteach.robot.franka import FrankaArm
 from scipy.spatial.transform import Rotation, Slerp
 
+from openteach.components.operators.operator_base import Operator
 from openteach.constants import *
 from openteach.utils.files import *
 from openteach.utils.network import ZMQKeypointSubscriber
 from openteach.utils.timer import FrequencyTimer
 from openteach.utils.vectorops import *
-
-from .operator import Operator
 
 CONTROLLER_TYPE = "OSC_POSE"
 CONFIG_ROOT = '/home/ripl/openteach/configs'
@@ -456,8 +456,6 @@ class FrankaArmOperator(Operator):
                 'eef_pos': [current_pos],
                 'eef_pose': [current_mat],
                 'joint_pos': [self.robot_interface.last_q],
-                'controller_type': CONTROLLER_TYPE,
-                'controller_cfg': self.velocity_controller_cfg,
                 'timestamp': [time.time()],
                 'index': [0],
             }
@@ -506,11 +504,15 @@ class FrankaArmOperator(Operator):
                 #     pkl.dump(self.logs, f)
 
                 if self.record is not None and self.storage_location is not None:
-                    path = os.path.join(os.getcwd(), self.storage_location, f'deoxys_obs_cmd_history_{self.record}.pkl')
+                    path = os.path.join(os.getcwd(), self.storage_location, f'deoxys_obs_cmd_history_{self.record}.h5')
                     print('Saving the deoxys_obs_cmd_history to {}'.format(path))
-                    with open(path, 'wb') as f:
-                        pkl.dump(self.deoxys_obs_cmd_history, f)
-                        # pkl.dump(self.robot._controller.franka.deoxys_obs_cmd_history, f)
+                    with h5py.File(path, 'w') as f:
+                        for key, value in self.deoxys_obs_cmd_history.items():
+                            f.create_dataset(key, data=np.array(value))
+                        f.attrs["controller_type"] = CONTROLLER_TYPE
+                        f.attrs["controller_cfg_json"] = json.dumps(self.velocity_controller_cfg, separators=(",", ":"), sort_keys=True)
+
+
                 break
             except Exception as e:
                 print(e)

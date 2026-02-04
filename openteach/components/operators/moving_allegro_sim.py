@@ -10,6 +10,7 @@ from shapely.geometry import Point, Polygon
 from shapely.ops import nearest_points
 from tqdm import tqdm
 
+from openteach.components.operators.operator_base import Operator
 from openteach.constants import *
 from openteach.robot.allegro.allegro_retargeters import AllegroJointControl, AllegroKDLControl
 from openteach.utils.files import *
@@ -18,7 +19,6 @@ from openteach.utils.timer import FrequencyTimer
 from openteach.utils.vectorops import *
 
 from .calibrators.allegro import OculusThumbBoundCalibrator
-from .operator import Operator
 
 np.set_printoptions(precision=2, suppress=True)
 

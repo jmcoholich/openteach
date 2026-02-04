@@ -7,6 +7,7 @@ import zmq
 #from openteach.robot.stretch import Stretch
 from scipy.spatial.transform import Rotation, Slerp
 
+from openteach.components.operators.operator_base import Operator
 from openteach.constants import *
 from openteach.utils.files import *
 from openteach.utils.network import ZMQKeypointSubscriber
@@ -16,8 +17,6 @@ from openteach.utils.publisher import ImitiationPolicyPublisher
 from openteach.utils.subscriber import ImagePolicySubscriber
 from openteach.utils.timer import FrequencyTimer
 from openteach.utils.vectorops import *
-
-from .operator import Operator
 
 np.set_printoptions(precision=2, suppress=True)
 # Filter to smooth out the arm cartesian state

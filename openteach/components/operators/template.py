@@ -6,14 +6,13 @@ from numpy.linalg import pinv
 from scipy.spatial.transform import Rotation, Slerp
 from scipy.spatial.transform import Rotation as R
 
+from openteach.components.operators.operator_base import Operator
 from openteach.constants import *
 from openteach.robot.robot import RobotWrapper
 from openteach.utils.files import *
 from openteach.utils.network import ZMQKeypointPublisher, ZMQKeypointSubscriber
 from openteach.utils.timer import FrequencyTimer
 from openteach.utils.vectorops import *
-
-from .operator import Operator
 
 np.set_printoptions(precision=2, suppress=True)
 

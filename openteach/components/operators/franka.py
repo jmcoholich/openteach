@@ -495,7 +495,6 @@ class FrankaArmOperator(Operator):
         print('Saving the deoxys_obs_cmd_history to {}'.format(path))
         with h5py.File(path, 'w') as f:
             for key, value in self.deoxys_obs_cmd_history.items():
-                print(key, value)
                 f.create_dataset(key, data=np.array(value))
             f.attrs["controller_type"] = CONTROLLER_TYPE
             f.attrs["controller_cfg_json"] = json.dumps(self.velocity_controller_cfg, separators=(",", ":"), sort_keys=True)

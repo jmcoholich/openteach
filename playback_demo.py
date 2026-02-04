@@ -74,7 +74,7 @@ def check_nuc_hash_and_diff():
 
 
 def replay_from_h5(args):
-    filename = "/home/jeremiah/openteach/extracted_data/demonstration_test/demo_test.h5"
+    filename = "/home/jeremiah/openteach/extracted_data/demonstration_test3/demo_test3.h5"
 
     # load network config
     with open(os.path.join(CONFIG_ROOT, "network.yaml"), "r") as f:

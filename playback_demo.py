@@ -5,15 +5,14 @@ In order to run this script, you need to have the following running on the NUC
 
 cd deoxys_control/deoxys && ./auto_scripts/auto_arm.sh config/charmander.yml
 cd deoxys_control/deoxys && ./auto_scripts/auto_gripper.sh config/charmander.yml
-
-This is currently not tracked, but if the parameters in charmander.yml on the NUC
-have changed, this could result in an innacurate playback.
 """
 
 import argparse
 import os
+import time
 
 import h5py
+import paramiko
 import yaml
 from deoxys.experimental.motion_utils import reset_joints_to
 from easydict import EasyDict
@@ -30,12 +29,57 @@ from openteach.constants import VR_FREQ
 
 parser = argparse.ArgumentParser()
 
+def check_nuc_hash_and_diff():
+    """This is to ensure there are no changes on the NUC that would affect playback."""
+    s = time.time()
+    with open(os.path.join(CONFIG_ROOT, "deoxys.yml"), "r") as f:
+        deoxys_cfg = EasyDict(yaml.safe_load(f))
+    expected_hash = "4bd887de486fde9203182daf8b888761ddf684dc"
+    repo_path = "/home/ripl/deoxys_control"
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    try:
+        client.connect(
+            hostname=deoxys_cfg.NUC.IP,
+            username="ripl",
+            timeout=5,
+            banner_timeout=5,
+            auth_timeout=5,
+            allow_agent=True,
+            look_for_keys=True,
+        )
+        status_cmd = f"cd {repo_path} && git status --porcelain"
+        hash_cmd = f"cd {repo_path} && git rev-parse HEAD"
+        _, status_stdout, status_stderr = client.exec_command(status_cmd, timeout=5)
+        status_output = status_stdout.read().decode("utf-8", errors="replace").strip()
+        status_error = status_stderr.read().decode("utf-8", errors="replace").strip()
+        if status_error:
+            raise RuntimeError(f"Failed to check git status on NUC: {status_error}")
+        if status_output:
+            raise RuntimeError("NUC deoxys_control has uncommitted changes.")
+        _, hash_stdout, hash_stderr = client.exec_command(hash_cmd, timeout=5)
+        current_hash = hash_stdout.read().decode("utf-8", errors="replace").strip()
+        hash_error = hash_stderr.read().decode("utf-8", errors="replace").strip()
+        if hash_error:
+            raise RuntimeError(f"Failed to get git hash on NUC: {hash_error}")
+        if current_hash != expected_hash:
+            raise RuntimeError(
+                f"NUC deoxys_control hash mismatch: expected {expected_hash}, got {current_hash}"
+            )
+    finally:
+        client.close()
+    print("NUC deoxys_control repository is clean and matches expected hash.")
+    print(f"NUC check took {time.time() - s:.2f} seconds.")
+
+
 def replay_from_h5(args):
     filename = "/home/jeremiah/openteach/extracted_data/demonstration_test/demo_test.h5"
 
     # load network config
     with open(os.path.join(CONFIG_ROOT, "network.yaml"), "r") as f:
         network_cfg = EasyDict(yaml.safe_load(f))
+
+    check_nuc_hash_and_diff()
 
     with h5py.File(filename, "r") as h5f:
         arm_action = h5f["arm_action"][:]

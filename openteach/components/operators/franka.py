@@ -8,8 +8,6 @@ import zmq
 from deoxys.franka_interface import FrankaInterface
 from deoxys.utils import transform_utils
 from deoxys.utils.config_utils import YamlConfig, verify_controller_config
-
-# from openteach.robot.franka import FrankaArm
 from scipy.spatial.transform import Rotation, Slerp
 
 from openteach.components.operators.operator_base import Operator
@@ -78,32 +76,40 @@ class FrankaArmOperator(Operator):
         self.record = record
         self.storage_location = storage_location
 
-        # TODO: See if we can remove these since we dont use them or
-        # find out if it is better to copy the old pub/sub layout
         # remote coords path oculus -> keypoint_transform -> franka
-        self._transformed_hand_keypoint_subscriber = ZMQKeypointSubscriber(
-            host=host,
-            port=transformed_keypoints_port,
-            topic='transformed_hand_coords'
-        )
-        # Subscribers for the transformed arm frame
-        self._transformed_arm_keypoint_subscriber = ZMQKeypointSubscriber(
-            host=host,
-            port=transformed_keypoints_port,
-            topic='transformed_hand_frame'
-        )
+        if transformed_keypoints_port is None:
+            self._transformed_hand_keypoint_subscriber = None
+            self._transformed_arm_keypoint_subscriber = None
+        else:
+            self._transformed_hand_keypoint_subscriber = ZMQKeypointSubscriber(
+                host=host,
+                port=transformed_keypoints_port,
+                topic='transformed_hand_coords'
+            )
+            # Subscribers for the transformed arm frame
+            self._transformed_arm_keypoint_subscriber = ZMQKeypointSubscriber(
+                host=host,
+                port=transformed_keypoints_port,
+                topic='transformed_hand_frame'
+            )
         # Subscribers for the remote message
-        self._remote_message_subscriber = ZMQKeypointSubscriber(
-            host=host,
-            port=remote_message_port,
-            topic='remote_msg'
-        )
+        if remote_message_port is None:
+            self._remote_message_subscriber = None
+        else:
+            self._remote_message_subscriber = ZMQKeypointSubscriber(
+                host=host,
+                port=remote_message_port,
+                topic='remote_msg'
+            )
         # Subscribers for the gripper message
-        self._gripper_message_subscriber = ZMQKeypointSubscriber(
-            host=host,
-            port=gripper_message_port,
-            topic='gripper_msg'
-        )
+        if gripper_message_port is None:
+            self._gripper_message_subscriber = None
+        else:
+            self._gripper_message_subscriber = ZMQKeypointSubscriber(
+                host=host,
+                port=gripper_message_port,
+                topic='gripper_msg'
+            )
 
         self.deoxys_obs_cmd_history = {}
         self.robot_interface = FrankaInterface(
@@ -126,17 +132,23 @@ class FrankaArmOperator(Operator):
         self.arm_teleop_state = ARM_TELEOP_STOP # We will start as the cont
 
         # Subscribers for the resolution scale and teleop state
-        self._arm_resolution_subscriber = ZMQKeypointSubscriber(  # TODO: See if we can remove this since we dont use them
-            host = host,
-            port = arm_resolution_port,
-            topic = 'button'
-        )
-
-        self._arm_teleop_state_subscriber = ZMQKeypointSubscriber(
-            host = host,
-            port = teleoperation_reset_port,
-            topic = 'pause'
-        )
+        # TODO: See if we can remove this since we dont use them
+        if arm_resolution_port is None:
+            self._arm_resolution_subscriber = None
+        else:
+            self._arm_resolution_subscriber = ZMQKeypointSubscriber(
+                host = host,
+                port = arm_resolution_port,
+                topic = 'button'
+            )
+        if teleoperation_reset_port is None:
+            self._arm_teleop_state_subscriber = None
+        else:
+            self._arm_teleop_state_subscriber = ZMQKeypointSubscriber(
+                host = host,
+                port = teleoperation_reset_port,
+                topic = 'pause'
+            )
         # Robot Initial Frame
         self.robot_init_H = self.robot_interface.last_eef_pose
         self.is_first_frame = True
@@ -152,8 +164,6 @@ class FrankaArmOperator(Operator):
         self.gripper_last_msg = False
         self.gripper_cmd = -1
         self.below_thresh = False
-
-        self.logs = []
 
 
     @property
@@ -197,9 +207,6 @@ class FrankaArmOperator(Operator):
         t = np.array(remote_pose[:3])
         R = self._get_dir_frame(remote_pose[:3], offset_R)
 
-        # R = Rotation.from_quat(remote_pose[3:]).as_matrix()
-        # transform_R = self.headset_init_R @ R
-
         remote_frame = np.vstack([t, R])
 
         return remote_frame
@@ -236,42 +243,10 @@ class FrankaArmOperator(Operator):
     # Converts a frame to a homogenous transformation matrix
     def _turn_frame_to_homo_mat(self, frame):
         t = frame[0]
-        # a = -45*np.pi/180
-        # Y_45 = np.array(
-        #     [
-        #     [np.cos(a), 0, np.sin(a)],
-        #     [0,1,0],
-        #     [-np.sin(a), 0, np.cos(a)],
-        #      ]
-        # )
-        # # t = (Y_45 @ t.reshape(3, 1)).reshape(3)
-
-        # a = -90 * np.pi/180
-        # X_90 = np.array([
-        #     [1,0,0],
-        #     [0, np.cos(a), -np.sin(a)],
-        #     [0, np.sin(a), np.cos(a)],
-        # ])
-        # # t = (X_90 @ t.reshape(3, 1)).reshape(3)
-        # a = 45 * np.pi/180
-        # Z_45 = np.array([
-        #     [np.cos(a), -np.sin(a), 0],
-        #     [np.sin(a), np.cos(a), 0],
-        #     [0,0,1],
-        # ])
-        # a = 180 * np.pi/180
-        # X_180 = np.array([
-        #     [1,0,0],
-        #     [0, np.cos(a), -np.sin(a)],
-        #     [0, np.sin(a), np.cos(a)],
-        # ])
-        # meta2robo = X_180 @ Z_45 @ X_90 @ Y_45
-        # t = (meta2robo @ t.reshape(3, 1)).reshape(3)
-
         R = frame[1:]
 
         homo_mat = np.zeros((4, 4))
-        homo_mat[:3, :3] = np.transpose(R)  # TODO: Why?? This seeems to be critical to how this works.
+        homo_mat[:3, :3] = np.transpose(R)
         homo_mat[:3, 3] = t
         homo_mat[3, 3] = 1
 
@@ -424,27 +399,31 @@ class FrankaArmOperator(Operator):
         self.arm_control(final_pose, gripper_cmd)
 
 
-    def arm_control(self, cartesian_pose, gripper_cmd):
-        cartesian_pose = np.array(cartesian_pose, dtype=np.float32)
-        target_pos, target_quat = cartesian_pose[:3], cartesian_pose[3:]
-        target_mat = transform_utils.pose2mat(pose=(target_pos, target_quat))
-
+    def arm_control(self, cartesian_pose, gripper_cmd, playback_actions=None):
         current_quat, current_pos = self.robot_interface.last_eef_quat_and_pos
         current_mat = transform_utils.pose2mat(pose=(current_pos.flatten(), current_quat.flatten()))
 
-        pose_error = transform_utils.get_pose_error(target_pose=target_mat, current_pose=current_mat)
+        if playback_actions is not None:
+            action, gripper_cmd = playback_actions
+            cartesian_pose = None
+        else:
+            cartesian_pose = np.array(cartesian_pose, dtype=np.float32)
+            target_pos, target_quat = cartesian_pose[:3], cartesian_pose[3:]
+            target_mat = transform_utils.pose2mat(pose=(target_pos, target_quat))
 
-        if np.dot(target_quat, current_quat) < 0.0:
-            current_quat = -current_quat
-        quat_diff = transform_utils.quat_distance(target_quat, current_quat)
-        axis_angle_diff = transform_utils.quat2axisangle(quat_diff)
+            pose_error = transform_utils.get_pose_error(target_pose=target_mat, current_pose=current_mat)
 
-        action_pos = pose_error[:3]
-        action_axis_angle = axis_angle_diff.flatten()
+            if np.dot(target_quat, current_quat) < 0.0:
+                current_quat = -current_quat
+            quat_diff = transform_utils.quat_distance(target_quat, current_quat)
+            axis_angle_diff = transform_utils.quat2axisangle(quat_diff)
 
-        action_pos, _ = transform_utils.clip_translation(action_pos, TRANSLATION_VELOCITY_LIMIT)
-        action_axis_angle = np.clip(action_axis_angle, -ROTATION_VELOCITY_LIMIT, ROTATION_VELOCITY_LIMIT)
-        action = action_pos.tolist() + action_axis_angle.tolist()
+            action_pos = pose_error[:3]
+            action_axis_angle = axis_angle_diff.flatten()
+
+            action_pos, _ = transform_utils.clip_translation(action_pos, TRANSLATION_VELOCITY_LIMIT)
+            action_axis_angle = np.clip(action_axis_angle, -ROTATION_VELOCITY_LIMIT, ROTATION_VELOCITY_LIMIT)
+            action = action_pos.tolist() + action_axis_angle.tolist()
 
         if not self.deoxys_obs_cmd_history:
             self.deoxys_obs_cmd_history = {
@@ -499,10 +478,7 @@ class FrankaArmOperator(Operator):
                 # else:
                 #     print('No robot state.. try activating deadman switch')
             except KeyboardInterrupt:
-                # # save logs
-                # with open('logs.pkl', 'wb') as f:
-                #     pkl.dump(self.logs, f)
-
+                print("KeyboardInterrupt detected. Stopping the teleoperator and saving the recorded data...")
                 if self.record is not None and self.storage_location is not None:
                     path = os.path.join(os.getcwd(), self.storage_location, f'deoxys_obs_cmd_history_{self.record}.h5')
                     print('Saving the deoxys_obs_cmd_history to {}'.format(path))
@@ -511,8 +487,12 @@ class FrankaArmOperator(Operator):
                             f.create_dataset(key, data=np.array(value))
                         f.attrs["controller_type"] = CONTROLLER_TYPE
                         f.attrs["controller_cfg_json"] = json.dumps(self.velocity_controller_cfg, separators=(",", ":"), sort_keys=True)
-
-
+                        f.attrs["CONTROL_FREQ"] = CONTROL_FREQ
+                        f.attrs["STATE_FREQ"] = STATE_FREQ
+                        f.attrs["VR_FREQ"] = VR_FREQ
+                        f.attrs["ROTATION_VELOCITY_LIMIT"] = ROTATION_VELOCITY_LIMIT
+                        f.attrs["TRANSLATION_VELOCITY_LIMIT"] = TRANSLATION_VELOCITY_LIMIT
+                    print('\nSaved successfully!\n')
                 break
             except Exception as e:
                 print(e)

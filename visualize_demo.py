@@ -64,10 +64,10 @@ def make_combined_video(folder, demo_number):
     root_folder = f"{os.path.expanduser('~')}/openteach/extracted_data"
     if folder is None:
         demo_path = os.path.join(root_folder, f"demonstration_{demo_number}")
-        cmds_path = os.path.join(root_folder, f"deoxys_obs_cmd_history_{demo_number}.pkl")
+        cmds_path = os.path.join(root_folder, f"deoxys_obs_cmd_history_{demo_number}.h5")
     else:
         demo_path = os.path.join(root_folder, f"{folder}/demonstration_{demo_number}")
-        cmds_path = os.path.join(root_folder, folder, f"deoxys_obs_cmd_history_{demo_number}.pkl")
+        cmds_path = os.path.join(root_folder, folder, f"deoxys_obs_cmd_history_{demo_number}.h5")
     print(demo_path)
     depth_timestamps = []
     rgb_timestamps = []
@@ -75,8 +75,13 @@ def make_combined_video(folder, demo_number):
     # freq = 15.0
 
     print('loading observations and commands ...')
-    with open(cmds_path, "rb") as f:
-        cmd_data = pkl.load(f)
+    with h5py.File(cmds_path, "r") as f:
+        cmd_data = {}
+        for key in f.keys():
+            cmd_data[key] = np.array(f[key])
+        # copy attributes from the h5 file
+        for attr in f.attrs.keys():
+            cmd_data[attr] = f.attrs[attr]
 
     # depth frames
     depth_frames = []
@@ -128,9 +133,6 @@ def make_combined_video(folder, demo_number):
         "rgb_frames": [],
         "depth_frames": [],
         "timestamp": [],
-        # "controller_type"
-        # "controller_cfg"
-        # "index"
     }
     all_cams_started_time = np.max([x[0] for x in rgb_timestamps] + [x[0] for x in depth_timestamps])
     cam_stopped = np.min([x[-1] for x in rgb_timestamps] + [x[-1] for x in depth_timestamps])
@@ -175,8 +177,6 @@ def make_combined_video(folder, demo_number):
 
     for k, v in output_data.items():
         output_data[k] = np.array(v)
-    output_data["controller_type"] = cmd_data["controller_type"]
-    output_data["controller_cfg"] = cmd_data["controller_cfg"]
     path = f"{demo_path}/demo_{demo_number}.h5"
     print(f"Saving processed data to {path}...")
     h5_keys = [
@@ -192,6 +192,11 @@ def make_combined_video(folder, demo_number):
     with h5py.File(path, "w") as h5f:
         for key in h5_keys:
             h5f.create_dataset(key, data=output_data[key])
+        # copy attrs from the cmd_data h5
+        for attr in cmd_data.keys():
+            if attr in h5_keys:
+                continue
+            h5f.attrs[attr] = cmd_data[attr]
 
     # make video
     frames_dir = f"{demo_path}/combined_frames"

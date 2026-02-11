@@ -23,7 +23,7 @@ CONFIG_ROOT = os.path.join(os.path.expanduser("~"), "openteach/configs")
 CONTROL_FREQ = 60
 STATE_FREQ = 200
 
-ROTATION_VELOCITY_LIMIT = 0.5 # 1
+ROTATION_VELOCITY_LIMIT = 0.2 # 1
 TRANSLATION_VELOCITY_LIMIT = 0.1 # 2
 
 
@@ -407,6 +407,9 @@ class FrankaArmOperator(Operator):
 
         if playback_actions is not None:
             action, gripper_cmd = playback_actions
+            action_pos, _ = transform_utils.clip_translation(action[:3], TRANSLATION_VELOCITY_LIMIT)
+            action_axis_angle = transform_utils.clip_translation(action[3:], ROTATION_VELOCITY_LIMIT)
+            action = action_pos.tolist() + action_axis_angle.tolist()
             cartesian_pose = 0.0
         else:
             cartesian_pose = np.array(cartesian_pose, dtype=np.float32)
@@ -424,7 +427,7 @@ class FrankaArmOperator(Operator):
             action_axis_angle = axis_angle_diff.flatten()
 
             action_pos, _ = transform_utils.clip_translation(action_pos, TRANSLATION_VELOCITY_LIMIT)
-            action_axis_angle = np.clip(action_axis_angle, -ROTATION_VELOCITY_LIMIT, ROTATION_VELOCITY_LIMIT)
+            action_axis_angle = transform_utils.clip_translation(action_axis_angle, ROTATION_VELOCITY_LIMIT)
             action = action_pos.tolist() + action_axis_angle.tolist()
 
         if not self.deoxys_obs_cmd_history:

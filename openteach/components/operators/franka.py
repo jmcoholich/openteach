@@ -18,7 +18,7 @@ from openteach.utils.timer import FrequencyTimer
 from openteach.utils.vectorops import *
 
 CONTROLLER_TYPE = "OSC_POSE"
-CONFIG_ROOT = '/home/ripl/openteach/configs'
+CONFIG_ROOT = os.path.join(os.path.expanduser("~"), "openteach/configs")
 
 CONTROL_FREQ = 60
 STATE_FREQ = 200

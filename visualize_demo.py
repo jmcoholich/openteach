@@ -508,7 +508,7 @@ def q_conjugate(q):
 
 
 def make_depth_videos(demo_number):
-    demo_path = f"/home/ripl/openteach/extracted_data/demonstration_{demo_number}"
+    demo_path = os.path.join(os.path.expanduser("~"), f"openteach/extracted_data/demonstration_{demo_number}")
     frames_dir = f"{demo_path}/frames"
     for j in [0, 1, 2]:
         with h5py.File(f"{demo_path}/cam_{j}_depth.h5", "r") as f:

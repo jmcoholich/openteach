@@ -11,7 +11,7 @@ xdotool key ctrl+shift+e
 sleep 0.25
 xdotool key ctrl+Tab
 sleep 0.25
-xdotool type 'ssh 172.16.0.3'
+xdotool type 'ssh ripl@172.16.0.3'
 sleep 0.25
 xdotool key Return
 sleep 2.0
@@ -22,7 +22,7 @@ sleep 0.25
 
 xdotool key ctrl+shift+o
 sleep 0.25
-xdotool type 'ssh 172.16.0.3'
+xdotool type 'ssh ripl@172.16.0.3'
 sleep 0.25
 xdotool key Return
 sleep 2.0

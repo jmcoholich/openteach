@@ -144,10 +144,14 @@ def make_combined_video(folder, demo_number):
     for i in tqdm(range(len(cmd_data['index'])), desc="Processing data..."):
         # once the robot is stopped (by releasing deadman switch), the robot state stops updating but the commands continue
         # detect this and skip these frames
+        # print()
+        # print(f"Processing frame {i}/{len(cmd_data['index'])} with timestamp {cmd_data['timestamp'][i]:.3f}...")
         if i != 0 and (cmd_data['joint_pos'][i] == cmd_data['joint_pos'][i - 1]).all():
+            # print("Robot state has stopped updating. Skipping frame...")
             continue
 
         if cmd_data['timestamp'][i] < all_cams_started_time or cmd_data['timestamp'][i] > cam_stopped:  # throws away the last frame but thats fine
+            # print(f"Frame timestamp {cmd_data['timestamp'][i]:.3f} is outside of camera recording range of {all_cams_started_time:.3f} to {cam_stopped:.3f}. Skipping frame...")
             continue
         output_data["cartesian_pose_cmd"].append(cmd_data['cartesian_pose_cmd'][i])
         output_data["arm_action"].append(cmd_data['arm_action'][i])
@@ -174,6 +178,30 @@ def make_combined_video(folder, demo_number):
             curr_depth_frames.append(depth_frames[j][idx])
         output_data["rgb_frames"].append(curr_rgb_frames)
         output_data["depth_frames"].append(curr_depth_frames)
+
+    # # Debug: save timestamp alignment plot and exit early.
+    # timestamp_plot_path = os.path.join(demo_path, f"timestamp_debug_{demo_number}.png")
+    # fig, ax = plt.subplots(figsize=(14, 7))
+    # cmd_ts = np.asarray(cmd_data["timestamp"])
+    # ax.plot(cmd_ts[:10], label="cmd_data.timestamp", linewidth=2.0, color="black")
+    # for j in range(3):
+    #     rgb_ts = rgb_timestamps[j][:10]
+    #     depth_ts = depth_timestamps[j][:10]
+    #     ax.plot(rgb_ts, label=f"cam_{j}_rgb_timestamps", linewidth=1.2, alpha=0.9, linestyle="--")
+    #     ax.plot(depth_ts, label=f"cam_{j}_depth_timestamps", linewidth=1.2, alpha=0.9, linestyle=":")
+    #     ax.scatter(len(rgb_ts) - 1, rgb_ts[-1], s=24, marker="o")
+    #     ax.scatter(len(depth_ts) - 1, depth_ts[-1], s=28, marker="x")
+    # ax.set_title(f"Timestamp Debug Plot - demo_{demo_number}")
+    # ax.set_xlabel("Frame Index")
+    # ax.set_ylabel("Timestamp")
+    # ax.grid(True, alpha=0.3)
+    # ax.legend(loc="best", fontsize=8)
+    # fig.tight_layout()
+    # fig.savefig(timestamp_plot_path, dpi=200)
+    # plt.close(fig)
+    # print(f"Saved timestamp debug plot to {timestamp_plot_path}")
+    # print("Exiting early after timestamp debug plot.")
+    # return
 
     for k, v in output_data.items():
         output_data[k] = np.array(v)

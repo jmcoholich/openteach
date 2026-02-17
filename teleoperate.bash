@@ -96,6 +96,30 @@ sleep 0.25
 xdotool key Return
 sleep 0.25
 xdotool type 'python reset_gripper.py'
+sleep 0.25
+
+# Open a pane at the top-left and run local Franka error monitoring.
+xdotool key alt+Up
+sleep 0.25
+xdotool key alt+Up
+sleep 0.25
+xdotool key alt+Up
+sleep 0.25
+xdotool key alt+Left
+sleep 0.25
+xdotool key alt+Left
+sleep 0.25
+xdotool key alt+Left
+sleep 0.25
+xdotool key ctrl+shift+o
+sleep 0.25
+xdotool type 'conda activate openteach'
+sleep 0.25
+xdotool key Return
+sleep 0.25
+xdotool type 'python ~/deoxys_control/deoxys/auto_scripts/read_franka_errors.py'
+sleep 0.25
+xdotool key Return
 
 
 

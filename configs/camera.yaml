@@ -17,7 +17,7 @@ cam_configs:  # if the width and height are changed, they also need to be change
   rotation_angle: 0
   depth: True
 
-oculus_cam: 0 # First camera
+oculus_cam: 99 # This applies compression, so don't specify oculus_cam as a cam we need for observations.
 num_cams: 3
 
 hydra:

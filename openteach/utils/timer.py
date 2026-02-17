@@ -1,10 +1,13 @@
-import base64
 import pickle
+import struct
 import time
 
 import cv2
 import numpy as np
 import zmq
+
+RGB_HEADER_FORMAT = '!dIIIB'
+RGB_DTYPE_UINT8 = 1
 
 
 class FrequencyTimer(object):
@@ -32,7 +35,8 @@ class SocketChecker(object):
     def _init_connection(self, host, port):
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.SUB)
-        self.socket.setsockopt(zmq.CONFLATE, 1)
+        if self.data_type == 'FloatArray':
+            self.socket.setsockopt(zmq.CONFLATE, 1)
         self.socket.setsockopt(zmq.SUBSCRIBE, bytes(self.topic_name, 'utf-8'))
         self.socket.connect('tcp://{}:{}'.format(host, port))
 
@@ -50,16 +54,33 @@ class SocketChecker(object):
         print(pickle.loads(processed_data))
 
     def _decode_rgb_image(self):
-        frame = self.data.lstrip(b"rgb_image ")
-        encoded_data = np.fromstring(base64.b64decode(frame), np.uint8)
-        image = cv2.imdecode(encoded_data, 1)
-        cv2.imshow(image)
+        if not (isinstance(self.data, list) and len(self.data) == 3 and self.data[0] == b"rgb_image"):
+            raise ValueError('Unexpected rgb_image message format.')
+
+        _, height, width, channels, dtype_code = struct.unpack(RGB_HEADER_FORMAT, self.data[1])
+        if dtype_code != RGB_DTYPE_UINT8:
+            raise ValueError('Unsupported rgb_image dtype code: {}'.format(dtype_code))
+
+        frame = np.frombuffer(self.data[2], dtype = np.uint8)
+        expected_values = height * width * channels
+        if frame.size != expected_values:
+            raise ValueError(
+                'Invalid rgb_image payload size: expected {}, got {}.'.format(expected_values, frame.size)
+            )
+        if channels == 1:
+            image = frame.reshape((height, width))
+        else:
+            image = frame.reshape((height, width, channels))
+        cv2.imshow('rgb_image', image)
         cv2.waitKey(1)
 
     def check_connection(self):
         self._reinit_counter()
         while True:
-            self.data = self.socket.recv()
+            if self.data_type == 'FloatArray':
+                self.data = self.socket.recv()
+            else:
+                self.data = self.socket.recv_multipart()
             if self.data is not None and self.data is not self.previous_data:
                 # To see the data - usually reduces the actual frequency. Use it to just see the stream
                 if self.print_data:

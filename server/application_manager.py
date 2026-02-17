@@ -1,8 +1,11 @@
-import base64
-import pickle
+import struct
 
+import cv2
 import numpy as np
 import zmq
+
+RGB_HEADER_FORMAT = '!dIIIB'
+RGB_DTYPE_UINT8 = 1
 
 
 class VideoStreamer(object):
@@ -12,15 +15,31 @@ class VideoStreamer(object):
     def _init_socket(self, host, port):
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.SUB)
-        self.socket.setsockopt(zmq.CONFLATE, 1)
+        # ZMQ_CONFLATE is not safe with multipart messages.
         self.socket.connect('tcp://{}:{}'.format(host, port))
         self.socket.setsockopt(zmq.SUBSCRIBE, b"rgb_image")
 
     def _get_image(self):
-        raw_data = self.socket.recv()
-        data = raw_data.lstrip(b"rgb_image ")
-        data = pickle.loads(data)
-        encoded_data = np.fromstring(base64.b64decode(data['rgb_image']), np.uint8)
+        parts = self.socket.recv_multipart()
+
+        if not (len(parts) == 3 and parts[0] == b"rgb_image"):
+            raise ValueError('Unexpected rgb_image message format.')
+
+        _, height, width, channels, dtype_code = struct.unpack(RGB_HEADER_FORMAT, parts[1])
+        if dtype_code != RGB_DTYPE_UINT8:
+            raise ValueError('Unsupported rgb_image dtype code: {}'.format(dtype_code))
+
+        frame = np.frombuffer(parts[2], dtype = np.uint8)
+        expected_values = height * width * channels
+        if frame.size != expected_values:
+            raise ValueError(
+                'Invalid rgb_image payload size: expected {}, got {}.'.format(expected_values, frame.size)
+            )
+        if channels == 1:
+            image = frame.reshape((height, width))
+        else:
+            image = frame.reshape((height, width, channels))
+        _, encoded_data = cv2.imencode('.jpg', image, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
         return encoded_data.tobytes()
 
     def yield_frames(self):

@@ -1,11 +1,14 @@
-import base64
 import pickle
+import struct
 import threading
 
 import blosc as bl
 import cv2
 import numpy as np
 import zmq
+
+RGB_HEADER_FORMAT = '!dIIIB'
+RGB_DTYPE_UINT8 = 1
 
 
 # ZMQ Sockets
@@ -107,12 +110,22 @@ class ZMQCameraPublisher(object):
         self.socket.send(b"intrinsics " + pickle.dumps(array, protocol = -1))
 
     def pub_rgb_image(self, rgb_image, timestamp):
-        _, buffer = cv2.imencode('.jpg', rgb_image, [int(cv2.IMWRITE_JPEG_QUALITY), 70])
-        data = dict(
-            timestamp = timestamp,
-            rgb_image = base64.b64encode(buffer)
+        # Send raw bytes (no JPEG/base64 compression) as multipart:
+        # [topic, header(timestamp,height,width,channels,dtype_code), image-bytes]
+        image = np.ascontiguousarray(rgb_image)
+        if image.dtype != np.uint8:
+            raise TypeError('pub_rgb_image expects np.uint8 input.')
+
+        channels = image.shape[2] if image.ndim == 3 else 1
+        header = struct.pack(
+            RGB_HEADER_FORMAT,
+            float(timestamp),
+            image.shape[0],
+            image.shape[1],
+            channels,
+            RGB_DTYPE_UINT8
         )
-        self.socket.send(b"rgb_image " + pickle.dumps(data, protocol = -1))
+        self.socket.send_multipart([b"rgb_image", header, memoryview(image)], copy = False)
 
     def pub_depth_image(self, depth_image, timestamp):
         compressed_depth = bl.pack_array(depth_image, cname = 'zstd', clevel = 1, shuffle = bl.NOSHUFFLE)
@@ -135,15 +148,17 @@ class ZMQCameraSubscriber(threading.Thread):
     def _init_subscriber(self):
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.SUB)
-        self.socket.setsockopt(zmq.CONFLATE, 1)
         print('tcp://{}:{}'.format(self._host, self._port))
         self.socket.connect('tcp://{}:{}'.format(self._host, self._port))
 
         if self._topic_type == 'Intrinsics':
+            self.socket.setsockopt(zmq.CONFLATE, 1)
             self.socket.setsockopt(zmq.SUBSCRIBE, b"intrinsics")
         elif self._topic_type == 'RGB':
+            # ZMQ_CONFLATE is not safe with multipart messages.
             self.socket.setsockopt(zmq.SUBSCRIBE, b"rgb_image")
         elif self._topic_type == 'Depth':
+            self.socket.setsockopt(zmq.CONFLATE, 1)
             self.socket.setsockopt(zmq.SUBSCRIBE, b"depth_image")
 
     def recv_intrinsics(self):
@@ -152,11 +167,26 @@ class ZMQCameraSubscriber(threading.Thread):
         return pickle.loads(raw_array)
 
     def recv_rgb_image(self):
-        raw_data = self.socket.recv()
-        data = raw_data.lstrip(b"rgb_image ")
-        data = pickle.loads(data)
-        encoded_data = np.fromstring(base64.b64decode(data['rgb_image']), np.uint8)
-        return cv2.imdecode(encoded_data, 1), data['timestamp']
+        parts = self.socket.recv_multipart()
+
+        if len(parts) == 3 and parts[0] == b"rgb_image":
+            timestamp, height, width, channels, dtype_code = struct.unpack(RGB_HEADER_FORMAT, parts[1])
+            if dtype_code != RGB_DTYPE_UINT8:
+                raise ValueError('Unsupported rgb_image dtype code: {}'.format(dtype_code))
+
+            frame = np.frombuffer(parts[2], dtype = np.uint8)
+            expected_values = height * width * channels
+            if frame.size != expected_values:
+                raise ValueError(
+                    'Invalid rgb_image payload size: expected {}, got {}.'.format(expected_values, frame.size)
+                )
+            if channels == 1:
+                frame = frame.reshape((height, width))
+            else:
+                frame = frame.reshape((height, width, channels))
+            return frame.copy(), timestamp
+
+        raise ValueError('Unexpected rgb_image message format.')
 
     def recv_depth_image(self):
         raw_data = self.socket.recv()

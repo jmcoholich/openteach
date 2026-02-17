@@ -35,8 +35,8 @@ def check_nuc_hash_and_diff():
     s = time.time()
     with open(os.path.join(CONFIG_ROOT, "deoxys.yml"), "r") as f:
         deoxys_cfg = EasyDict(yaml.safe_load(f))
-    expected_hash = "4bd887de486fde9203182daf8b888761ddf684dc"
-    repo_path = "/home/ripl/deoxys_control"
+    expected_hash = "99e2526ed37fa9be5732750ebcc8f162892b49a6"
+    repo_path = "/home/ripl/deoxys_control"  # path on the NUC
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     try:
@@ -105,7 +105,7 @@ def replay_from_h5(args):
             raise NotImplementedError("Only` OSC_POSE controller is supported in playback.")
 
     demo_number = os.path.basename(filename).split(".")[0][5:]
-    recording_name = demo_number + "_playback"
+    recording_name = demo_number + "_playback2"
     if args.reverse:
         if not controller_cfg["is_delta"]:
             raise NotImplementedError

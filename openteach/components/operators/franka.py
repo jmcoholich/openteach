@@ -429,7 +429,7 @@ class FrankaArmOperator(Operator):
             action_axis_angle = axis_angle_diff.flatten()
 
             action_pos, _ = transform_utils.clip_translation(action_pos, TRANSLATION_VELOCITY_LIMIT)
-            action_axis_angle = transform_utils.clip_translation(action_axis_angle, ROTATION_VELOCITY_LIMIT)
+            action_axis_angle, _ = transform_utils.clip_translation(action_axis_angle, ROTATION_VELOCITY_LIMIT)
             action = action_pos.tolist() + action_axis_angle.tolist()
 
         if not self.deoxys_obs_cmd_history:

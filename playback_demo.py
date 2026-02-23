@@ -29,13 +29,14 @@ from openteach.constants import VR_FREQ
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--reverse", action="store_true", help="Reverse the demonstration playback.")
+parser.add_argument("--demo_num", type=str, help="The demo number to replay.")
 
 def check_nuc_hash_and_diff():
     """This is to ensure there are no changes on the NUC that would affect playback."""
     s = time.time()
     with open(os.path.join(CONFIG_ROOT, "deoxys.yml"), "r") as f:
         deoxys_cfg = EasyDict(yaml.safe_load(f))
-    expected_hash = "99e2526ed37fa9be5732750ebcc8f162892b49a6"
+    expected_hash = "ad7eaee1ce5b033602906e9891ef124eb2eb30f9"
     repo_path = "/home/ripl/deoxys_control"  # path on the NUC
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -74,7 +75,14 @@ def check_nuc_hash_and_diff():
 
 
 def replay_from_h5(args):
-    filename = "/home/jeremiah/openteach/extracted_data/demonstration_test3/demo_test3.h5"
+    filename = f"/home/jeremiah/openteach/extracted_data/demonstration_{args.demo_num}/demo_{args.demo_num}.h5"
+
+    print()
+    print("=" * 50)
+    print(f"Replaying demonstration from {filename}...")
+    print(f"Recording name will be demonstration_{args.demo_num}_playback{'_reversed' if args.reverse else ''}.")
+    print("=" * 50)
+    print()
 
     # load network config
     with open(os.path.join(CONFIG_ROOT, "network.yaml"), "r") as f:
@@ -105,7 +113,7 @@ def replay_from_h5(args):
             raise NotImplementedError("Only` OSC_POSE controller is supported in playback.")
 
     demo_number = os.path.basename(filename).split(".")[0][5:]
-    recording_name = demo_number + "_playback2"
+    recording_name = demo_number + "_playback"
     if args.reverse:
         if not controller_cfg["is_delta"]:
             raise NotImplementedError

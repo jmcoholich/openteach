@@ -33,10 +33,10 @@ DEBUG = False
 def main():
     parser = argparse.ArgumentParser()
     # add mutually exclusive args "demo_number" and "demo_folder"
-    parser.add_argument("--demo_number", type=str, help="The number of the demonstration to process and visualize")
+    parser.add_argument("--demo_num", type=str, help="The number of the demonstration to process and visualize")
     args = parser.parse_args()
 
-    make_replay_video(args.demo_number)
+    make_replay_video(args.demo_num)
 
 
 def load_data(h5_path):
@@ -58,9 +58,17 @@ def make_replay_video(demo_number):
 
     orig_data = load_data(orig_path)
     replay_data = load_data(replay_path)
-    if not replay_data['arm_action'].shape == orig_data['arm_action'].shape:
-        raise ValueError("Replay data and original data have different number of timesteps.")
-    num_frames = replay_data['arm_action'].shape[0]
+
+    replay_num_frames = replay_data["arm_action"].shape[0]
+    orig_num_frames = orig_data["arm_action"].shape[0]
+    num_frames = min(replay_num_frames, orig_num_frames)
+    if replay_num_frames != orig_num_frames:
+        print(
+            f"\nWarning: replay has {replay_num_frames} timesteps, original has {orig_num_frames}. "
+            f"Using {num_frames} frames."
+        )
+    truncate_all(orig_data, num_frames)
+    truncate_all(replay_data, num_frames)
 
     # clear and recreate frames dir
     frames_dir = os.path.join(root_folder, f"demonstration_{demo_number}_playback/playback_comparision_frames")
@@ -124,6 +132,13 @@ def make_replay_video(demo_number):
 
     # compile video
     compile_video(f"demo_{demo_number}_replay_orig_comparison", frames_dir, os.path.join(root_folder, f"demonstration_{demo_number}_playback"))
+
+def truncate_all(data_dict, num_frames):
+    for key in data_dict.keys():
+        if isinstance(data_dict[key], np.ndarray) and data_dict[key].shape[0] == num_frames:
+            continue
+        elif isinstance(data_dict[key], np.ndarray) and data_dict[key].shape[0] > num_frames:
+            data_dict[key] = data_dict[key][:num_frames]
 
 
 def make_replay_vis_frame(rgb_frames, replay_rgb_frames, joint_state_plot, i, frames_dir):

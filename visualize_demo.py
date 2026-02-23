@@ -137,9 +137,12 @@ def make_combined_video(folder, demo_number):
     all_cams_started_time = np.max([x[0] for x in rgb_timestamps] + [x[0] for x in depth_timestamps])
     cam_stopped = np.min([x[-1] for x in rgb_timestamps] + [x[-1] for x in depth_timestamps])
     x = rgb_timestamps[0]
-    print((x[1:] - x[:-1]).max())
-    print((x[1:] - x[:-1]).min())
-    print((x[1:] - x[:-1]).mean())
+    dt = np.diff(x)
+    print(
+        f"cam_0 rgb dt stats (s): "
+        f"count={dt.size}, min={dt.min():.6f}, median={np.median(dt):.6f}, "
+        f"mean={dt.mean():.6f}, max={dt.max():.6f}"
+    )
 #    breakpoint()
     for i in tqdm(range(len(cmd_data['index'])), desc="Processing data..."):
         # once the robot is stopped (by releasing deadman switch), the robot state stops updating but the commands continue

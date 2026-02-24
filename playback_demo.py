@@ -106,8 +106,8 @@ def replay_from_h5(args):
             raise ValueError("Playback rotation velocity limit does not match recorded rotation velocity limit.")
         if h5f.attrs["TRANSLATION_VELOCITY_LIMIT"] > TRANSLATION_VELOCITY_LIMIT:
             raise ValueError("Playback translation velocity limit does not match recorded translation velocity limit.")
-    assert CONTROL_FREQ == h5f.attrs["VR_FREQ"]
-    assert STATE_FREQ > CONTROL_FREQ
+        assert CONTROL_FREQ == h5f.attrs["VR_FREQ"]
+        assert STATE_FREQ > CONTROL_FREQ
 
     demo_number = os.path.basename(filename).split(".")[0][5:]
     recording_name = demo_number + "_playback"

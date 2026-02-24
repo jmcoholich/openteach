@@ -406,11 +406,11 @@ class FrankaArmOperator(Operator):
 
         if playback_actions is not None:
             action, gripper_cmd = playback_actions
-            if isinstance(action, list):
-                action = np.array(action)
-            action_pos, _ = transform_utils.clip_translation(action[:3], TRANSLATION_VELOCITY_LIMIT)
-            action_axis_angle, _ = transform_utils.clip_translation(action[3:], ROTATION_VELOCITY_LIMIT)
-            action = action_pos.tolist() + action_axis_angle.tolist()
+            # if isinstance(action, list):
+            #     action = np.array(action)
+            # action_pos, _ = transform_utils.clip_translation(action[:3], TRANSLATION_VELOCITY_LIMIT)
+            # action_axis_angle, _ = transform_utils.clip_translation(action[3:], ROTATION_VELOCITY_LIMIT)
+            # action = action_pos.tolist() + action_axis_angle.tolist()
             cartesian_pose = 0.0
         else:
             cartesian_pose = np.array(cartesian_pose, dtype=np.float32)

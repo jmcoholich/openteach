@@ -34,9 +34,10 @@ def main():
     parser = argparse.ArgumentParser()
     # add mutually exclusive args "demo_number" and "demo_folder"
     parser.add_argument("--demo_num", type=str, help="The number of the demonstration to process and visualize")
+    parser.add_argument("--reversed", action="store_true", help="Whether to visualize the reversed demonstration or not.")
     args = parser.parse_args()
 
-    make_replay_video(args.demo_num)
+    make_replay_video(args)
 
 
 def load_data(h5_path):
@@ -50,11 +51,14 @@ def load_data(h5_path):
     return return_data
 
 
-def make_replay_video(demo_number):
+def make_replay_video(args):
     root_folder = f"{os.path.expanduser('~')}/openteach/extracted_data"
 
-    orig_path = os.path.join(root_folder, f"demonstration_{demo_number}/demo_{demo_number}.h5")
-    replay_path = os.path.join(root_folder, f"demonstration_{demo_number}_playback/demo_{demo_number}_playback.h5")
+    orig_path = os.path.join(root_folder, f"demonstration_{args.demo_num}/demo_{args.demo_num}.h5")
+    if args.reversed:
+        replay_path = os.path.join(root_folder, f"demonstration_{args.demo_num}_playback_reversed/demo_{args.demo_num}_playback_reversed.h5")
+    else:
+        replay_path = os.path.join(root_folder, f"demonstration_{args.demo_num}_playback/demo_{args.demo_num}_playback.h5")
 
     orig_data = load_data(orig_path)
     replay_data = load_data(replay_path)
@@ -67,11 +71,14 @@ def make_replay_video(demo_number):
             f"\nWarning: replay has {replay_num_frames} timesteps, original has {orig_num_frames}. "
             f"Using {num_frames} frames."
         )
-    truncate_all(orig_data, num_frames)
+    truncate_all(orig_data, num_frames, reverse=args.reversed)
     truncate_all(replay_data, num_frames)
 
     # clear and recreate frames dir
-    frames_dir = os.path.join(root_folder, f"demonstration_{demo_number}_playback/playback_comparision_frames")
+    if args.reversed:
+        frames_dir = os.path.join(root_folder, f"demonstration_{args.demo_num}_playback_reversed/playback_comparision_frames")
+    else:
+        frames_dir = os.path.join(root_folder, f"demonstration_{args.demo_num}_playback/playback_comparision_frames")
     if not os.path.exists(frames_dir):
         os.makedirs(frames_dir)
     else:
@@ -124,6 +131,7 @@ def make_replay_video(demo_number):
                 joint_state_plots[i],
                 i,
                 frames_dir,
+                args.reversed,
                 ))
 
         for future in as_completed(futures):
@@ -131,17 +139,27 @@ def make_replay_video(demo_number):
             progress_bar.update(1)
 
     # compile video
-    compile_video(f"demo_{demo_number}_replay_orig_comparison", frames_dir, os.path.join(root_folder, f"demonstration_{demo_number}_playback"))
+    if args.reversed:
+        vid_name = f"demo_{args.demo_num}_replay_comparison_reversed"
+        dirname = f"demonstration_{args.demo_num}_playback_reversed"
+    else:
+        vid_name = f"demo_{args.demo_num}_replay_comparison"
+        dirname = f"demonstration_{args.demo_num}_playback"
+    compile_video(vid_name, frames_dir, os.path.join(root_folder, dirname))
 
-def truncate_all(data_dict, num_frames):
+def truncate_all(data_dict, num_frames, reverse=False):
+    data_keys = [
+        'arm_action', 'eef_pos', 'eef_pose', 'eef_quat', 'gripper_action', 'gripper_state', 'joint_pos', 'rgb_frames', 'cartesian_pose_cmd', 'index', 'timestamp'
+    ]
     for key in data_dict.keys():
-        if isinstance(data_dict[key], np.ndarray) and data_dict[key].shape[0] == num_frames:
+        if key not in data_keys:
             continue
-        elif isinstance(data_dict[key], np.ndarray) and data_dict[key].shape[0] > num_frames:
-            data_dict[key] = data_dict[key][:num_frames]
+        data_dict[key] = data_dict[key][:num_frames]
+        if reverse:
+            data_dict[key] = data_dict[key][::-1]
 
 
-def make_replay_vis_frame(rgb_frames, replay_rgb_frames, joint_state_plot, i, frames_dir):
+def make_replay_vis_frame(rgb_frames, replay_rgb_frames, joint_state_plot, i, frames_dir, is_reversed=False):
     # get shape of rgb frames
     h, w, _ = rgb_frames[0].shape
     # create a new frame
@@ -161,6 +179,10 @@ def make_replay_vis_frame(rgb_frames, replay_rgb_frames, joint_state_plot, i, fr
     # add row labels (once per row)
     cv2.putText(frame, "original", (12, 32), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
     cv2.putText(frame, "replay", (12, h + 32), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+
+    if is_reversed and ((i // 10) % 2 == 0):
+        cv2.putText(frame, "Video Reversed", (190, 32), cv2.FONT_HERSHEY_SIMPLEX, 1, (60, 60, 255), 2, cv2.LINE_AA)
+        cv2.putText(frame, "Actions Reversed", (170, h + 32), cv2.FONT_HERSHEY_SIMPLEX, 1, (60, 60, 255), 2, cv2.LINE_AA)
 
     joint_state_plot = np.pad(
     joint_state_plot,

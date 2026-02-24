@@ -78,7 +78,7 @@ def make_replay_video(args):
 
     # clear and recreate frames dir
     if args.reversed:
-        frames_dir = os.path.join(root_folder, f"demonstration_{args.demo_num}_playback_reversed_{suffix}/playback_comparision_frames")
+        frames_dir = os.path.join(root_folder, f"demonstration_{args.demo_num}_playback_reversed{suffix}/playback_comparision_frames")
     else:
         frames_dir = os.path.join(root_folder, f"demonstration_{args.demo_num}_playback{suffix}/playback_comparision_frames")
     if not os.path.exists(frames_dir):

@@ -35,6 +35,7 @@ def main():
     # add mutually exclusive args "demo_number" and "demo_folder"
     parser.add_argument("--demo_num", type=str, help="The number of the demonstration to process and visualize")
     parser.add_argument("--reversed", action="store_true", help="Whether to visualize the reversed demonstration or not.")
+    parser.add_argument("--suffix",  type=str, help="Suffix to the replay files")
     args = parser.parse_args()
 
     make_replay_video(args)
@@ -55,10 +56,11 @@ def make_replay_video(args):
     root_folder = f"{os.path.expanduser('~')}/openteach/extracted_data"
 
     orig_path = os.path.join(root_folder, f"demonstration_{args.demo_num}/demo_{args.demo_num}.h5")
+    suffix = f"_{args.suffix}" if args.suffix else ""
     if args.reversed:
-        replay_path = os.path.join(root_folder, f"demonstration_{args.demo_num}_playback_reversed/demo_{args.demo_num}_playback_reversed.h5")
+        replay_path = os.path.join(root_folder, f"demonstration_{args.demo_num}_playback_reversed{suffix}/demo_{args.demo_num}_playback_reversed{suffix}.h5")
     else:
-        replay_path = os.path.join(root_folder, f"demonstration_{args.demo_num}_playback/demo_{args.demo_num}_playback.h5")
+        replay_path = os.path.join(root_folder, f"demonstration_{args.demo_num}_playback{suffix}/demo_{args.demo_num}_playback{suffix}.h5")
 
     orig_data = load_data(orig_path)
     replay_data = load_data(replay_path)
@@ -76,9 +78,9 @@ def make_replay_video(args):
 
     # clear and recreate frames dir
     if args.reversed:
-        frames_dir = os.path.join(root_folder, f"demonstration_{args.demo_num}_playback_reversed/playback_comparision_frames")
+        frames_dir = os.path.join(root_folder, f"demonstration_{args.demo_num}_playback_reversed_{suffix}/playback_comparision_frames")
     else:
-        frames_dir = os.path.join(root_folder, f"demonstration_{args.demo_num}_playback/playback_comparision_frames")
+        frames_dir = os.path.join(root_folder, f"demonstration_{args.demo_num}_playback{suffix}/playback_comparision_frames")
     if not os.path.exists(frames_dir):
         os.makedirs(frames_dir)
     else:
@@ -140,11 +142,11 @@ def make_replay_video(args):
 
     # compile video
     if args.reversed:
-        vid_name = f"demo_{args.demo_num}_replay_comparison_reversed"
-        dirname = f"demonstration_{args.demo_num}_playback_reversed"
+        vid_name = f"demo_{args.demo_num}_replay_comparison_reversed{suffix}"
+        dirname = f"demonstration_{args.demo_num}_playback_reversed{suffix}"
     else:
-        vid_name = f"demo_{args.demo_num}_replay_comparison"
-        dirname = f"demonstration_{args.demo_num}_playback"
+        vid_name = f"demo_{args.demo_num}_replay_comparison{suffix}"
+        dirname = f"demonstration_{args.demo_num}_playback{suffix}"
     compile_video(vid_name, frames_dir, os.path.join(root_folder, dirname))
 
 def truncate_all(data_dict, num_frames, reverse=False):

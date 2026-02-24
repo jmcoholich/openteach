@@ -14,7 +14,7 @@ import time
 import h5py
 import paramiko
 import yaml
-from deoxys.experimental.motion_utils import reset_joints_to
+from deoxys.experimental.motion_utils import follow_joint_traj, reset_joints_to
 from easydict import EasyDict
 
 from openteach.components.operators.franka import (
@@ -30,6 +30,8 @@ from openteach.constants import VR_FREQ
 parser = argparse.ArgumentParser()
 parser.add_argument("--reverse", action="store_true", help="Reverse the demonstration playback.")
 parser.add_argument("--demo_num", type=str, help="The demo number to replay.")
+parser.add_argument("--suffix", type=str, help="Additional suffix after \"playback\".")
+parser.add_argument("--joint_control", action="store_true", help="Use joint control instead of pose control.")
 
 def check_nuc_hash_and_diff():
     """This is to ensure there are no changes on the NUC that would affect playback."""
@@ -80,13 +82,15 @@ def replay_from_h5(args):
     print()
     print("=" * 50)
     print(f"Replaying demonstration from {filename}...")
-    print(f"Recording name will be demonstration_{args.demo_num}_playback{'_reversed' if args.reverse else ''}.")
     print("=" * 50)
     print()
 
     # load network config
     with open(os.path.join(CONFIG_ROOT, "network.yaml"), "r") as f:
         network_cfg = EasyDict(yaml.safe_load(f))
+
+    with open(os.path.join(CONFIG_ROOT, "joint-pos-controller-impedance.yml"), "r") as f:
+        joint_controller_cfg = EasyDict(yaml.safe_load(f))
 
     check_nuc_hash_and_diff()
 
@@ -98,19 +102,12 @@ def replay_from_h5(args):
         controller_cfg_json = h5f.attrs["controller_cfg_json"]
         controller_cfg = EasyDict(yaml.safe_load(controller_cfg_json))
 
-        # make sure all global settings` are the same
-        if h5f.attrs["CONTROL_FREQ"] != CONTROL_FREQ:
-            raise ValueError("Playback control frequency does not match recorded control frequency.")
-        if h5f.attrs["STATE_FREQ"] != STATE_FREQ:
-            raise ValueError("Playback state frequency does not match recorded state frequency.")
-        if h5f.attrs["ROTATION_VELOCITY_LIMIT"] != ROTATION_VELOCITY_LIMIT:
+        if h5f.attrs["ROTATION_VELOCITY_LIMIT"] > ROTATION_VELOCITY_LIMIT:
             raise ValueError("Playback rotation velocity limit does not match recorded rotation velocity limit.")
-        if h5f.attrs["TRANSLATION_VELOCITY_LIMIT"] != TRANSLATION_VELOCITY_LIMIT:
+        if h5f.attrs["TRANSLATION_VELOCITY_LIMIT"] > TRANSLATION_VELOCITY_LIMIT:
             raise ValueError("Playback translation velocity limit does not match recorded translation velocity limit.")
-        if h5f.attrs["VR_FREQ"] != VR_FREQ:
-            raise ValueError("Playback VR frequency does not match recorded VR frequency.")
-        if not controller_type == "OSC_POSE":
-            raise NotImplementedError("Only` OSC_POSE controller is supported in playback.")
+    assert CONTROL_FREQ == h5f.attrs["VR_FREQ"]
+    assert STATE_FREQ > CONTROL_FREQ
 
     demo_number = os.path.basename(filename).split(".")[0][5:]
     recording_name = demo_number + "_playback"
@@ -121,7 +118,10 @@ def replay_from_h5(args):
         arm_action = -arm_action[::-1]
         gripper_action = gripper_action[::-1]
         joint_pos = joint_pos[::-1]
+    if args.suffix:
+        recording_name += f"_{args.suffix}"
 
+    print(f"Recording playback as {recording_name}...\n")
     operator = FrankaArmOperator(
         network_cfg["host_address"],
         None,
@@ -133,15 +133,24 @@ def replay_from_h5(args):
         record=recording_name,
     )
 
-    operator.velocity_controller_cfg = controller_cfg
+    if args.joint_control:
+        operator.velocity_controller_cfg  = joint_controller_cfg
+        offset = 2
+        actions = joint_pos
+    else:
+        operator.velocity_controller_cfg = controller_cfg
+        offset = 0
+        actions = arm_action
     # move robot to start position
-    reset_joints_to(operator.robot_interface, joint_pos[0])
-    for i in range(0, len(arm_action)):
-        operator.timer.start_loop()
-        playback_actions = (arm_action[i], gripper_action[i])
-        operator.arm_control(None, None, playback_actions=playback_actions)
-        operator.timer.end_loop()
-    operator.save_obs_cmd_history()
+    try:
+        reset_joints_to(operator.robot_interface, joint_pos[0])
+        for i in range(0, len(arm_action) - offset):
+            playback_actions = (actions[i + offset], gripper_action[i])
+            operator.arm_control(None, None, playback_actions=playback_actions)
+    except KeyboardInterrupt:
+        print("KeyboardInterrupt detected. Saving playback history so far...")
+    finally:
+        operator.save_obs_cmd_history()
 
 
 if __name__ == "__main__":

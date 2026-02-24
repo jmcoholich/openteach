@@ -17,14 +17,13 @@ from openteach.utils.network import ZMQKeypointSubscriber
 from openteach.utils.timer import FrequencyTimer
 from openteach.utils.vectorops import *
 
-CONTROLLER_TYPE = "OSC_POSE"
 CONFIG_ROOT = os.path.join(os.path.expanduser("~"), "openteach/configs")
 
-CONTROL_FREQ = 60
-STATE_FREQ = 200
+CONTROL_FREQ = 20
+STATE_FREQ = 60
 
-ROTATION_VELOCITY_LIMIT = 0.5 # 1
-TRANSLATION_VELOCITY_LIMIT = 0.1 # 2
+ROTATION_VELOCITY_LIMIT = 0.2
+TRANSLATION_VELOCITY_LIMIT = 0.1
 
 
 def get_velocity_controller_config(config_root):
@@ -458,7 +457,7 @@ class FrankaArmOperator(Operator):
             self.deoxys_obs_cmd_history['index'].append(len(self.deoxys_obs_cmd_history['index']))
 
         self.robot_interface.control(
-            controller_type=CONTROLLER_TYPE,
+            controller_type=self.velocity_controller_cfg.controller_type,
             action=action,
             controller_cfg=self.velocity_controller_cfg,
         )
@@ -501,7 +500,7 @@ class FrankaArmOperator(Operator):
         with h5py.File(path, 'w') as f:
             for key, value in self.deoxys_obs_cmd_history.items():
                 f.create_dataset(key, data=np.array(value))
-            f.attrs["controller_type"] = CONTROLLER_TYPE
+            f.attrs["controller_type"] = self.velocity_controller_cfg.controller_type
             f.attrs["controller_cfg_json"] = json.dumps(self.velocity_controller_cfg, separators=(",", ":"), sort_keys=True)
             f.attrs["CONTROL_FREQ"] = CONTROL_FREQ
             f.attrs["STATE_FREQ"] = STATE_FREQ

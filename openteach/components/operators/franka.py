@@ -23,7 +23,7 @@ CONFIG_ROOT = os.path.join(os.path.expanduser("~"), "openteach/configs")
 CONTROL_FREQ = 60
 STATE_FREQ = 200
 
-ROTATION_VELOCITY_LIMIT = 0.2 # 1
+ROTATION_VELOCITY_LIMIT = 0.5 # 1
 TRANSLATION_VELOCITY_LIMIT = 0.1 # 2
 
 
@@ -43,7 +43,7 @@ def get_position_controller_config(config_root):
 
     return controller_cfg
 
-np.set_printoptions(precision=2, suppress=True)
+np.set_printoptions(precision=5, suppress=True)
 # Filter to smooth out the arm cartesian state
 class Filter:
     def __init__(self, state, comp_ratio=0.6):

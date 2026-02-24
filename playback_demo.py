@@ -135,7 +135,7 @@ def replay_from_h5(args):
 
     if args.joint_control:
         operator.velocity_controller_cfg  = joint_controller_cfg
-        offset = 2
+        offset = 3
         actions = joint_pos
     else:
         operator.velocity_controller_cfg = controller_cfg

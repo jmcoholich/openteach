@@ -75,6 +75,14 @@ def make_combined_video(folder, demo_number):
     # freq = 15.0
 
     print('loading observations and commands ...')
+    try:
+        current_commit = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=os.path.dirname(os.path.abspath(__file__)),
+            text=True,
+        ).strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        current_commit = "unknown"
     with h5py.File(cmds_path, "r") as f:
         cmd_data = {}
         for key in f.keys():
@@ -82,6 +90,7 @@ def make_combined_video(folder, demo_number):
         # copy attributes from the h5 file
         for attr in f.attrs.keys():
             cmd_data[attr] = f.attrs[attr]
+    cmd_data["openteach current commit"] = current_commit
 
     # depth frames
     depth_frames = []

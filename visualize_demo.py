@@ -46,10 +46,9 @@ def main():
         if not os.path.exists(data_root):
             raise FileNotFoundError(f"Folder {data_root} does not exist. Please check the folder name and try again.")
         for file in os.listdir(data_root):
-            if file.endswith((".pkl", ".h5")):
+            if not file.startswith("demonstration_") or not os.path.isdir(os.path.join(data_root, file)):
+                print(f"Skipping {file} as it does not match the expected demo folder format.")
                 continue
-            # demo_number = file.split("_")[-1].split(".")[0]
-            assert file.startswith("demonstration_")
             demo_number = file[14:]
             if os.path.exists(os.path.join(data_root, file, f"demo_{demo_number}.h5")):
                 print(f"Demo {demo_number} already processed. Skipping...")

@@ -31,7 +31,9 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--reverse", action="store_true", help="Reverse the demonstration playback.")
 parser.add_argument("--demo_num", type=str, help="The demo number to replay.")
 parser.add_argument("--suffix", type=str, help="Additional suffix after \"playback\".")
-parser.add_argument("--joint_control", action="store_true", help="Use joint control instead of pose control.")
+control_type_parser = parser.add_mutually_exclusive_group()
+control_type_parser.add_argument("--joint_control", action="store_true", help="Use joint control instead of pose control.")
+control_type_parser.add_argument("--cartesian_control", action="store_true", help="Use cartesian pose instead.")
 
 def check_nuc_hash_and_diff():
     """This is to ensure there are no changes on the NUC that would affect playback."""
@@ -101,6 +103,7 @@ def replay_from_h5(args):
         controller_type = h5f.attrs["controller_type"]
         controller_cfg_json = h5f.attrs["controller_cfg_json"]
         controller_cfg = EasyDict(yaml.safe_load(controller_cfg_json))
+        cartesian_pose_cmd = h5f["cartesian_pose_cmd"][:]
 
         if h5f.attrs["ROTATION_VELOCITY_LIMIT"] > ROTATION_VELOCITY_LIMIT:
             raise ValueError("Playback rotation velocity limit does not match recorded rotation velocity limit.")
@@ -118,6 +121,7 @@ def replay_from_h5(args):
         arm_action = -arm_action[::-1]
         gripper_action = gripper_action[::-1]
         joint_pos = joint_pos[::-1]
+        cartesian_pose_cmd = cartesian_pose_cmd[::-1]
     if args.suffix:
         recording_name += f"_{args.suffix}"
 
@@ -137,6 +141,10 @@ def replay_from_h5(args):
         operator.velocity_controller_cfg  = joint_controller_cfg
         offset = 3
         actions = joint_pos
+    elif args.cartesian_control:
+        operator.velocity_controller_cfg = controller_cfg
+        offset = 0
+        actions = None
     else:
         operator.velocity_controller_cfg = controller_cfg
         offset = 0
@@ -145,8 +153,11 @@ def replay_from_h5(args):
     try:
         reset_joints_to(operator.robot_interface, joint_pos[0])
         for i in range(0, len(arm_action) - offset):
-            playback_actions = (actions[i + offset], gripper_action[i])
-            operator.arm_control(None, None, playback_actions=playback_actions)
+            if not args.cartesian_control:
+                playback_actions = (actions[i + offset], gripper_action[i])
+                operator.arm_control(None, None, playback_actions=playback_actions)
+            else:
+                operator.arm_control(cartesian_pose_cmd[i], gripper_action[i])
     except KeyboardInterrupt:
         print("KeyboardInterrupt detected. Saving playback history so far...")
     finally:

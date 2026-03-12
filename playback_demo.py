@@ -12,6 +12,7 @@ import os
 import time
 
 import h5py
+import numpy as np
 import paramiko
 import yaml
 from deoxys.experimental.motion_utils import follow_joint_traj, reset_joints_to
@@ -33,6 +34,7 @@ parser.add_argument("--demo_num", type=str, help="The demo number to replay.")
 parser.add_argument("--suffix", type=str, help="Additional suffix after \"playback\".")
 control_type_parser = parser.add_mutually_exclusive_group()
 control_type_parser.add_argument("--joint_control", action="store_true", help="Use joint control instead of pose control.")
+control_type_parser.add_argument("--delta_joint_control", action="store_true", help="Use delta joint control.")
 control_type_parser.add_argument("--cartesian_control", action="store_true", help="Use cartesian pose instead.")
 
 def check_nuc_hash_and_diff():
@@ -145,6 +147,12 @@ def replay_from_h5(args):
         operator.velocity_controller_cfg = controller_cfg
         offset = 0
         actions = None
+    elif args.delta_joint_control:
+        operator.velocity_controller_cfg = joint_controller_cfg
+        offset = 3
+        actions = np.zeros_like(joint_pos)
+        actions[offset:] = joint_pos[offset:] - joint_pos[:-offset]
+        actions[0:offset] = actions[offset]
     else:
         operator.velocity_controller_cfg = controller_cfg
         offset = 0
@@ -154,7 +162,12 @@ def replay_from_h5(args):
         reset_joints_to(operator.robot_interface, joint_pos[0])
         for i in range(0, len(arm_action) - offset):
             if not args.cartesian_control:
-                playback_actions = (actions[i + offset], gripper_action[i])
+                if args.joint_control:
+                    playback_actions = (actions[i + offset], gripper_action[i])
+                elif args.delta_joint_control:
+                    playback_actions = (operator.robot_interface.last_q + actions[i + offset], gripper_action[i])
+                else:
+                    raise RuntimeError
                 operator.arm_control(None, None, playback_actions=playback_actions)
             else:
                 operator.arm_control(cartesian_pose_cmd[i], gripper_action[i])

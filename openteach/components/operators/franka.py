@@ -1,6 +1,7 @@
 import json
 import time
 from copy import deepcopy as copy
+from pathlib import Path
 
 import h5py
 import numpy as np
@@ -24,6 +25,8 @@ STATE_FREQ = 60
 
 ROTATION_VELOCITY_LIMIT = 0.2
 TRANSLATION_VELOCITY_LIMIT = 0.1
+
+TELEOP_SCALE_PARAM = 1.0
 
 
 def get_velocity_controller_config(config_root):
@@ -74,6 +77,8 @@ class FrankaArmOperator(Operator):
         # Subscribers for the transformed hand keypoints
         self.record = record
         self.storage_location = storage_location
+        debug_name = f"franka_debug_{record}.jsonl" if record is not None else "franka_debug.jsonl"
+        self._debug_log_path = Path(os.getcwd()) / self.storage_location / debug_name
 
         # remote coords path oculus -> keypoint_transform -> franka
         if transformed_keypoints_port is None:
@@ -150,6 +155,8 @@ class FrankaArmOperator(Operator):
             )
         # Robot Initial Frame
         self.robot_init_H = self.robot_interface.last_eef_pose
+        self.hand_moving_H = None
+        self.hand_init_t = None
         self.is_first_frame = True
 
         self.use_filter = use_filter
@@ -164,6 +171,27 @@ class FrankaArmOperator(Operator):
         self.gripper_cmd = -1
         self.below_thresh = False
 
+    def _to_jsonable(self, value):
+        if isinstance(value, np.ndarray):
+            return value.tolist()
+        if isinstance(value, (np.floating, np.integer)):
+            return value.item()
+        if isinstance(value, (list, tuple)):
+            return [self._to_jsonable(item) for item in value]
+        if isinstance(value, dict):
+            return {key: self._to_jsonable(item) for key, item in value.items()}
+        return value
+
+    def _append_debug_log(self, event, **payload):
+        self._debug_log_path.parent.mkdir(parents=True, exist_ok=True)
+        record = {
+            "timestamp": time.time(),
+            "event": event,
+            **{key: self._to_jsonable(value) for key, value in payload.items()},
+        }
+        with self._debug_log_path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(record))
+            f.write("\n")
 
     @property
     def timer(self):
@@ -194,29 +222,50 @@ class FrankaArmOperator(Operator):
         return np.asanyarray(data).reshape(4, 3)
 
     def _get_remote_message(self):
+        """Map from MetaQuest remote message to a homo mat for use in teleop."""
         for i in range(10):
             data = self.remote_message_subscriber.recv_keypoints()
-            if data is not None: break
-        if data is None: return None
+            if data is not None:
+                break
+        if data is None:
+            return None
         # pose is x, y, z, qx, qy, qz, qw
         # need to transform this to a (4,3) pose matrix
+        self._append_debug_log("raw_msg", data=data)
         remote_pose = np.array(data[0])
-        offset_R = np.array(data[1])
+        # offset_R = np.array(data[1])  # this is the position points offset along the principle axes in the remote frame
 
         t = np.array(remote_pose[:3])
-        R = self._get_dir_frame(remote_pose[:3], offset_R)
+        R = transform_utils.quat2mat(remote_pose[3:])
 
-        remote_frame = np.vstack([t, R])
+        # remote_frame = np.vstack([t, R])
+        homo_mat = np.zeros((4, 4))
+        homo_mat[:3, :3] = R
+        homo_mat[:3, 3] = t
+        homo_mat[3, 3] = 1
 
-        return remote_frame
+        x_rot_90 = np.array([
+            [1, 0, 0, 0],
+            [0, 0, -1, 0],
+            [0, 1, 0, 0],
+            [0, 0, 0, 1],
+            ])
+        homo_mat = x_rot_90 @ homo_mat
+        self._append_debug_log("homo_mat", homo_mat=homo_mat)
+        x_refl_mat = np.eye(4)
+        x_refl_mat[1, 1] = -1
+        homo_mat = x_refl_mat @ homo_mat @ x_refl_mat
+        self._append_debug_log("homo_mat_refl_y", homo_mat=homo_mat)
 
-    # Create a coordinate frame for the arm
-    def _get_dir_frame(self, base, offset):
-        X = normalize_vector(offset[0] - base)
-        Y = normalize_vector(offset[1] - base)
-        Z = normalize_vector(base - offset[2])
+        return homo_mat
 
-        return [X, Y, Z]
+    # # Create a coordinate frame for the arm
+    # def _get_dir_frame(self, base, offset):
+    #     X = normalize_vector(offset[0] - base)
+    #     Y = normalize_vector(offset[1] - base)
+    #     Z = normalize_vector(base - offset[2])
+
+    #     return [X, Y, Z]
 
     def _get_gripper_message(self):
         msg = self._gripper_message_subscriber.recv_keypoints()
@@ -302,13 +351,11 @@ class FrankaArmOperator(Operator):
         # Just updates the beginning position of the arm
         print('****** RESETTING TELEOP ****** ')
         self.robot_init_H = self.robot_interface.last_eef_pose
-        first_hand_frame = self._get_remote_message()
-        while first_hand_frame is None:
-            first_hand_frame = self._get_remote_message()
-        self.hand_init_H = self._turn_frame_to_homo_mat(first_hand_frame)
-        self.hand_init_t = copy(self.hand_init_H[:3, 3])
+        self.hand_init_H = self._get_remote_message()
+        while self.hand_init_H is None:
+            self.hand_init_H = self._get_remote_message()
+            time.sleep(0.1)
         self.is_first_frame = False
-        return first_hand_frame
 
     # Apply the retargeted angles
     def _apply_retargeted_angles(self, log=False):
@@ -365,37 +412,57 @@ class FrankaArmOperator(Operator):
         self.arm_control(final_pose, gripper_cmd)
 
     def _controller_tracking(self):
-        # See if there is a reset in the teleop
         new_arm_teleop_state = self._get_arm_teleop_state()
         if self.is_first_frame or (self.arm_teleop_state == ARM_TELEOP_STOP and new_arm_teleop_state == ARM_TELEOP_CONT):
-            # initialize
-            moving_hand_frame = self._reset_controller_teleop()
+            self._reset_controller_teleop()
+            self.hand_moving_H = copy(self.hand_init_H)
         else:
-            moving_hand_frame = self._get_remote_message()
+            self.hand_moving_H = self._get_remote_message()
         self.arm_teleop_state = new_arm_teleop_state
 
-        if moving_hand_frame is None:
-            return # It means we are not on the arm mode yet instead of blocking it is directly returning
-
-        # Get the moving hand frame
-        self.hand_moving_H = self._turn_frame_to_homo_mat(moving_hand_frame)
+        if self.hand_moving_H is None:
+            return # It means we are not on the arm mode; return to avoid blocking
 
         # Transformation code
-        H_HI_HH = copy(self.hand_init_H) # Homo matrix that takes P_HI  to P_HH - Point in Inital Hand Frame to Point in current hand Frame
-        H_HT_HH = copy(self.hand_moving_H) # Homo matrix that takes P_HT to P_HH
-        H_RI_RH = copy(self.robot_init_H) # Homo matrix that takes P_RI to P_RH
+        controller_origin_to_init = copy(self.hand_init_H)
+        controller_origin_to_current = copy(self.hand_moving_H)
+        robot_origin_to_init = copy(self.robot_init_H)
 
+        # robot_init_to_current = np.linalg.pinv(controller_origin_to_init) @ controller_origin_to_current
+        # robot_init_to_current = np.eye(4)
+        # robot_init_to_current[:3, :3] = (np.linalg.pinv(controller_origin_to_init) @ controller_origin_to_current)[:3, :3]
+        # robot_init_to_current[:3, 3] = controller_origin_to_current[:3, 3] - controller_origin_to_init[:3, 3]
+        # robot_init_to_current = self._scale_down_homo_mat(robot_init_to_current, TELEOP_SCALE_PARAM)
+        # robot_origin_to_current = robot_origin_to_init @ robot_init_to_current
+        robot_origin_to_current = np.eye(4)
+        robot_origin_to_current[:3, :3] = (robot_origin_to_init @ np.linalg.pinv(controller_origin_to_init) @ controller_origin_to_current)[:3, :3]
+        robot_origin_to_current[:3, 3] = robot_origin_to_init[:3, 3] - controller_origin_to_init[:3, 3] + controller_origin_to_current[:3, 3]
 
-        H_HT_HI = np.linalg.pinv(H_HI_HH) @ H_HT_HH # Homo matrix that takes P_HT to P_HI
-        H_RT_RH = H_RI_RH @ H_HT_HI # Homo matrix that takes P_RT to P_RH
-
+        self._append_debug_log(
+            "controller_tracking_transform",
+            # robot_init_to_current=robot_init_to_current,
+            robot_origin_to_init=robot_origin_to_init,
+            controller_origin_to_init=controller_origin_to_init,
+            robot_origin_to_current=robot_origin_to_current,
+        )
         # Use the resolution scale to get the final cart pose
-        final_pose = copy(self._get_scaled_cart_pose(H_RT_RH))  # this scales actions by 0.5
-        # final_pose = self._homo2cart(copy(H_RT_RH))  # use this for unscaled actions
+        final_pose = copy(self._get_scaled_cart_pose(robot_origin_to_current))
+        # final_pose = self._homo2cart(copy(robot_origin_to_current))  # use this for unscaled actions
 
         # Add Gripper control. Gripper cmd should be in [-1, 1]
         gripper_cmd = self._get_gripper_message()
         self.arm_control(final_pose, gripper_cmd)
+
+
+    @staticmethod
+    def _scale_down_homo_mat(mat, scale_param):
+        scaled_mat = np.array(mat, copy=True)
+        scaled_mat[:3, 3] *= scale_param
+
+        rotvec = Rotation.from_matrix(mat[:3, :3]).as_rotvec()
+        scaled_mat[:3, :3] = Rotation.from_rotvec(rotvec * scale_param).as_matrix()
+
+        return scaled_mat
 
 
     def arm_control(self, cartesian_pose, gripper_cmd, playback_actions=None):

@@ -28,6 +28,8 @@ TRANSLATION_VELOCITY_LIMIT = 0.1
 
 TELEOP_SCALE_PARAM = 1.0
 
+FLIP_TELEOP = True
+
 
 def get_velocity_controller_config(config_root):
     controller_cfg = YamlConfig(
@@ -431,6 +433,23 @@ class FrankaArmOperator(Operator):
         if self.hand_moving_H is None:
             return # It means we are not on the arm mode; return to avoid blocking
 
+        flip_mat = np.eye(3)
+        flip_mat_rot = np.eye(3)
+        if FLIP_TELEOP:
+            # make a z rotation matrix parameterized by a z rotation angle in degrees
+            z_rot = 135 # degrees
+            z_rot_rot = 180 # degrees
+            flip_mat = np.array([
+                [np.cos(np.radians(z_rot)), -np.sin(np.radians(z_rot)), 0],
+                [np.sin(np.radians(z_rot)), np.cos(np.radians(z_rot)), 0],
+                [0, 0, 1]
+            ])
+            flip_mat_rot = np.array([
+                [np.cos(np.radians(z_rot_rot)), -np.sin(np.radians(z_rot_rot)), 0],
+                [np.sin(np.radians(z_rot_rot)), np.cos(np.radians(z_rot_rot)), 0],
+                [0, 0, 1]
+            ])
+
         # Transformation code
         controller_origin_to_init = copy(self.hand_init_H)
         controller_origin_to_current = copy(self.hand_moving_H)
@@ -447,13 +466,15 @@ class FrankaArmOperator(Operator):
             controller_origin_to_current[:3, :3]
             @ np.linalg.pinv(controller_origin_to_init[:3, :3])
         )
+        teleop_relative_rotation = flip_mat_rot @ controller_relative_rotation.T @ flip_mat_rot.T
         # The current controller frame mapping gets each physical motion onto the
         # correct robot axis, but with the opposite sign. Invert only the relative
-        # rotation here so we keep the axis correspondence and translation mapping.
+        # rotation here so we keep the axis correspondence. Then rotate that
+        # relative motion into the teleop viewpoint selected by flip_mat.
         robot_origin_to_current[:3, :3] = (
-            robot_origin_to_init[:3, :3] @ controller_relative_rotation.T
+            robot_origin_to_init[:3, :3] @ teleop_relative_rotation
         )
-        robot_origin_to_current[:3, 3] = robot_origin_to_init[:3, 3] - controller_origin_to_init[:3, 3] + controller_origin_to_current[:3, 3]
+        robot_origin_to_current[:3, 3] = robot_origin_to_init[:3, 3] + flip_mat @ (controller_origin_to_current[:3, 3] - controller_origin_to_init[:3, 3])
 
         self._append_debug_log(
             "controller_tracking_transform",

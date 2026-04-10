@@ -252,9 +252,17 @@ class FrankaArmOperator(Operator):
             ])
         homo_mat = x_rot_90 @ homo_mat
         self._append_debug_log("homo_mat", homo_mat=homo_mat)
-        x_refl_mat = np.eye(4)
-        x_refl_mat[1, 1] = -1
-        homo_mat = x_refl_mat @ homo_mat @ x_refl_mat
+        y_refl_mat = np.eye(3)
+        y_refl_mat[1, 1] = -1
+        z_refl_mat = np.eye(3)
+        z_refl_mat[2, 2] = -1
+        homo_mat = homo_mat.copy()
+        # Reflect translation into the robot frame, but leave orientation in the
+        # rotated frame. Reflecting the rotation block as well flips controller
+        # roll in the relative-pose teleop path used by _controller_tracking().
+        homo_mat[:3, :3] = z_refl_mat @ homo_mat[:3, :3] @ z_refl_mat
+        homo_mat[:3, 3] = y_refl_mat @ homo_mat[:3, 3]
+        # homo_mat[:3, :3] = np.linalg.inv(homo_mat[:3, :3])
         self._append_debug_log("homo_mat_refl_y", homo_mat=homo_mat)
 
         return homo_mat
@@ -435,7 +443,16 @@ class FrankaArmOperator(Operator):
         # robot_init_to_current = self._scale_down_homo_mat(robot_init_to_current, TELEOP_SCALE_PARAM)
         # robot_origin_to_current = robot_origin_to_init @ robot_init_to_current
         robot_origin_to_current = np.eye(4)
-        robot_origin_to_current[:3, :3] = (robot_origin_to_init @ np.linalg.pinv(controller_origin_to_init) @ controller_origin_to_current)[:3, :3]
+        controller_relative_rotation = (
+            controller_origin_to_current[:3, :3]
+            @ np.linalg.pinv(controller_origin_to_init[:3, :3])
+        )
+        # The current controller frame mapping gets each physical motion onto the
+        # correct robot axis, but with the opposite sign. Invert only the relative
+        # rotation here so we keep the axis correspondence and translation mapping.
+        robot_origin_to_current[:3, :3] = (
+            robot_origin_to_init[:3, :3] @ controller_relative_rotation.T
+        )
         robot_origin_to_current[:3, 3] = robot_origin_to_init[:3, 3] - controller_origin_to_init[:3, 3] + controller_origin_to_current[:3, 3]
 
         self._append_debug_log(

@@ -30,6 +30,8 @@ TELEOP_SCALE_PARAM = 1.0
 
 FLIP_TELEOP = True
 
+JUST_GO_STRAIGHT_UP = False
+
 
 def get_velocity_controller_config(config_root):
     controller_cfg = YamlConfig(
@@ -475,6 +477,12 @@ class FrankaArmOperator(Operator):
             robot_origin_to_init[:3, :3] @ teleop_relative_rotation
         )
         robot_origin_to_current[:3, 3] = robot_origin_to_init[:3, 3] + flip_mat @ (controller_origin_to_current[:3, 3] - controller_origin_to_init[:3, 3])
+        if JUST_GO_STRAIGHT_UP:
+            robot_origin_to_current[:3, :3] = (
+                robot_origin_to_init[:3, :3]
+            )
+            self.robot_init_H[:3, 3] += np.array([0, 0, 0.005])
+            robot_origin_to_current[:3, 3] = robot_origin_to_init[:3, 3]
 
         self._append_debug_log(
             "controller_tracking_transform",

@@ -1,8 +1,10 @@
 # VS Code config
 .vscode
+.codex
 
 # Package Installation
 holo_bot.egg-info
+*.so
 
 # Cache Folders
 *__pycache__*

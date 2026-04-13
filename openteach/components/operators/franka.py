@@ -13,6 +13,7 @@ from scipy.spatial.transform import Rotation, Slerp
 
 from openteach.components.operators.operator_base import Operator
 from openteach.constants import *
+from openteach.ik import geofik
 from openteach.utils.files import *
 from openteach.utils.network import ZMQKeypointSubscriber
 from openteach.utils.timer import FrequencyTimer
@@ -44,6 +45,14 @@ def get_velocity_controller_config(config_root):
 def get_position_controller_config(config_root):
     controller_cfg = YamlConfig(
         os.path.join(config_root, "osc-pose-controller-position.yml")
+    ).as_easydict()
+    controller_cfg = verify_controller_config(controller_cfg)
+
+    return controller_cfg
+
+def get_joint_impedance_controller(config_root):
+    controller_cfg = YamlConfig(
+        os.path.join(config_root, "joint-pos-controller-impedance.yml")
     ).as_easydict()
     controller_cfg = verify_controller_config(controller_cfg)
 
@@ -131,6 +140,10 @@ class FrankaArmOperator(Operator):
         print("\nvelocity controller config", self.velocity_controller_cfg)
 
         self.position_controller_cfg = get_position_controller_config(
+            config_root = CONFIG_ROOT
+        )
+
+        self.joint_impedance_controller = get_joint_impedance_controller(
             config_root = CONFIG_ROOT
         )
 
@@ -336,7 +349,7 @@ class FrankaArmOperator(Operator):
 
         # Get the difference in translation between these two cart poses
         diff_in_translation = unscaled_cart_pose[:3] - current_cart_pose[:3]
-        scaled_diff_in_translation = diff_in_translation * 0.25  # translation_scale
+        scaled_diff_in_translation = diff_in_translation  # translation_scale
         # print('SCALED_DIFF_IN_TRANSLATION: {}'.format(scaled_diff_in_translation))
 
         scaled_cart_pose = np.zeros(7)
@@ -492,8 +505,8 @@ class FrankaArmOperator(Operator):
             robot_origin_to_current=robot_origin_to_current,
         )
         # Use the resolution scale to get the final cart pose
-        final_pose = copy(self._get_scaled_cart_pose(robot_origin_to_current))
-        # final_pose = self._homo2cart(copy(robot_origin_to_current))  # use this for unscaled actions
+        # final_pose = copy(self._get_scaled_cart_pose(robot_origin_to_current))
+        final_pose = self._homo2cart(copy(robot_origin_to_current))  # use this for unscaled actions
 
         # Add Gripper control. Gripper cmd should be in [-1, 1]
         gripper_cmd = self._get_gripper_message()
@@ -509,6 +522,74 @@ class FrankaArmOperator(Operator):
         scaled_mat[:3, :3] = Rotation.from_rotvec(rotvec * scale_param).as_matrix()
 
         return scaled_mat
+
+    def _solve_geofik_q7(self, target_pose, q7=None, ee_frame="E"):
+        """Return the GeoFIK solution closest to the current Franka joints."""
+        current_q = np.asarray(self.robot_interface.last_q, dtype=np.float64).reshape(7)
+        if q7 is None:
+            q7 = current_q[6]
+
+        nsols, qsols = geofik.solve_q7_from_pose(target_pose, q7=q7, ee_frame=ee_frame)
+        solution = geofik.nearest_solution(qsols, current_q)
+        self._append_debug_log(
+            "geofik_q7",
+            nsols=nsols,
+            q7=q7,
+            target_pose=target_pose,
+            selected_solution=solution,
+        )
+        return solution
+
+    def _solve_geofik_q4(self, target_pose, q4=None, ee_frame="E"):
+        """Return the q4-parameterized GeoFIK solution closest to the current joints."""
+        current_q = np.asarray(self.robot_interface.last_q, dtype=np.float64).reshape(7)
+        if q4 is None:
+            q4 = current_q[3]
+
+        nsols, qsols = geofik.solve_q4_from_pose(target_pose, q4=q4, ee_frame=ee_frame)
+        solution = geofik.nearest_solution(qsols, current_q)
+        self._append_debug_log(
+            "geofik_q4",
+            nsols=nsols,
+            q4=q4,
+            target_pose=target_pose,
+            selected_solution=solution,
+        )
+        return solution
+
+    def _solve_geofik_q6(self, target_pose, q6=None, ee_frame="E"):
+        """Return the q6-parameterized GeoFIK solution closest to the current joints."""
+        current_q = np.asarray(self.robot_interface.last_q, dtype=np.float64).reshape(7)
+        if q6 is None:
+            q6 = current_q[5]
+
+        nsols, qsols = geofik.solve_q6_from_pose(target_pose, q6=q6, ee_frame=ee_frame)
+        solution = geofik.nearest_solution(qsols, current_q)
+        self._append_debug_log(
+            "geofik_q6",
+            nsols=nsols,
+            q6=q6,
+            target_pose=target_pose,
+            selected_solution=solution,
+        )
+        return solution
+
+    def _solve_geofik_swivel(self, target_pose, theta=None, ee_frame="E"):
+        """Return the swivel-parameterized GeoFIK solution closest to the current joints."""
+        current_q = np.asarray(self.robot_interface.last_q, dtype=np.float64).reshape(7)
+        if theta is None:
+            theta = geofik.franka_swivel(current_q)
+
+        nsols, qsols = geofik.solve_swivel_from_pose(target_pose, theta=theta, ee_frame=ee_frame)
+        solution = geofik.nearest_solution(qsols, current_q)
+        self._append_debug_log(
+            "geofik_swivel",
+            nsols=nsols,
+            theta=theta,
+            target_pose=target_pose,
+            selected_solution=solution,
+        )
+        return solution
 
 
     def arm_control(self, cartesian_pose, gripper_cmd, playback_actions=None):
@@ -529,20 +610,29 @@ class FrankaArmOperator(Operator):
             cartesian_pose = np.array(cartesian_pose, dtype=np.float32)
             target_pos, target_quat = cartesian_pose[:3], cartesian_pose[3:]
             target_mat = transform_utils.pose2mat(pose=(target_pos, target_quat))
+            try:
+                geofik_q = self._solve_geofik_swivel(target_mat)
+                print("geofik_swivel_joint_positions", geofik_q)
+                print("curent_q", self.robot_interface.last_q)
+                print("diff", geofik_q - self.robot_interface.last_q)
+                action = geofik_q
+            except Exception as e:
+                print("geofik_swivel_error", e)
+                return
 
-            pose_error = transform_utils.get_pose_error(target_pose=target_mat, current_pose=current_mat)
+            # pose_error = transform_utils.get_pose_error(target_pose=target_mat, current_pose=current_mat)
 
-            if np.dot(target_quat, current_quat) < 0.0:
-                current_quat = -current_quat
-            quat_diff = transform_utils.quat_distance(target_quat, current_quat)
-            axis_angle_diff = transform_utils.quat2axisangle(quat_diff)
+            # if np.dot(target_quat, current_quat) < 0.0:
+            #     current_quat = -current_quat
+            # quat_diff = transform_utils.quat_distance(target_quat, current_quat)
+            # axis_angle_diff = transform_utils.quat2axisangle(quat_diff)
 
-            action_pos = pose_error[:3]
-            action_axis_angle = axis_angle_diff.flatten()
+            # action_pos = pose_error[:3]
+            # action_axis_angle = axis_angle_diff.flatten()
 
-            action_pos, _ = transform_utils.clip_translation(action_pos, TRANSLATION_VELOCITY_LIMIT)
-            action_axis_angle, _ = transform_utils.clip_translation(action_axis_angle, ROTATION_VELOCITY_LIMIT)
-            action = action_pos.tolist() + action_axis_angle.tolist()
+            # action_pos, _ = transform_utils.clip_translation(action_pos, TRANSLATION_VELOCITY_LIMIT)
+            # action_axis_angle, _ = transform_utils.clip_translation(action_axis_angle, ROTATION_VELOCITY_LIMIT)
+            # action = action_pos.tolist() + action_axis_angle.tolist()
 
         if not self.deoxys_obs_cmd_history:
             self.deoxys_obs_cmd_history = {
@@ -570,9 +660,9 @@ class FrankaArmOperator(Operator):
             self.deoxys_obs_cmd_history['index'].append(len(self.deoxys_obs_cmd_history['index']))
 
         self.robot_interface.control(
-            controller_type=self.velocity_controller_cfg.controller_type,
+            controller_type=self.joint_impedance_controller.controller_type,
             action=action,
-            controller_cfg=self.velocity_controller_cfg,
+            controller_cfg=self.joint_impedance_controller,
         )
 
         if gripper_cmd is not None:

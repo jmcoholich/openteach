@@ -347,13 +347,23 @@ class FrankaArmOperator(Operator):
         current_homo_mat = copy(self.robot_interface.last_eef_pose)
         current_cart_pose = self._homo2cart(current_homo_mat)
 
+        translation_scale = 0.5
+        rotation_scale = 0.5
+
         # Get the difference in translation between these two cart poses
         diff_in_translation = unscaled_cart_pose[:3] - current_cart_pose[:3]
-        scaled_diff_in_translation = diff_in_translation  # translation_scale
+        scaled_diff_in_translation = diff_in_translation * translation_scale
         # print('SCALED_DIFF_IN_TRANSLATION: {}'.format(scaled_diff_in_translation))
 
+        target_rotation = Rotation.from_quat(unscaled_cart_pose[3:])
+        current_rotation = Rotation.from_quat(current_cart_pose[3:])
+        relative_rotation = target_rotation * current_rotation.inv()
+        scaled_rotation = Rotation.from_rotvec(
+            relative_rotation.as_rotvec() * rotation_scale
+        ) * current_rotation
+
         scaled_cart_pose = np.zeros(7)
-        scaled_cart_pose[3:] = unscaled_cart_pose[3:] # Get the rotation directly
+        scaled_cart_pose[3:] = scaled_rotation.as_quat()
         scaled_cart_pose[:3] = current_cart_pose[:3] + scaled_diff_in_translation # Get the scaled translation only
 
         return scaled_cart_pose
@@ -505,8 +515,8 @@ class FrankaArmOperator(Operator):
             robot_origin_to_current=robot_origin_to_current,
         )
         # Use the resolution scale to get the final cart pose
-        # final_pose = copy(self._get_scaled_cart_pose(robot_origin_to_current))
-        final_pose = self._homo2cart(copy(robot_origin_to_current))  # use this for unscaled actions
+        final_pose = copy(self._get_scaled_cart_pose(robot_origin_to_current))
+        # final_pose = self._homo2cart(copy(robot_origin_to_current))  # use this for unscaled actions
 
         # Add Gripper control. Gripper cmd should be in [-1, 1]
         gripper_cmd = self._get_gripper_message()

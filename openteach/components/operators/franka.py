@@ -439,7 +439,7 @@ class FrankaArmOperator(Operator):
         flip_mat_rot = np.eye(3)
         if FLIP_TELEOP:
             # make a z rotation matrix parameterized by a z rotation angle in degrees
-            z_rot = 135 # degrees
+            z_rot = 90 # degrees
             z_rot_rot = 180 # degrees
             flip_mat = np.array([
                 [np.cos(np.radians(z_rot)), -np.sin(np.radians(z_rot)), 0],
@@ -513,6 +513,10 @@ class FrankaArmOperator(Operator):
 
     def arm_control(self, cartesian_pose, gripper_cmd, playback_actions=None):
         current_quat, current_pos = self.robot_interface.last_eef_quat_and_pos
+        if not hasattr(self, "initial_quat"):
+            self.initial_quat = copy(current_quat)
+            self.initial_pos = copy(current_pos)
+
         if current_quat is None:
             raise RuntimeError("No reading from franka interface. Is FCI enabled?")
         current_mat = transform_utils.pose2mat(pose=(current_pos.flatten(), current_quat.flatten()))
@@ -543,6 +547,11 @@ class FrankaArmOperator(Operator):
             action_pos, _ = transform_utils.clip_translation(action_pos, TRANSLATION_VELOCITY_LIMIT)
             action_axis_angle, _ = transform_utils.clip_translation(action_axis_angle, ROTATION_VELOCITY_LIMIT)
             action = action_pos.tolist() + action_axis_angle.tolist()
+            action = target_pos.squeeze().tolist() + transform_utils.quat2axisangle(target_quat).tolist()
+            print(action)
+
+            # self.initial_pos[2, 0] += 0.005
+            # print(current_pos, transform_utils.quat2axisangle(self.initial_quat))
 
         if not self.deoxys_obs_cmd_history:
             self.deoxys_obs_cmd_history = {
@@ -570,9 +579,9 @@ class FrankaArmOperator(Operator):
             self.deoxys_obs_cmd_history['index'].append(len(self.deoxys_obs_cmd_history['index']))
 
         self.robot_interface.control(
-            controller_type=self.velocity_controller_cfg.controller_type,
+            controller_type=self.position_controller_cfg.controller_type,
             action=action,
-            controller_cfg=self.velocity_controller_cfg,
+            controller_cfg=self.position_controller_cfg,
         )
 
         if gripper_cmd is not None:

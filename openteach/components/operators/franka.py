@@ -581,12 +581,13 @@ class FrankaArmOperator(Operator):
             theta = geofik.franka_swivel(current_q)
 
         nsols, qsols = geofik.solve_swivel_from_pose(target_pose, theta=theta, ee_frame=ee_frame)
-        solution = geofik.nearest_solution(qsols, current_q)
+        solution = geofik.nearest_solution_for_joint(qsols, current_q, joint_idx=0)
         self._append_debug_log(
             "geofik_swivel",
             nsols=nsols,
             theta=theta,
             target_pose=target_pose,
+            selection_metric="joint_0_distance",
             selected_solution=solution,
         )
         return solution

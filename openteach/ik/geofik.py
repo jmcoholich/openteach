@@ -104,6 +104,24 @@ def nearest_solution(qsols: np.ndarray, reference_q: np.ndarray) -> np.ndarray |
     return valid_qsols[np.argmin(np.linalg.norm(valid_qsols - reference_q, axis=1))]
 
 
+def nearest_solution_for_joint(
+    qsols: np.ndarray,
+    reference_q: np.ndarray,
+    joint_idx: int = 0,
+) -> np.ndarray | None:
+    valid_qsols = finite_solutions(qsols)
+    if len(valid_qsols) == 0:
+        return None
+
+    reference_q = np.asarray(reference_q, dtype=np.float64).reshape(7)
+    if not 0 <= joint_idx < reference_q.shape[0]:
+        raise ValueError("joint_idx must be in [0, 6]")
+
+    joint_distances = np.abs(valid_qsols[:, joint_idx] - reference_q[joint_idx])
+    total_distances = np.linalg.norm(valid_qsols - reference_q, axis=1)
+    return valid_qsols[np.lexsort((total_distances, joint_distances))[0]]
+
+
 franka_ik_q7 = _geofik.franka_ik_q7
 franka_ik_q6 = _geofik.franka_ik_q6
 franka_ik_q4 = _geofik.franka_ik_q4

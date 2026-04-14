@@ -29,9 +29,9 @@ TRANSLATION_VELOCITY_LIMIT = 0.1
 
 TELEOP_SCALE_PARAM = 1.0
 
-FLIP_TELEOP = True
+FLIP_TELEOP = True  # teleop facing the robot
 
-JUST_GO_STRAIGHT_UP = False
+JUST_GO_STRAIGHT_UP = False # experimental option to slowly lift the arm straight up for unplugging
 
 
 def get_velocity_controller_config(config_root):
@@ -90,8 +90,6 @@ class FrankaArmOperator(Operator):
         # Subscribers for the transformed hand keypoints
         self.record = record
         self.storage_location = storage_location
-        debug_name = f"franka_debug_{record}.jsonl" if record is not None else "franka_debug.jsonl"
-        self._debug_log_path = Path(os.getcwd()) / self.storage_location / debug_name
 
         # remote coords path oculus -> keypoint_transform -> franka
         if transformed_keypoints_port is None:
@@ -199,17 +197,6 @@ class FrankaArmOperator(Operator):
             return {key: self._to_jsonable(item) for key, item in value.items()}
         return value
 
-    def _append_debug_log(self, event, **payload):
-        self._debug_log_path.parent.mkdir(parents=True, exist_ok=True)
-        record = {
-            "timestamp": time.time(),
-            "event": event,
-            **{key: self._to_jsonable(value) for key, value in payload.items()},
-        }
-        with self._debug_log_path.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(record))
-            f.write("\n")
-
     @property
     def timer(self):
         return self._timer
@@ -248,7 +235,6 @@ class FrankaArmOperator(Operator):
             return None
         # pose is x, y, z, qx, qy, qz, qw
         # need to transform this to a (4,3) pose matrix
-        self._append_debug_log("raw_msg", data=data)
         remote_pose = np.array(data[0])
         # offset_R = np.array(data[1])  # this is the position points offset along the principle axes in the remote frame
 
@@ -268,7 +254,6 @@ class FrankaArmOperator(Operator):
             [0, 0, 0, 1],
             ])
         homo_mat = x_rot_90 @ homo_mat
-        self._append_debug_log("homo_mat", homo_mat=homo_mat)
         y_refl_mat = np.eye(3)
         y_refl_mat[1, 1] = -1
         z_refl_mat = np.eye(3)
@@ -279,8 +264,6 @@ class FrankaArmOperator(Operator):
         # roll in the relative-pose teleop path used by _controller_tracking().
         homo_mat[:3, :3] = z_refl_mat @ homo_mat[:3, :3] @ z_refl_mat
         homo_mat[:3, 3] = y_refl_mat @ homo_mat[:3, 3]
-        # homo_mat[:3, :3] = np.linalg.inv(homo_mat[:3, :3])
-        self._append_debug_log("homo_mat_refl_y", homo_mat=homo_mat)
 
         return homo_mat
 
@@ -480,12 +463,6 @@ class FrankaArmOperator(Operator):
         controller_origin_to_current = copy(self.hand_moving_H)
         robot_origin_to_init = copy(self.robot_init_H)
 
-        # robot_init_to_current = np.linalg.pinv(controller_origin_to_init) @ controller_origin_to_current
-        # robot_init_to_current = np.eye(4)
-        # robot_init_to_current[:3, :3] = (np.linalg.pinv(controller_origin_to_init) @ controller_origin_to_current)[:3, :3]
-        # robot_init_to_current[:3, 3] = controller_origin_to_current[:3, 3] - controller_origin_to_init[:3, 3]
-        # robot_init_to_current = self._scale_down_homo_mat(robot_init_to_current, TELEOP_SCALE_PARAM)
-        # robot_origin_to_current = robot_origin_to_init @ robot_init_to_current
         robot_origin_to_current = np.eye(4)
         controller_relative_rotation = (
             controller_origin_to_current[:3, :3]
@@ -507,13 +484,6 @@ class FrankaArmOperator(Operator):
             self.robot_init_H[:3, 3] += np.array([0, 0, 0.005])
             robot_origin_to_current[:3, 3] = robot_origin_to_init[:3, 3]
 
-        self._append_debug_log(
-            "controller_tracking_transform",
-            # robot_init_to_current=robot_init_to_current,
-            robot_origin_to_init=robot_origin_to_init,
-            controller_origin_to_init=controller_origin_to_init,
-            robot_origin_to_current=robot_origin_to_current,
-        )
         # Use the resolution scale to get the final cart pose
         final_pose = copy(self._get_scaled_cart_pose(robot_origin_to_current))
         # final_pose = self._homo2cart(copy(robot_origin_to_current))  # use this for unscaled actions
@@ -532,75 +502,6 @@ class FrankaArmOperator(Operator):
         scaled_mat[:3, :3] = Rotation.from_rotvec(rotvec * scale_param).as_matrix()
 
         return scaled_mat
-
-    def _solve_geofik_q7(self, target_pose, q7=None, ee_frame="E"):
-        """Return the GeoFIK solution closest to the current Franka joints."""
-        current_q = np.asarray(self.robot_interface.last_q, dtype=np.float64).reshape(7)
-        if q7 is None:
-            q7 = current_q[6]
-
-        nsols, qsols = geofik.solve_q7_from_pose(target_pose, q7=q7, ee_frame=ee_frame)
-        solution = geofik.nearest_solution(qsols, current_q)
-        self._append_debug_log(
-            "geofik_q7",
-            nsols=nsols,
-            q7=q7,
-            target_pose=target_pose,
-            selected_solution=solution,
-        )
-        return solution
-
-    def _solve_geofik_q4(self, target_pose, q4=None, ee_frame="E"):
-        """Return the q4-parameterized GeoFIK solution closest to the current joints."""
-        current_q = np.asarray(self.robot_interface.last_q, dtype=np.float64).reshape(7)
-        if q4 is None:
-            q4 = current_q[3]
-
-        nsols, qsols = geofik.solve_q4_from_pose(target_pose, q4=q4, ee_frame=ee_frame)
-        solution = geofik.nearest_solution(qsols, current_q)
-        self._append_debug_log(
-            "geofik_q4",
-            nsols=nsols,
-            q4=q4,
-            target_pose=target_pose,
-            selected_solution=solution,
-        )
-        return solution
-
-    def _solve_geofik_q6(self, target_pose, q6=None, ee_frame="E"):
-        """Return the q6-parameterized GeoFIK solution closest to the current joints."""
-        current_q = np.asarray(self.robot_interface.last_q, dtype=np.float64).reshape(7)
-        if q6 is None:
-            q6 = current_q[5]
-
-        nsols, qsols = geofik.solve_q6_from_pose(target_pose, q6=q6, ee_frame=ee_frame)
-        solution = geofik.nearest_solution(qsols, current_q)
-        self._append_debug_log(
-            "geofik_q6",
-            nsols=nsols,
-            q6=q6,
-            target_pose=target_pose,
-            selected_solution=solution,
-        )
-        return solution
-
-    def _solve_geofik_swivel(self, target_pose, theta=None, ee_frame="E"):
-        """Return the swivel-parameterized GeoFIK solution closest to the current joints."""
-        current_q = np.asarray(self.robot_interface.last_q, dtype=np.float64).reshape(7)
-        if theta is None:
-            theta = geofik.franka_swivel(current_q)
-
-        nsols, qsols = geofik.solve_swivel_from_pose(target_pose, theta=theta, ee_frame=ee_frame)
-        solution = geofik.nearest_solution_for_joint(qsols, current_q, joint_idx=0)
-        self._append_debug_log(
-            "geofik_swivel",
-            nsols=nsols,
-            theta=theta,
-            target_pose=target_pose,
-            selection_metric="joint_0_distance",
-            selected_solution=solution,
-        )
-        return solution
 
 
     def arm_control(self, cartesian_pose, gripper_cmd, playback_actions=None):
@@ -622,10 +523,7 @@ class FrankaArmOperator(Operator):
             target_pos, target_quat = cartesian_pose[:3], cartesian_pose[3:]
             target_mat = transform_utils.pose2mat(pose=(target_pos, target_quat))
             try:
-                geofik_q = self._solve_geofik_swivel(target_mat)
-                print("geofik_swivel_joint_positions", geofik_q)
-                print("curent_q", self.robot_interface.last_q)
-                print("diff", geofik_q - self.robot_interface.last_q)
+                geofik_q = geofik.solve_geofik_swivel(self.robot_interface.last_q, target_mat)
                 action = geofik_q
             except Exception as e:
                 print("geofik_swivel_error", e)

@@ -16,6 +16,46 @@ T_8_E = np.array(
     dtype=np.float64,
 )
 
+def solve_geofik_q7(current_q, target_pose, q7=None, ee_frame="E"):
+    """Return the GeoFIK solution closest to the current Franka joints."""
+    current_q = np.asarray(current_q, dtype=np.float64).reshape(7)
+    if q7 is None:
+        q7 = current_q[6]
+
+    nsols, qsols = solve_q7_from_pose(target_pose, q7=q7, ee_frame=ee_frame)
+    solution = nearest_solution(qsols, current_q)
+    return solution
+
+def solve_geofik_q4(current_q, target_pose, q4=None, ee_frame="E"):
+    """Return the q4-parameterized GeoFIK solution closest to the current joints."""
+    current_q = np.asarray(current_q, dtype=np.float64).reshape(7)
+    if q4 is None:
+        q4 = current_q[3]
+
+    nsols, qsols = solve_q4_from_pose(target_pose, q4=q4, ee_frame=ee_frame)
+    solution = nearest_solution(qsols, current_q)
+    return solution
+
+def solve_geofik_q6(current_q, target_pose, q6=None, ee_frame="E"):
+    """Return the q6-parameterized GeoFIK solution closest to the current joints."""
+    current_q = np.asarray(current_q, dtype=np.float64).reshape(7)
+    if q6 is None:
+        q6 = current_q[5]
+
+    nsols, qsols = solve_q6_from_pose(target_pose, q6=q6, ee_frame=ee_frame)
+    solution = nearest_solution(qsols, current_q)
+    return solution
+
+def solve_geofik_swivel(current_q, target_pose, theta=None, ee_frame="E"):
+    """Return the swivel-parameterized GeoFIK solution closest to the current joints."""
+    current_q = np.asarray(current_q, dtype=np.float64).reshape(7)
+    if theta is None:
+        theta = franka_swivel(current_q)
+
+    nsols, qsols = solve_swivel_from_pose(target_pose, theta=theta, ee_frame=ee_frame)
+    solution = nearest_solution_for_joint(qsols, current_q, joint_idx=0)
+    return solution
+
 
 def pose_to_position_rotation(pose: np.ndarray, ee_frame: str = "E") -> tuple[np.ndarray, np.ndarray]:
     """Return GeoFIK position and rotation inputs from a 4x4 pose matrix.

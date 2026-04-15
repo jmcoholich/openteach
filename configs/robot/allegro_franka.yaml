@@ -55,6 +55,7 @@ operators:
     arm_resolution_port: ${resolution_button_publish_port}
     use_filter: True
     teleoperation_reset_port: ${teleop_reset_publish_port}
+    control_mode: ${control_mode}
 
 # List of controller classes used
 controllers:

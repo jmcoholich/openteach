@@ -43,6 +43,7 @@ operators:
     arm_resolution_port: ${resolution_button_publish_port}
     use_filter: False
     teleoperation_reset_port: ${teleop_reset_publish_port}
+    control_mode: ${control_mode}
     # gripper_port: ${gripper_publish_port_right}
 
 # List of controller classes used

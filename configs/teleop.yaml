@@ -11,6 +11,7 @@ sim_env: false
 run_xela: false
 storage_location: extracted_data/
 record:
+control_mode: absolute_eef_pose_to_delta
 
 # Visualize 3D and 2D plots
 visualize_xela: false

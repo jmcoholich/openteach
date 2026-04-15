@@ -33,6 +33,12 @@ FLIP_TELEOP = True  # teleop facing the robot
 
 JUST_GO_STRAIGHT_UP = False # experimental option to slowly lift the arm straight up for unplugging
 
+CONTROL_MODE_OPTIONS = (
+    "eef_delta_actions",
+    "absolute_joint",
+    "absolute_eef_pose_to_delta",
+    "absolute_eef_pose_direct",
+)
 
 def get_velocity_controller_config(config_root):
     controller_cfg = YamlConfig(
@@ -85,7 +91,13 @@ class FrankaArmOperator(Operator):
         teleoperation_reset_port = None,
         record=None,
         storage_location="extracted_data",
+        control_mode=None
     ):
+        if control_mode is None:
+            raise RuntimeError(f"robot control mode needs to be specified. Valid options are: {CONTROL_MODE_OPTIONS}")
+        if control_mode not in CONTROL_MODE_OPTIONS:
+            raise ValueError(f"Invalid robot control mode: {control_mode}. Valid options are: {CONTROL_MODE_OPTIONS}")
+        self.control_mode = control_mode
         self.notify_component_start('franka arm operator')
         # Subscribers for the transformed hand keypoints
         self.record = record
@@ -141,13 +153,21 @@ class FrankaArmOperator(Operator):
             config_root = CONFIG_ROOT
         )
 
-        self.joint_impedance_controller = get_joint_impedance_controller(
+        self.joint_impedance_controller_cfg = get_joint_impedance_controller(
             config_root = CONFIG_ROOT
         )
+        if control_mode == "eef_delta_actions":  # formerly "playback" mode. Assumes delta eef actions are already provided.
+            self.controller_cfg = self.velocity_controller_cfg
+        elif control_mode == "absolute_joint":
+            self.controller_cfg = self.joint_impedance_controller_cfg
+        elif control_mode == "absolute_eef_pose_to_delta":  # this is the old teleop pipeline
+            self.controller_cfg = self.velocity_controller_cfg
+        elif control_mode == "absolute_eef_pose_direct":  # this skips the outer loop and directly commands
+            self.controller_cfg = self.position_controller_cfg
+        else:
+            raise ValueError("Not a valid control mode")
 
         # Initalizing the robot controller
-        # self._robot = FrankaArm()
-        # self.resolution_scale = 1 # NOTE: Get this from a socket
         self.arm_teleop_state = ARM_TELEOP_STOP # We will start as the cont
 
         # Subscribers for the resolution scale and teleop state
@@ -185,17 +205,6 @@ class FrankaArmOperator(Operator):
         self.gripper_last_msg = False
         self.gripper_cmd = -1
         self.below_thresh = False
-
-    def _to_jsonable(self, value):
-        if isinstance(value, np.ndarray):
-            return value.tolist()
-        if isinstance(value, (np.floating, np.integer)):
-            return value.item()
-        if isinstance(value, (list, tuple)):
-            return [self._to_jsonable(item) for item in value]
-        if isinstance(value, dict):
-            return {key: self._to_jsonable(item) for key, item in value.items()}
-        return value
 
     @property
     def timer(self):
@@ -490,7 +499,11 @@ class FrankaArmOperator(Operator):
 
         # Add Gripper control. Gripper cmd should be in [-1, 1]
         gripper_cmd = self._get_gripper_message()
-        self.arm_control(final_pose, gripper_cmd)
+        self.arm_control(
+            control_mode=self.control_mode,
+            target_pose=final_pose,
+            gripper_cmd=gripper_cmd,
+            )
 
 
     @staticmethod
@@ -504,50 +517,33 @@ class FrankaArmOperator(Operator):
         return scaled_mat
 
 
-    def arm_control(self, cartesian_pose, gripper_cmd, playback_actions=None):
-        current_quat, current_pos = self.robot_interface.last_eef_quat_and_pos
-        if current_quat is None:
+    def arm_control(self, **kwargs):  # TODO make this function take an "action_space" config
+        if self.robot_interface.state_buffer_size == 0:
             raise RuntimeError("No reading from franka interface. Is FCI enabled?")
-        current_mat = transform_utils.pose2mat(pose=(current_pos.flatten(), current_quat.flatten()))
 
-        if playback_actions is not None:
-            action, gripper_cmd = playback_actions
-            # if isinstance(action, list):
-            #     action = np.array(action)
-            # action_pos, _ = transform_utils.clip_translation(action[:3], TRANSLATION_VELOCITY_LIMIT)
-            # action_axis_angle, _ = transform_utils.clip_translation(action[3:], ROTATION_VELOCITY_LIMIT)
-            # action = action_pos.tolist() + action_axis_angle.tolist()
-            cartesian_pose = 0.0
+        if self.control_mode == "eef_delta_actions":  # formerly "playback" mode. Assumes delta eef actions are already provided.
+            action = kwargs["action"]
+            if isinstance(action, list):
+                action = np.array(action)
+        elif self.control_mode == "absolute_joint":
+            action = self.get_abs_joint_angle_actions(kwargs["target_pose"])
+        elif self.control_mode == "absolute_eef_pose_to_delta":  # this is the old teleop pipeline
+            action = self.get_abs_eef_pose_actions(kwargs["target_pose"])
+        elif self.control_mode == "absolute_eef_pose_direct":  # this skips the outer loop and directly commands
+            target_pos, target_quat = kwargs["target_pose"][:3], kwargs["target_pose"][3:]
+            action = target_pos.squeeze().tolist() + transform_utils.quat2axisangle(target_quat).tolist()
         else:
-            cartesian_pose = np.array(cartesian_pose, dtype=np.float32)
-            target_pos, target_quat = cartesian_pose[:3], cartesian_pose[3:]
-            target_mat = transform_utils.pose2mat(pose=(target_pos, target_quat))
-            try:
-                geofik_q = geofik.solve_geofik_swivel(self.robot_interface.last_q, target_mat)
-                action = geofik_q
-            except Exception as e:
-                print("geofik_swivel_error", e)
-                return
+            raise ValueError("Not a valid control mode")
 
-            # pose_error = transform_utils.get_pose_error(target_pose=target_mat, current_pose=current_mat)
+        if action is None or self.controller_cfg is None:
+            return
 
-            # if np.dot(target_quat, current_quat) < 0.0:
-            #     current_quat = -current_quat
-            # quat_diff = transform_utils.quat_distance(target_quat, current_quat)
-            # axis_angle_diff = transform_utils.quat2axisangle(quat_diff)
-
-            # action_pos = pose_error[:3]
-            # action_axis_angle = axis_angle_diff.flatten()
-
-            # action_pos, _ = transform_utils.clip_translation(action_pos, TRANSLATION_VELOCITY_LIMIT)
-            # action_axis_angle, _ = transform_utils.clip_translation(action_axis_angle, ROTATION_VELOCITY_LIMIT)
-            # action = action_pos.tolist() + action_axis_angle.tolist()
-
-        if not self.deoxys_obs_cmd_history:
+        # self.update_logs(kwargs)
+        if not self.deoxys_obs_cmd_history:  # TODO replace with a logging function that just logs everything
             self.deoxys_obs_cmd_history = {
-                'cartesian_pose_cmd': [cartesian_pose],
+                'cartesian_pose_cmd': [kwargs["target_pose"]],
                 'arm_action': [action],
-                'gripper_action': [gripper_cmd],
+                'gripper_action': [kwargs.get("gripper_cmd", None)],
                 'gripper_state': [self.robot_interface.last_gripper_q],
                 'eef_quat': [current_quat],
                 'eef_pos': [current_pos],
@@ -557,9 +553,9 @@ class FrankaArmOperator(Operator):
                 'index': [0],
             }
         else:
-            self.deoxys_obs_cmd_history['cartesian_pose_cmd'].append(cartesian_pose)
+            self.deoxys_obs_cmd_history['cartesian_pose_cmd'].append(target_pose)
             self.deoxys_obs_cmd_history['arm_action'].append(action)
-            self.deoxys_obs_cmd_history['gripper_action'].append(gripper_cmd)
+            self.deoxys_obs_cmd_history['gripper_action'].append(kwargs.get("gripper_cmd", None))
             self.deoxys_obs_cmd_history['gripper_state'].append(self.robot_interface.last_gripper_q)
             self.deoxys_obs_cmd_history['eef_quat'].append(current_quat)
             self.deoxys_obs_cmd_history['eef_pos'].append(current_pos)
@@ -569,13 +565,54 @@ class FrankaArmOperator(Operator):
             self.deoxys_obs_cmd_history['index'].append(len(self.deoxys_obs_cmd_history['index']))
 
         self.robot_interface.control(
-            controller_type=self.joint_impedance_controller.controller_type,
+            controller_type=self.controller_cfg.controller_type,
             action=action,
-            controller_cfg=self.joint_impedance_controller,
+            controller_cfg=self.controller_cfg,
         )
 
-        if gripper_cmd is not None:
-            self.robot_interface.gripper_control(gripper_cmd)
+        if "gripper_cmd" in kwargs:
+            self.robot_interface.gripper_control(kwargs["gripper_cmd"])
+
+    # def update_logs(self, kwargs):
+    #     if not self.deoxys_obs_cmd_history:
+    #         self.deoxys_obs_cmd_history.update(kwargs)
+    #         # TODO add every @property from the _state_buffer in /home/jeremiah/deoxys_control/deoxys/deoxys/franka_interface/franka_interface.py to log here while also mantaining the legacy keys
+
+    def get_abs_joint_angle_actions(self, target_pose):
+        """Return a controller config and joint angle actions."""
+        target_pose = np.array(target_pose, dtype=np.float32)
+        target_pos, target_quat = target_pose[:3], target_pose[3:]
+        target_mat = transform_utils.pose2mat(pose=(target_pos, target_quat))
+        try:
+            geofik_q = geofik.solve_geofik_swivel(self.robot_interface.last_q, target_mat)
+            action = geofik_q
+            return action
+        except Exception as e:
+            print("geofik_swivel_error", e)
+            return None
+
+    def get_abs_eef_pose_actions(self, target_pose):
+        current_quat, current_pos = self.robot_interface.last_eef_quat_and_pos
+        current_mat = transform_utils.pose2mat(pose=(current_pos.flatten(), current_quat.flatten()))
+
+        target_pose = np.array(target_pose, dtype=np.float32)
+        target_pos, target_quat = target_pose[:3], target_pose[3:]
+        target_mat = transform_utils.pose2mat(pose=(target_pos, target_quat))
+
+        pose_error = transform_utils.get_pose_error(target_pose=target_mat, current_pose=current_mat)
+
+        if np.dot(target_quat, current_quat) < 0.0:
+            current_quat = -current_quat
+        quat_diff = transform_utils.quat_distance(target_quat, current_quat)
+        axis_angle_diff = transform_utils.quat2axisangle(quat_diff)
+
+        action_pos = pose_error[:3]
+        action_axis_angle = axis_angle_diff.flatten()
+
+        action_pos, _ = transform_utils.clip_translation(action_pos, TRANSLATION_VELOCITY_LIMIT)
+        action_axis_angle, _ = transform_utils.clip_translation(action_axis_angle, ROTATION_VELOCITY_LIMIT)
+        action = action_pos.tolist() + action_axis_angle.tolist()
+        return action
 
     def stream(self):
         self.notify_component_start('franka control')
@@ -612,8 +649,8 @@ class FrankaArmOperator(Operator):
         with h5py.File(path, 'w') as f:
             for key, value in self.deoxys_obs_cmd_history.items():
                 f.create_dataset(key, data=np.array(value))
-            f.attrs["controller_type"] = self.velocity_controller_cfg.controller_type
-            f.attrs["controller_cfg_json"] = json.dumps(self.velocity_controller_cfg, separators=(",", ":"), sort_keys=True)
+            f.attrs["controller_type"] = self.controller_cfg.controller_type
+            f.attrs["controller_cfg_json"] = json.dumps(self.controller_cfg, separators=(",", ":"), sort_keys=True)
             f.attrs["CONTROL_FREQ"] = CONTROL_FREQ
             f.attrs["STATE_FREQ"] = STATE_FREQ
             f.attrs["VR_FREQ"] = VR_FREQ

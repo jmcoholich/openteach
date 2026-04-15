@@ -32,8 +32,18 @@ def main(configs):
     for process in processes:
         process.start()
 
-    for process in processes:
-        process.join()
+    try:
+        for process in processes:
+            process.join()
+    except KeyboardInterrupt:
+        print("KeyboardInterrupt received. Waiting for teleop processes to shut down...")
+        for process in processes:
+            process.join(timeout=30)
+        for process in processes:
+            if process.is_alive():
+                process.terminate()
+        for process in processes:
+            process.join()
 
 if __name__ == '__main__':
     _normalize_control_mode_arg()

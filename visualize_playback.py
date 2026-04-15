@@ -156,9 +156,11 @@ def truncate_all(data_dict, num_frames, reverse=False):
     for key in data_dict.keys():
         if key not in data_keys:
             continue
-        data_dict[key] = data_dict[key][:num_frames]
         if reverse:
+            data_dict[key] = data_dict[key][-num_frames:]
             data_dict[key] = data_dict[key][::-1]
+        else:
+            data_dict[key] = data_dict[key][:num_frames]
 
 
 def make_replay_vis_frame(rgb_frames, replay_rgb_frames, joint_state_plot, i, frames_dir, is_reversed=False):

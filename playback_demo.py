@@ -8,6 +8,7 @@ cd deoxys_control/deoxys && ./auto_scripts/auto_gripper.sh config/charmander.yml
 """
 
 import argparse
+import json
 import os
 import time
 
@@ -15,12 +16,13 @@ import h5py
 import numpy as np
 import paramiko
 import yaml
-from deoxys.experimental.motion_utils import follow_joint_traj, reset_joints_to
+from deoxys.experimental.motion_utils import reset_joints_to
 from easydict import EasyDict
 
 from openteach.components.operators.franka import (
     CONFIG_ROOT,
     CONTROL_FREQ,
+    CONTROL_MODE_OPTIONS,
     ROTATION_VELOCITY_LIMIT,
     STATE_FREQ,
     TRANSLATION_VELOCITY_LIMIT,
@@ -32,10 +34,30 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--reverse", action="store_true", help="Reverse the demonstration playback.")
 parser.add_argument("--demo_num", type=str, help="The demo number to replay.")
 parser.add_argument("--suffix", type=str, help="Additional suffix after \"playback\".")
-control_type_parser = parser.add_mutually_exclusive_group()
-control_type_parser.add_argument("--joint_control", action="store_true", help="Use joint control instead of pose control.")
-control_type_parser.add_argument("--delta_joint_control", action="store_true", help="Use delta joint control.")
-control_type_parser.add_argument("--cartesian_control", action="store_true", help="Use cartesian pose instead.")
+
+
+def load_controller_cfg(controller_cfg_json):
+    if isinstance(controller_cfg_json, np.bytes_):
+        controller_cfg_json = controller_cfg_json.tobytes()
+    if isinstance(controller_cfg_json, bytes):
+        controller_cfg_json = controller_cfg_json.decode("utf-8")
+    return EasyDict(json.loads(controller_cfg_json))
+
+
+def get_control_mode(controller_cfg):
+    control_mode = controller_cfg.get("control_mode")
+    if control_mode is not None:
+        if control_mode not in CONTROL_MODE_OPTIONS:
+            raise ValueError(f"Invalid recorded control mode: {control_mode}")
+        assert control_mode == "absolute_joint"
+        return "absolute_joint_direct"
+        return control_mode
+
+
+def get_arm_control_kwargs(control_mode, arm_action, target_pose, gripper_cmd):
+    if control_mode == "eef_delta_actions":
+        return {"action": arm_action, "gripper_cmd": gripper_cmd}
+    return {"target_pose": target_pose, "gripper_cmd": gripper_cmd}
 
 def check_nuc_hash_and_diff():
     """This is to ensure there are no changes on the NUC that would affect playback."""
@@ -93,18 +115,15 @@ def replay_from_h5(args):
     with open(os.path.join(CONFIG_ROOT, "network.yaml"), "r") as f:
         network_cfg = EasyDict(yaml.safe_load(f))
 
-    with open(os.path.join(CONFIG_ROOT, "joint-pos-controller-impedance.yml"), "r") as f:
-        joint_controller_cfg = EasyDict(yaml.safe_load(f))
-
     check_nuc_hash_and_diff()
 
     with h5py.File(filename, "r") as h5f:
         arm_action = h5f["arm_action"][:]
         gripper_action = h5f["gripper_action"][:]
         joint_pos = h5f["joint_pos"][:]
-        controller_type = h5f.attrs["controller_type"]
         controller_cfg_json = h5f.attrs["controller_cfg_json"]
-        controller_cfg = EasyDict(yaml.safe_load(controller_cfg_json))
+        controller_cfg = load_controller_cfg(controller_cfg_json)
+        control_mode = get_control_mode(controller_cfg)
         cartesian_pose_cmd = h5f["cartesian_pose_cmd"][:]
 
         if h5f.attrs["ROTATION_VELOCITY_LIMIT"] > ROTATION_VELOCITY_LIMIT:
@@ -117,16 +136,21 @@ def replay_from_h5(args):
     demo_number = os.path.basename(filename).split(".")[0][5:]
     recording_name = demo_number + "_playback"
     if args.reverse:
-        if not controller_cfg["is_delta"]:
-            raise NotImplementedError
         recording_name += "_reversed"
-        arm_action = -arm_action[::-1]
+        if control_mode == "eef_delta_actions":
+            if not controller_cfg["is_delta"]:
+                raise NotImplementedError
+            arm_action = -arm_action[::-1]
+        else:
+            arm_action = arm_action[::-1]
+            cartesian_pose_cmd = cartesian_pose_cmd[::-1]
         gripper_action = gripper_action[::-1]
         joint_pos = joint_pos[::-1]
-        cartesian_pose_cmd = cartesian_pose_cmd[::-1]
     if args.suffix:
         recording_name += f"_{args.suffix}"
 
+    print(f"Playback control mode: {control_mode}")
+    print(f"Playback controller type: {controller_cfg.controller_type}")
     print(f"Recording playback as {recording_name}...\n")
     operator = FrankaArmOperator(
         network_cfg["host_address"],
@@ -137,40 +161,21 @@ def replay_from_h5(args):
         arm_resolution_port = None,
         teleoperation_reset_port = None,
         record=recording_name,
+        control_mode=control_mode,
+        controller_cfg=controller_cfg,
     )
 
-    if args.joint_control:
-        operator.velocity_controller_cfg  = joint_controller_cfg
-        offset = 3
-        actions = joint_pos
-    elif args.cartesian_control:
-        operator.velocity_controller_cfg = controller_cfg
-        offset = 0
-        actions = None
-    elif args.delta_joint_control:
-        operator.velocity_controller_cfg = joint_controller_cfg
-        offset = 3
-        actions = np.zeros_like(joint_pos)
-        actions[offset:] = joint_pos[offset:] - joint_pos[:-offset]
-        actions[0:offset] = actions[offset]
-    else:
-        operator.velocity_controller_cfg = controller_cfg
-        offset = 0
-        actions = arm_action
     # move robot to start position
     try:
         reset_joints_to(operator.robot_interface, joint_pos[0])
-        for i in range(0, len(arm_action) - offset):
-            if not args.cartesian_control:
-                if args.joint_control:
-                    playback_actions = (actions[i + offset], gripper_action[i])
-                elif args.delta_joint_control:
-                    playback_actions = (operator.robot_interface.last_q + actions[i + offset], gripper_action[i])
-                else:
-                    raise RuntimeError
-                operator.arm_control(None, None, playback_actions=playback_actions)
-            else:
-                operator.arm_control(cartesian_pose_cmd[i], gripper_action[i])
+        for i in range(len(arm_action)):
+            # control_kwargs = get_arm_control_kwargs(
+            #     control_mode,
+            #     arm_action[i],
+            #     cartesian_pose_cmd[i],
+            #     gripper_action[i],
+            # )
+            operator.arm_control(action=arm_action[i], gripper_cmd=gripper_action[i])
     except KeyboardInterrupt:
         print("KeyboardInterrupt detected. Saving playback history so far...")
     finally:

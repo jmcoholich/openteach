@@ -32,10 +32,13 @@ TELEOP_SCALE_PARAM = 1.0
 FLIP_TELEOP = True  # teleop facing the robot
 
 JUST_GO_STRAIGHT_UP = False # experimental option to slowly lift the arm straight up for unplugging
+ABS_JOINT_LOWPASS_NEW_ACTION_WEIGHT = 0.9
+ABS_JOINT_LOWPASS_JOINT_1_NEW_ACTION_WEIGHT = 0.4
 
 CONTROL_MODE_OPTIONS = (
     "eef_delta_actions",
     "absolute_joint",
+    "absolute_joint_direct",
     "absolute_eef_pose_to_delta",
     "absolute_eef_pose_direct",
 )
@@ -107,13 +110,15 @@ class FrankaArmOperator(Operator):
         teleoperation_reset_port = None,
         record=None,
         storage_location="extracted_data",
-        control_mode=None
+        control_mode=None,
+        controller_cfg=None,
     ):
         if control_mode is None:
             raise RuntimeError(f"robot control mode needs to be specified. Valid options are: {CONTROL_MODE_OPTIONS}")
         if control_mode not in CONTROL_MODE_OPTIONS:
             raise ValueError(f"Invalid robot control mode: {control_mode}. Valid options are: {CONTROL_MODE_OPTIONS}")
         self.control_mode = control_mode
+        self._last_abs_joint_action = None
         self.notify_component_start('franka arm operator')
         # Subscribers for the transformed hand keypoints
         self.record = record
@@ -160,28 +165,36 @@ class FrankaArmOperator(Operator):
                 control_freq=CONTROL_FREQ,
                 state_freq=STATE_FREQ
             )
-        self.velocity_controller_cfg = get_velocity_controller_config(
-            config_root = CONFIG_ROOT
-        )
-        print("\nvelocity controller config", self.velocity_controller_cfg)
-
-        self.position_controller_cfg = get_position_controller_config(
-            config_root = CONFIG_ROOT
-        )
-
-        self.joint_impedance_controller_cfg = get_joint_impedance_controller(
-            config_root = CONFIG_ROOT
-        )
-        if control_mode == "eef_delta_actions":  # formerly "playback" mode. Assumes delta eef actions are already provided.
-            self.controller_cfg = self.velocity_controller_cfg
-        elif control_mode == "absolute_joint":
-            self.controller_cfg = self.joint_impedance_controller_cfg
-        elif control_mode == "absolute_eef_pose_to_delta":  # this is the old teleop pipeline
-            self.controller_cfg = self.velocity_controller_cfg
-        elif control_mode == "absolute_eef_pose_direct":  # this skips the outer loop and directly commands
-            self.controller_cfg = self.position_controller_cfg
+        if controller_cfg is not None:
+            self.velocity_controller_cfg = None
+            self.position_controller_cfg = None
+            self.joint_impedance_controller_cfg = None
+            controller_cfg = copy(controller_cfg)
+            controller_cfg.pop("control_mode", None)
+            self.controller_cfg = verify_controller_config(controller_cfg)
         else:
-            raise ValueError("Not a valid control mode")
+            self.velocity_controller_cfg = get_velocity_controller_config(
+                config_root = CONFIG_ROOT
+            )
+            print("\nvelocity controller config", self.velocity_controller_cfg)
+
+            self.position_controller_cfg = get_position_controller_config(
+                config_root = CONFIG_ROOT
+            )
+
+            self.joint_impedance_controller_cfg = get_joint_impedance_controller(
+                config_root = CONFIG_ROOT
+            )
+            if control_mode == "eef_delta_actions":  # formerly "playback" mode. Assumes delta eef actions are already provided.
+                self.controller_cfg = self.velocity_controller_cfg
+            elif control_mode == "absolute_joint" or control_mode == "absolute_joint_direct":
+                self.controller_cfg = self.joint_impedance_controller_cfg
+            elif control_mode == "absolute_eef_pose_to_delta":  # this is the old teleop pipeline
+                self.controller_cfg = self.velocity_controller_cfg
+            elif control_mode == "absolute_eef_pose_direct":  # this skips the outer loop and directly commands
+                self.controller_cfg = self.position_controller_cfg
+            else:
+                raise ValueError("Not a valid control mode")
 
         # Initalizing the robot controller
         self.arm_teleop_state = ARM_TELEOP_STOP # We will start as the cont
@@ -452,7 +465,7 @@ class FrankaArmOperator(Operator):
         gripper_cmd = self.get_gripper_state_from_hand_keypoints()
         # self.robot.set_gripper_state(gripper_cmd)
         # self.robot.arm_control(final_pose, gripper_cmd=gripper_cmd)
-        self.arm_control(final_pose, gripper_cmd)
+        self.arm_control(target_pose=final_pose, gripper_cmd=gripper_cmd)
 
     def _controller_tracking(self):
         new_arm_teleop_state = self._get_arm_teleop_state()
@@ -533,21 +546,26 @@ class FrankaArmOperator(Operator):
         return scaled_mat
 
 
-    def arm_control(self, **kwargs):  # TODO make this function take an "action_space" config
+    def arm_control(self, **kwargs):
         if self.robot_interface.state_buffer_size == 0:
             raise RuntimeError("No reading from franka interface. Is FCI enabled?")
 
         if self.control_mode == "eef_delta_actions":  # formerly "playback" mode. Assumes delta eef actions are already provided.
+            if "action" not in kwargs:
+                raise RuntimeError("no action passed to arm_control() for control mode eef_delta_actions")
             action = kwargs["action"]
             if isinstance(action, list):
                 action = np.array(action)
         elif self.control_mode == "absolute_joint":
             action = self.get_abs_joint_angle_actions(kwargs["target_pose"])
+            action = self._filter_abs_joint_action(action)
         elif self.control_mode == "absolute_eef_pose_to_delta":  # this is the old teleop pipeline
             action = self.get_abs_eef_pose_actions(kwargs["target_pose"])
         elif self.control_mode == "absolute_eef_pose_direct":  # this skips the outer loop and directly commands
             target_pos, target_quat = kwargs["target_pose"][:3], kwargs["target_pose"][3:]
             action = target_pos.squeeze().tolist() + transform_utils.quat2axisangle(target_quat).tolist()
+        elif self.control_mode == "absolute_joint_direct":
+            action = kwargs["action"]
         else:
             raise ValueError("Not a valid control mode")
 
@@ -564,6 +582,28 @@ class FrankaArmOperator(Operator):
 
         if "gripper_cmd" in kwargs:
             self.robot_interface.gripper_control(kwargs["gripper_cmd"])
+
+    def _filter_abs_joint_action(self, action):
+        if action is None:
+            return None
+        action = np.asarray(action, dtype=np.float64)
+        if (
+            self._last_abs_joint_action is None
+            or self._last_abs_joint_action.shape != action.shape
+        ):
+            self._last_abs_joint_action = action.copy()
+            return action
+
+        new_action_weights = np.full_like(action, ABS_JOINT_LOWPASS_NEW_ACTION_WEIGHT)
+        if new_action_weights.size > 1:
+            new_action_weights[1] = ABS_JOINT_LOWPASS_JOINT_1_NEW_ACTION_WEIGHT
+
+        filtered_action = (
+            new_action_weights * action
+            + (1 - new_action_weights) * self._last_abs_joint_action
+        )
+        self._last_abs_joint_action = filtered_action.copy()
+        return filtered_action
 
     def update_logs(self, kwargs, action):
         history = self.deoxys_obs_cmd_history
@@ -671,17 +711,83 @@ class FrankaArmOperator(Operator):
     def save_obs_cmd_history(self):
         path = os.path.join(os.getcwd(), self.storage_location, f'deoxys_obs_cmd_history_{self.record}.h5')
         print('Saving the deoxys_obs_cmd_history to {}'.format(path))
-        with h5py.File(path, 'w') as f:
+        tmp_path = f"{path}.tmp"
+        with h5py.File(tmp_path, 'w') as f:
             for key, value in self.deoxys_obs_cmd_history.items():
-                f.create_dataset(key, data=np.array(value))
+                dataset = self._history_values_to_dataset(key, value)
+                if dataset.dtype.kind in ("O", "U"):
+                    f.create_dataset(key, data=dataset, dtype=h5py.string_dtype(encoding="utf-8"))
+                else:
+                    f.create_dataset(key, data=dataset)
+            controller_cfg = copy(self.controller_cfg)
+            controller_cfg["control_mode"] = self.control_mode
             f.attrs["controller_type"] = self.controller_cfg.controller_type
-            f.attrs["controller_cfg_json"] = json.dumps(self.controller_cfg, separators=(",", ":"), sort_keys=True)
+            f.attrs["controller_cfg_json"] = json.dumps(controller_cfg, separators=(",", ":"), sort_keys=True)
             f.attrs["CONTROL_FREQ"] = CONTROL_FREQ
             f.attrs["STATE_FREQ"] = STATE_FREQ
             f.attrs["VR_FREQ"] = VR_FREQ
             f.attrs["ROTATION_VELOCITY_LIMIT"] = ROTATION_VELOCITY_LIMIT
             f.attrs["TRANSLATION_VELOCITY_LIMIT"] = TRANSLATION_VELOCITY_LIMIT
+        os.replace(tmp_path, path)
         print('\nSaved successfully!\n')
+
+    @staticmethod
+    def _json_safe_history_value(value):
+        if value is None:
+            return None
+        if isinstance(value, np.ndarray):
+            return value.tolist()
+        if isinstance(value, np.generic):
+            return value.item()
+        if isinstance(value, (list, tuple)):
+            return [FrankaArmOperator._json_safe_history_value(item) for item in value]
+        if isinstance(value, dict):
+            return {
+                key: FrankaArmOperator._json_safe_history_value(item)
+                for key, item in value.items()
+            }
+        return value
+
+    def _history_values_to_dataset(self, key, values):
+        values = list(values)
+        try:
+            dataset = np.asarray(values)
+            if dataset.dtype.kind != "O":
+                return dataset
+        except ValueError:
+            pass
+
+        template = None
+        for value in values:
+            if value is None:
+                continue
+            candidate = np.asarray(value)
+            if candidate.dtype.kind in ("b", "i", "u", "f") and candidate.dtype.kind != "O":
+                template = candidate
+                break
+
+        if template is None:
+            print(f"Warning: saving {key} as strings because it has no numeric samples.")
+            return np.asarray([
+                json.dumps(self._json_safe_history_value(value), default=str)
+                for value in values
+            ], dtype=object)
+
+        shape = template.shape
+        output = np.full((len(values),) + shape, np.nan, dtype=np.float64)
+        for i, value in enumerate(values):
+            if value is None:
+                continue
+            candidate = np.asarray(value)
+            if candidate.shape != shape or candidate.dtype.kind not in ("b", "i", "u", "f"):
+                print(f"Warning: saving {key} as strings because sample {i} has an incompatible shape or dtype.")
+                return np.asarray([
+                    json.dumps(self._json_safe_history_value(value), default=str)
+                    for value in values
+                ], dtype=object)
+            output[i] = candidate
+
+        return output
 
 
 ###############################################################################

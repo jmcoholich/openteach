@@ -112,7 +112,10 @@ class TeleOperator(ProcessInstantiator):
     #Function to start the components
     def _start_component(self, configs):
         component = hydra.utils.instantiate(configs)
-        component.stream()
+        try:
+            component.stream()
+        except KeyboardInterrupt:
+            pass
 
     #Function to start the detector component
     def _init_detector(self):
@@ -341,7 +344,6 @@ class Collector(ProcessInstantiator):
                     target = self._start_robot_component,
                     args = (robot_controller_configs, key, )
                 ))
-
 
 
 

@@ -86,10 +86,10 @@ def make_combined_video(folder, demo_number):
         cmd_data = {}
         for key in f.keys():
             cmd_data[key] = np.array(f[key])
-        # copy attributes from the h5 file
+        cmd_attrs = {}
         for attr in f.attrs.keys():
-            cmd_data[attr] = f.attrs[attr]
-    cmd_data["openteach current commit"] = current_commit
+            cmd_attrs[attr] = f.attrs[attr]
+    cmd_attrs["openteach current commit"] = current_commit
 
     # depth frames
     depth_frames = []
@@ -233,10 +233,8 @@ def make_combined_video(folder, demo_number):
         for key in h5_keys:
             h5f.create_dataset(key, data=output_data[key])
         # copy attrs from the cmd_data h5
-        for attr in cmd_data.keys():
-            if attr in h5_keys:
-                continue
-            h5f.attrs[attr] = cmd_data[attr]
+        for attr, value in cmd_attrs.items():
+            h5f.attrs[attr] = value
 
     # make video
     frames_dir = f"{demo_path}/combined_frames"

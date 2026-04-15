@@ -80,6 +80,22 @@ class Filter:
         return np.concatenate([self.pos_state, self.ori_state])
 
 class FrankaArmOperator(Operator):
+    _STATE_LOG_PROPERTIES = (
+        "last_eef_pose",
+        "last_eef_pose_d",
+        "last_F_T_EE",
+        "last_F_T_NE",
+        "last_q",
+        "last_tau_J",
+        "last_dtau_J",
+        "last_tau_J_d",
+        "last_tau_ext_hat_filtered",
+        "last_dq_d",
+        "last_ddq_d",
+        "last_q_d",
+        "last_dq",
+        "last_pose",
+    )
     def __init__(
         self,
         host,
@@ -538,31 +554,7 @@ class FrankaArmOperator(Operator):
         if action is None or self.controller_cfg is None:
             return
 
-        # self.update_logs(kwargs)
-        if not self.deoxys_obs_cmd_history:  # TODO replace with a logging function that just logs everything
-            self.deoxys_obs_cmd_history = {
-                'cartesian_pose_cmd': [kwargs["target_pose"]],
-                'arm_action': [action],
-                'gripper_action': [kwargs.get("gripper_cmd", None)],
-                'gripper_state': [self.robot_interface.last_gripper_q],
-                'eef_quat': [current_quat],
-                'eef_pos': [current_pos],
-                'eef_pose': [current_mat],
-                'joint_pos': [self.robot_interface.last_q],
-                'timestamp': [time.time()],
-                'index': [0],
-            }
-        else:
-            self.deoxys_obs_cmd_history['cartesian_pose_cmd'].append(target_pose)
-            self.deoxys_obs_cmd_history['arm_action'].append(action)
-            self.deoxys_obs_cmd_history['gripper_action'].append(kwargs.get("gripper_cmd", None))
-            self.deoxys_obs_cmd_history['gripper_state'].append(self.robot_interface.last_gripper_q)
-            self.deoxys_obs_cmd_history['eef_quat'].append(current_quat)
-            self.deoxys_obs_cmd_history['eef_pos'].append(current_pos)
-            self.deoxys_obs_cmd_history['eef_pose'].append(current_mat)
-            self.deoxys_obs_cmd_history['joint_pos'].append(self.robot_interface.last_q)
-            self.deoxys_obs_cmd_history['timestamp'].append(time.time())
-            self.deoxys_obs_cmd_history['index'].append(len(self.deoxys_obs_cmd_history['index']))
+        self.update_logs(kwargs, action)
 
         self.robot_interface.control(
             controller_type=self.controller_cfg.controller_type,
@@ -573,10 +565,43 @@ class FrankaArmOperator(Operator):
         if "gripper_cmd" in kwargs:
             self.robot_interface.gripper_control(kwargs["gripper_cmd"])
 
-    # def update_logs(self, kwargs):
-    #     if not self.deoxys_obs_cmd_history:
-    #         self.deoxys_obs_cmd_history.update(kwargs)
-    #         # TODO add every @property from the _state_buffer in /home/jeremiah/deoxys_control/deoxys/deoxys/franka_interface/franka_interface.py to log here while also mantaining the legacy keys
+    def update_logs(self, kwargs, action):
+        history = self.deoxys_obs_cmd_history
+        interface = self.robot_interface
+        index = len(history["index"]) if "index" in history else 0
+        state_values = {
+            property_name: getattr(interface, property_name)
+            for property_name in self._STATE_LOG_PROPERTIES
+        }
+        current_quat, current_pos = interface.last_eef_quat_and_pos
+        compound_values = {
+            "last_eef_rot_and_pos": interface.last_eef_rot_and_pos,
+            "last_eef_quat_and_pos": (current_quat, current_pos),
+        }
+        state_values.update({
+            property_name: np.concatenate([
+                np.asarray(value).reshape(-1)
+                for value in property_value
+            ])
+            for property_name, property_value in compound_values.items()
+        })
+
+        log_values = {
+            "cartesian_pose_cmd": kwargs.get("target_pose", None),
+            "arm_action": action,
+            "gripper_action": kwargs.get("gripper_cmd", None),
+            "gripper_state": interface.last_gripper_q,
+            "eef_quat": current_quat,
+            "eef_pos": current_pos,
+            "eef_pose": state_values["last_eef_pose"],
+            "joint_pos": state_values["last_q"],
+            "timestamp": time.time(),
+            "index": index,
+        }
+        log_values.update(state_values)
+
+        for key, value in log_values.items():
+            history.setdefault(key, []).append(value)
 
     def get_abs_joint_angle_actions(self, target_pose):
         """Return a controller config and joint angle actions."""

@@ -34,6 +34,12 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--reverse", action="store_true", help="Reverse the demonstration playback.")
 parser.add_argument("--demo_num", type=str, help="The demo number to replay.")
 parser.add_argument("--suffix", type=str, help="Additional suffix after \"playback\".")
+parser.add_argument(
+    "--gripper_shift",
+    type=int,
+    default=None,
+    help="Shift reversed gripper commands forward by this many control steps. Only valid with --reverse.",
+)
 
 
 def load_controller_cfg(controller_cfg_json):
@@ -146,6 +152,8 @@ def replay_from_h5(args):
             cartesian_pose_cmd = cartesian_pose_cmd[::-1]
         gripper_action = gripper_action[::-1]
         joint_pos = joint_pos[::-1]
+        if args.gripper_shift:
+            gripper_action[:-args.gripper_shift] = gripper_action[args.gripper_shift:]
     if args.suffix:
         recording_name += f"_{args.suffix}"
 
@@ -164,7 +172,6 @@ def replay_from_h5(args):
         control_mode=control_mode,
         controller_cfg=controller_cfg,
     )
-
     # move robot to start position
     try:
         reset_joints_to(operator.robot_interface, joint_pos[0])
@@ -184,4 +191,10 @@ def replay_from_h5(args):
 
 if __name__ == "__main__":
     args = parser.parse_args()
+    if args.gripper_shift is not None and not args.reverse:
+        parser.error("--gripper_shift can only be used with --reverse.")
+    if args.gripper_shift is not None and args.gripper_shift < 0:
+        parser.error("--gripper_shift must be non-negative.")
+    if args.gripper_shift is None:
+        args.gripper_shift = 0
     replay_from_h5(args)

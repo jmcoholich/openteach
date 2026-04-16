@@ -19,6 +19,39 @@ from openteach.utils.timer import FrequencyTimer
 from .recorder import Recorder
 
 
+def _normalize_hdf5_compression(compression):
+    if compression is None:
+        return None
+
+    compression = str(compression).lower()
+    if compression in ('', 'none', 'false', '0'):
+        return None
+
+    return compression
+
+
+def _hdf5_dataset_kwargs(compression, compression_opts=None, shuffle=False):
+    compression = _normalize_hdf5_compression(compression)
+    if compression is None:
+        return {}
+
+    kwargs = dict(compression=compression)
+    if compression == 'gzip' and compression_opts is not None:
+        kwargs['compression_opts'] = int(compression_opts)
+    if shuffle:
+        kwargs['shuffle'] = True
+
+    return kwargs
+
+
+def _video_fourcc(codec):
+    codec = str(codec)
+    if len(codec) != 4:
+        raise ValueError('OpenCV video codec must be a four-character code, got {}.'.format(codec))
+
+    return cv2.VideoWriter_fourcc(*codec)
+
+
 # To record realsense streams
 class RGBImageRecorder(Recorder):
     def __init__(
@@ -27,6 +60,7 @@ class RGBImageRecorder(Recorder):
         image_stream_port,
         storage_path,
         filename,
+        video_codec='FFV1',
         sim=False
     ):
         self.notify_component_start('RGB stream: {}'.format(image_stream_port))
@@ -49,19 +83,20 @@ class RGBImageRecorder(Recorder):
         self._filename = filename
         self._recorder_file_name = os.path.join(storage_path, filename + '.avi')
         self._metadata_filename = os.path.join(storage_path, filename + '.metadata')
+        self._video_codec = video_codec
 
         # Initializing the recorder
         if self.sim:
             self.recorder = cv2.VideoWriter(
                 self._recorder_file_name,
-                cv2.VideoWriter_fourcc(*'FFV1'),
+                _video_fourcc(video_codec),
                 CAM_FPS_SIM,
                 IMAGE_RECORD_RESOLUTION_SIM
             )
         else:
             self.recorder = cv2.VideoWriter(
                 self._recorder_file_name,
-                cv2.VideoWriter_fourcc(*'FFV1'),  # lossless codec
+                _video_fourcc(video_codec),
                 CAM_FPS,
                 IMAGE_RECORD_RESOLUTION
             )
@@ -97,6 +132,7 @@ class RGBImageRecorder(Recorder):
         self.metadata['timestamps'] = self.timestamps
         self.metadata['recorder_ip_address'] = self._host
         self.metadata['recorder_image_stream_port'] = self._image_stream_port
+        self.metadata['video_codec'] = self._video_codec
 
         # Storing the data
         print('Storing the final version of the video...')
@@ -112,7 +148,10 @@ class DepthImageRecorder(Recorder):
         host,
         image_stream_port,
         storage_path,
-        filename
+        filename,
+        compression='gzip',
+        compression_opts=6,
+        shuffle=False
     ):
         self.notify_component_start('Depth stream: {}'.format(image_stream_port))
 
@@ -130,6 +169,9 @@ class DepthImageRecorder(Recorder):
         # Storage path for file
         self._filename = filename
         self._recorder_file_name = os.path.join(storage_path, filename + '.h5')
+        self._compression = _normalize_hdf5_compression(compression)
+        self._compression_opts = compression_opts
+        self._shuffle = shuffle
 
         # Intializing the depth data containers
         self.depth_frames = []
@@ -167,19 +209,31 @@ class DepthImageRecorder(Recorder):
         self._add_metadata(self.num_image_frames)
         self.metadata['recorder_ip_address'] = self._host
         self.metadata['recorder_image_stream_port'] = self._image_stream_port
+        self.metadata['depth_compression'] = self._compression or 'none'
+        self.metadata['depth_compression_opts'] = -1 if self._compression_opts is None else self._compression_opts
+        self.metadata['depth_shuffle'] = self._shuffle
 
         # Writing to dataset - hdf5 is faster and compresses more than blosc zstd with clevel 9
-        print('Compressing depth data...')
+        if self._compression is None:
+            print('Saving depth data without HDF5 compression...')
+        else:
+            print('Compressing depth data with {}...'.format(self._compression))
+
+        dataset_kwargs = _hdf5_dataset_kwargs(
+            self._compression,
+            compression_opts=self._compression_opts,
+            shuffle=self._shuffle
+        )
         with h5py.File(self._recorder_file_name, "w") as file:
             stacked_frames = np.array(self.depth_frames, dtype = np.uint16)
-            file.create_dataset("depth_images", data = stacked_frames, compression="gzip", compression_opts = 6)
+            file.create_dataset("depth_images", data = stacked_frames, **dataset_kwargs)
 
             timestamps = np.array(self.timestamps, np.float64)
-            file.create_dataset("timestamps", data = timestamps, compression="gzip", compression_opts = 6)
+            file.create_dataset("timestamps", data = timestamps, **dataset_kwargs)
 
             file.update(self.metadata)
 
-        print('Saved compressed depth data in {}.'.format(self._recorder_file_name))
+        print('Saved depth data in {}.'.format(self._recorder_file_name))
 
 class FishEyeImageRecorder(Recorder):
     def __init__(
@@ -187,7 +241,8 @@ class FishEyeImageRecorder(Recorder):
         host,
         image_stream_port,
         storage_path,
-        filename
+        filename,
+        video_codec='FFV1'
     ):
         self.notify_component_start('RGB stream: {}'.format(image_stream_port))
 
@@ -208,11 +263,12 @@ class FishEyeImageRecorder(Recorder):
         self._recorder_file_name = os.path.join(storage_path, filename + '.avi')
         self._metadata_filename = os.path.join(storage_path, filename + '.metadata')
         self._pickle_filename = os.path.join(storage_path, filename + '.pkl')
+        self._video_codec = video_codec
 
         # Initializing the recorder
         self.recorder = cv2.VideoWriter(
             self._recorder_file_name,
-            cv2.VideoWriter_fourcc(*'FFV1'),
+            _video_fourcc(video_codec),
             CAM_FPS,
             IMAGE_RECORD_RESOLUTION
         )
@@ -252,6 +308,7 @@ class FishEyeImageRecorder(Recorder):
         self.metadata['timestamps'] = self.timestamps
         self.metadata['recorder_ip_address'] = self._host
         self.metadata['recorder_image_stream_port'] = self._image_stream_port
+        self.metadata['video_codec'] = self._video_codec
 
         # Storing the data
         print('Storing the final version of the video...')

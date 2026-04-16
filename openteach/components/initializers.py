@@ -205,6 +205,10 @@ class Collector(ProcessInstantiator):
     def _start_component(self, component):
         component.stream()
 
+    def _get_recording_config(self, key, default=None):
+        recording_configs = self.configs.get('recording', {})
+        return recording_configs.get(key, default)
+
     # Record the rgb components
     def _start_rgb_component(self, cam_idx=0):
         # This part has been isolated and made different for the sim and real robot
@@ -215,7 +219,8 @@ class Collector(ProcessInstantiator):
                 host = self.configs.host_address,
                 image_stream_port = self.configs.cam_port_offset + cam_idx,
                 storage_path = self._storage_path,
-                filename = 'cam_{}_rgb_video'.format(cam_idx)
+                filename = 'cam_{}_rgb_video'.format(cam_idx),
+                video_codec = self._get_recording_config('rgb_video_codec', 'FFV1')
             )
         else:
             print("Reaching correct function")
@@ -224,6 +229,7 @@ class Collector(ProcessInstantiator):
             image_stream_port = self.configs.sim_image_port+ cam_idx,
             storage_path = self._storage_path,
             filename = 'cam_{}_rgb_video'.format(cam_idx),
+            video_codec = self._get_recording_config('rgb_video_codec', 'FFV1'),
             sim = True
         )
         component.stream()
@@ -235,14 +241,20 @@ class Collector(ProcessInstantiator):
                 host = self.configs.host_address,
                 image_stream_port = self.configs.cam_port_offset + cam_idx + DEPTH_PORT_OFFSET,
                 storage_path = self._storage_path,
-                filename = 'cam_{}_depth'.format(cam_idx)
+                filename = 'cam_{}_depth'.format(cam_idx),
+                compression = self._get_recording_config('depth_compression', 'gzip'),
+                compression_opts = self._get_recording_config('depth_compression_opts', 6),
+                shuffle = self._get_recording_config('depth_shuffle', False)
             )
         else:
             component = DepthImageRecorder(
                 host = self.configs.host_address,
                 image_stream_port = self.configs.sim_image_port + cam_idx + DEPTH_PORT_OFFSET,
                 storage_path = self._storage_path,
-                filename = 'cam_{}_depth'.format(cam_idx)
+                filename = 'cam_{}_depth'.format(cam_idx),
+                compression = self._get_recording_config('depth_compression', 'gzip'),
+                compression_opts = self._get_recording_config('depth_compression_opts', 6),
+                shuffle = self._get_recording_config('depth_shuffle', False)
             )
         component.stream()
 
@@ -309,7 +321,8 @@ class Collector(ProcessInstantiator):
             host = self.configs.host_address,
             image_stream_port = self.configs.fish_eye_cam_port_offset + cam_idx,
             storage_path = self._storage_path,
-            filename = 'cam_{}_fish_eye_video'.format(cam_idx)
+            filename = 'cam_{}_fish_eye_video'.format(cam_idx),
+            video_codec = self._get_recording_config('rgb_video_codec', 'FFV1')
         )
         component.stream()
 
@@ -344,6 +357,5 @@ class Collector(ProcessInstantiator):
                     target = self._start_robot_component,
                     args = (robot_controller_configs, key, )
                 ))
-
 
 

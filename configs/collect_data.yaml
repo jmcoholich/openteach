@@ -13,6 +13,14 @@ is_xela: false
 host: ${host_address}
 # host: 172.16.0.1
 
+recording:
+  # FFV1 is lossless. For faster/smaller lossy RGB files, override with MJPG.
+  rgb_video_codec: FFV1
+  # lzf is much faster than gzip on shutdown. Use "none" for fastest/largest files,
+  # or gzip with depth_compression_opts: 1 for smaller files at a slower exit.
+  depth_compression: lzf
+  depth_compression_opts: null
+  depth_shuffle: true
 
 
 hydra:

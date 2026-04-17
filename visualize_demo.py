@@ -138,6 +138,10 @@ def make_combined_video(folder, demo_number):
         "eef_pos": [],
         "eef_pose": [],
         "joint_pos": [],
+        "last_dtau_J": [],
+        "last_tau_J": [],
+        "last_tau_J_d": [],
+        "last_tau_ext_hat_filtered": [],
         "rgb_frames": [],
         "depth_frames": [],
         "timestamp": [],
@@ -172,6 +176,10 @@ def make_combined_video(folder, demo_number):
         output_data["eef_pos"].append(cmd_data['eef_pos'][i])
         output_data["eef_pose"].append(cmd_data['eef_pose'][i])
         output_data["joint_pos"].append(cmd_data['joint_pos'][i])
+        output_data["last_dtau_J"].append(cmd_data['last_dtau_J'][i])
+        output_data["last_tau_J"].append(cmd_data['last_tau_J'][i])
+        output_data["last_tau_J_d"].append(cmd_data['last_tau_J_d'][i])
+        output_data["last_tau_ext_hat_filtered"].append(cmd_data['last_tau_ext_hat_filtered'][i])
         output_data["timestamp"].append(cmd_data['timestamp'][i])
 
         # pick paired rgb and depth frames. Just pick the frame that comes immediately before the timestamp
@@ -227,6 +235,10 @@ def make_combined_video(folder, demo_number):
         "gripper_state",
         "eef_pose",
         "joint_pos",
+        "last_dtau_J",
+        "last_tau_J",
+        "last_tau_J_d",
+        "last_tau_ext_hat_filtered",
         "cartesian_pose_cmd",
     ]
     with h5py.File(path, "w") as h5f:
@@ -264,6 +276,7 @@ def make_combined_video(folder, demo_number):
             joint_futures.append(executor.submit(
                 make_joint_state_plots,
                 output_data["joint_pos"],
+                output_data["last_tau_ext_hat_filtered"],
                 # more_data["q_d"][start_idcs[7]: end_idcs[7]],
                 output_data["gripper_state"],
                 output_data["gripper_action"],
@@ -279,6 +292,7 @@ def make_combined_video(folder, demo_number):
             joint_futures.append(executor.submit(
                 make_joint_state_plots,
                 output_data["joint_pos"],
+                output_data["last_tau_ext_hat_filtered"],
                 # more_data["q_d"][start_idcs[7]: end_idcs[7]],
                 output_data["gripper_state"],
                 output_data["gripper_action"],
@@ -369,13 +383,14 @@ def make_combined_frame(depth_frames, rgb_frames, cartesian_frames, joint_state_
 
 
 # def make_joint_state_plots(angles, q_d, gripper_pos, gripper_cmd, idcs):
-def make_joint_state_plots(angles, gripper_pos, gripper_cmd, idcs):
+def make_joint_state_plots(angles, tau_ext_hat_filtered, gripper_pos, gripper_cmd, idcs):
     # make 2 x 4 subplots for 7 joints. Figure size should have a height of 480 and width of 1280. Return fig as an np array.
     # make dir joint_state_plots
     joint_state_plots = []
 
     fig, axs = plt.subplots(2, 4, figsize=(1280/100, 480/100))
     vlines = []
+    legend_lines = []
     canvas = FigureCanvas(fig)
     for i in range(8):
         ax = axs[i // 4, i % 4]
@@ -384,7 +399,12 @@ def make_joint_state_plots(angles, gripper_pos, gripper_cmd, idcs):
             ax.plot(gripper_cmd, antialiased=True)
             ax.set_title("Gripper")
         else:
-            ax.plot(angles[:, i], antialiased=True)
+            pos_line, = ax.plot(angles[:, i], antialiased=True)
+            ax2 = ax.twinx()
+            tau_line, = ax2.plot(tau_ext_hat_filtered[:, i], color="tab:orange", antialiased=True)
+            ax2.set_ylabel("tau")
+            if i == 0:
+                legend_lines = [pos_line, tau_line]
             # ax.plot(q_d[:, i], antialiased=True)
             ax.set_title(f"Joint {i+1}")
         ax.grid()
@@ -394,7 +414,7 @@ def make_joint_state_plots(angles, gripper_pos, gripper_cmd, idcs):
     # Convert the plot to a NumPy array
     # make a super legend for the whole figure: ["actual", "commanded"]
     # fig.legend(["pos", "cmd pos"], loc='upper right')
-    fig.legend(["pos"], loc='upper right')
+    fig.legend(legend_lines, ["pos", "tau"], loc='upper right')
     canvas.draw()
     image = np.asarray(canvas.buffer_rgba())[:, :, :3].copy()
     joint_state_plots.append(image)

@@ -256,6 +256,13 @@ def make_combined_video(folder, demo_number):
         subprocess.run(f"rm -r {frames_dir}", shell=True)
         os.makedirs(frames_dir)
 
+    joint_plots_dir = f"{demo_path}/joint_state_plots"
+    if not os.path.exists(joint_plots_dir):
+        os.makedirs(joint_plots_dir)
+    else:
+        subprocess.run(f"rm -r {joint_plots_dir}", shell=True)
+        os.makedirs(joint_plots_dir)
+
 
 
     joint_futures = []
@@ -280,8 +287,10 @@ def make_combined_video(folder, demo_number):
                 # more_data["q_d"][start_idcs[7]: end_idcs[7]],
                 output_data["gripper_state"],
                 output_data["gripper_action"],
-                np.arange(start, end)
+                np.arange(start, end),
+                joint_plots_dir,
                 ))
+            joint_futures[-1] = (joint_futures[-1], end - start)
             # cartesian_futures.append(executor.submit(
             #     make_cartesian_frame,
             #     output_data["eef_pos"][start: end],
@@ -296,18 +305,23 @@ def make_combined_video(folder, demo_number):
                 # more_data["q_d"][start_idcs[7]: end_idcs[7]],
                 output_data["gripper_state"],
                 output_data["gripper_action"],
-                np.arange(end, num_frames)
+                np.arange(end, num_frames),
+                joint_plots_dir,
                 ))
+            joint_futures[-1] = (joint_futures[-1], num_frames - end)
             # cartesian_futures.append(executor.submit(
             #     make_cartesian_frame,
             #     output_data["eef_pos"][end:],
             #     output_data["eef_quat"][end:],
             #     ))
 
-        joint_state_plots = []
         cartesian_frames = []
-        for future in joint_futures: # needs to be in order
-            joint_state_plots.extend(future.result())
+        progress_bar = tqdm(total=num_frames, desc="Generating joint plots...")
+        joint_future_counts = dict(joint_futures)
+        for future in as_completed(joint_future_counts):
+            future.result()
+            progress_bar.update(joint_future_counts[future])
+        progress_bar.close()
         # for future in cartesian_futures:
         #     cartesian_frames.extend(future.result())
 
@@ -334,7 +348,7 @@ def make_combined_video(folder, demo_number):
                 [output_data["depth_frames"][i, 0], output_data["depth_frames"][i, 1], output_data["depth_frames"][i, 2]],
                 [output_data["rgb_frames"][i, 0], output_data["rgb_frames"][i, 1], output_data["rgb_frames"][i, 2]],
                 None,  # cartesian_frames[i],
-                joint_state_plots[i],
+                f"{joint_plots_dir}/frame_{i:03d}.png",
                 i,
                 max_depth_value,
                 frames_dir,
@@ -349,6 +363,9 @@ def make_combined_video(folder, demo_number):
 
 
 def make_combined_frame(depth_frames, rgb_frames, cartesian_frames, joint_state_plot, i, max_depth_value, frames_dir):
+    if isinstance(joint_state_plot, str):
+        joint_state_plot = cv2.imread(joint_state_plot)[:, :, ::-1]
+
     # get shape of rgb frames
     h, w, _ = rgb_frames[0].shape
     # create a new frame
@@ -383,10 +400,9 @@ def make_combined_frame(depth_frames, rgb_frames, cartesian_frames, joint_state_
 
 
 # def make_joint_state_plots(angles, q_d, gripper_pos, gripper_cmd, idcs):
-def make_joint_state_plots(angles, tau_ext_hat_filtered, gripper_pos, gripper_cmd, idcs):
+def make_joint_state_plots(angles, tau_ext_hat_filtered, gripper_pos, gripper_cmd, idcs, joint_plots_dir):
     # make 2 x 4 subplots for 7 joints. Figure size should have a height of 480 and width of 1280. Return fig as an np array.
     # make dir joint_state_plots
-    joint_state_plots = []
 
     fig, axs = plt.subplots(2, 4, figsize=(1280/100, 480/100))
     vlines = []
@@ -417,7 +433,7 @@ def make_joint_state_plots(angles, tau_ext_hat_filtered, gripper_pos, gripper_cm
     fig.legend(legend_lines, ["pos", "tau"], loc='upper right')
     canvas.draw()
     image = np.asarray(canvas.buffer_rgba())[:, :, :3].copy()
-    joint_state_plots.append(image)
+    plt.imsave(f"{joint_plots_dir}/frame_{idcs[0]:03d}.png", image)
     # plt.savefig(f"{demo_path}/joint_state_plots/frame_{0:03d}.png")
     # the eight plot is for gripper state
     for j in range(1, idcs.shape[0]):
@@ -437,11 +453,9 @@ def make_joint_state_plots(angles, tau_ext_hat_filtered, gripper_pos, gripper_cm
         canvas.draw()
         # Convert the plot to a NumPy array using ARGB
         image = np.asarray(canvas.buffer_rgba())[:, :, :3].copy()
-        joint_state_plots.append(image)
+        plt.imsave(f"{joint_plots_dir}/frame_{idcs[j]:03d}.png", image)
 
     plt.close(fig)
-
-    return joint_state_plots
 
 
 def load_video_to_numpy_array(video_path):

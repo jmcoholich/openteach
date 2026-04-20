@@ -9,7 +9,7 @@ Outputs
 import os
 import pickle as pkl
 import subprocess
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import cv2
 import h5py
@@ -249,13 +249,6 @@ def make_combined_video(folder, demo_number):
             h5f.attrs[attr] = value
 
     # make video
-    frames_dir = f"{demo_path}/combined_frames"
-    if not os.path.exists(frames_dir):
-        os.makedirs(frames_dir)
-    else:
-        subprocess.run(f"rm -r {frames_dir}", shell=True)
-        os.makedirs(frames_dir)
-
     joint_plots_dir = f"{demo_path}/joint_state_plots"
     if not os.path.exists(joint_plots_dir):
         os.makedirs(joint_plots_dir)
@@ -263,72 +256,17 @@ def make_combined_video(folder, demo_number):
         subprocess.run(f"rm -r {joint_plots_dir}", shell=True)
         os.makedirs(joint_plots_dir)
 
-
-
-    joint_futures = []
-    cartesian_futures = []
-    workers = 8
     num_frames = len(output_data["timestamp"])
     print(f"Total number of final frames in demo: {num_frames}")
 
-    # print("\nGenerating joint state plots and cartesian plots...\n")
-    print("\nGenerating joint state plots...\n")
-    # split the range up into equal parts equal to the number of workers
-    with ProcessPoolExecutor(max_workers=workers) as executor:
-        chunk_size = num_frames // (workers - 1)
-        remainder = num_frames % (workers - 1)
-        for i in range(workers - 1):
-            start = i * chunk_size
-            end = (i + 1) * chunk_size
-            joint_futures.append(executor.submit(
-                make_joint_state_plots,
-                output_data["joint_pos"],
-                output_data["last_tau_ext_hat_filtered"],
-                # more_data["q_d"][start_idcs[7]: end_idcs[7]],
-                output_data["gripper_state"],
-                output_data["gripper_action"],
-                np.arange(start, end),
-                joint_plots_dir,
-                ))
-            joint_futures[-1] = (joint_futures[-1], end - start)
-            # cartesian_futures.append(executor.submit(
-            #     make_cartesian_frame,
-            #     output_data["eef_pos"][start: end],
-            #     output_data["eef_quat"][start: end],
-            #     ))
-        if remainder > 0:
-            # add the remainder
-            joint_futures.append(executor.submit(
-                make_joint_state_plots,
-                output_data["joint_pos"],
-                output_data["last_tau_ext_hat_filtered"],
-                # more_data["q_d"][start_idcs[7]: end_idcs[7]],
-                output_data["gripper_state"],
-                output_data["gripper_action"],
-                np.arange(end, num_frames),
-                joint_plots_dir,
-                ))
-            joint_futures[-1] = (joint_futures[-1], num_frames - end)
-            # cartesian_futures.append(executor.submit(
-            #     make_cartesian_frame,
-            #     output_data["eef_pos"][end:],
-            #     output_data["eef_quat"][end:],
-            #     ))
-
-        cartesian_frames = []
-        progress_bar = tqdm(total=num_frames, desc="Generating joint plots...")
-        joint_future_counts = dict(joint_futures)
-        for future in as_completed(joint_future_counts):
-            future.result()
-            progress_bar.update(joint_future_counts[future])
-        progress_bar.close()
-        # for future in cartesian_futures:
-        #     cartesian_frames.extend(future.result())
-
-
-    # idcs = []
-    # for i in range(8):
-    #     idcs.append(range(start_idcs[i], end_idcs[i]))
+    print("\nGenerating joint state plot...\n")
+    joint_state_plot, joint_line_bounds = make_joint_state_plot(
+        output_data["joint_pos"],
+        output_data["last_tau_ext_hat_filtered"],
+        output_data["gripper_state"],
+        output_data["gripper_action"],
+        f"{joint_plots_dir}/joint_state_plot.png",
+    )
 
     # clear and recreate frames dir
     frames_dir = f"{demo_path}/combined_frames"
@@ -347,8 +285,9 @@ def make_combined_video(folder, demo_number):
                 make_combined_frame,
                 [output_data["depth_frames"][i, 0], output_data["depth_frames"][i, 1], output_data["depth_frames"][i, 2]],
                 [output_data["rgb_frames"][i, 0], output_data["rgb_frames"][i, 1], output_data["rgb_frames"][i, 2]],
-                None,  # cartesian_frames[i],
-                f"{joint_plots_dir}/frame_{i:03d}.png",
+                None,
+                joint_state_plot,
+                joint_line_bounds,
                 i,
                 max_depth_value,
                 frames_dir,
@@ -362,9 +301,17 @@ def make_combined_video(folder, demo_number):
     compile_video(f"demo_{demo_number}", frames_dir, demo_path)
 
 
-def make_combined_frame(depth_frames, rgb_frames, cartesian_frames, joint_state_plot, i, max_depth_value, frames_dir):
+def make_combined_frame(depth_frames, rgb_frames, cartesian_frames, joint_state_plot, joint_line_bounds, i, max_depth_value, frames_dir):
     if isinstance(joint_state_plot, str):
         joint_state_plot = cv2.imread(joint_state_plot)[:, :, ::-1]
+    joint_state_plot = joint_state_plot.copy()
+    for x0, y0, x1, y1, xmin, xmax in joint_line_bounds:
+        if xmax == xmin:
+            x = round((x0 + x1) / 2)
+        else:
+            x = round(x0 + (i - xmin) * (x1 - x0) / (xmax - xmin))
+        x = int(np.clip(x, x0, x1 - 1))
+        cv2.line(joint_state_plot, (x, y0), (x, y1 - 1), (255, 0, 0), 2, cv2.LINE_AA)
 
     # get shape of rgb frames
     h, w, _ = rgb_frames[0].shape
@@ -399,14 +346,12 @@ def make_combined_frame(depth_frames, rgb_frames, cartesian_frames, joint_state_
     plt.imsave(f"{frames_dir}/frame_{i:03d}.png", frame)
 
 
-# def make_joint_state_plots(angles, q_d, gripper_pos, gripper_cmd, idcs):
-def make_joint_state_plots(angles, tau_ext_hat_filtered, gripper_pos, gripper_cmd, idcs, joint_plots_dir):
+def make_joint_state_plot(angles, tau_ext_hat_filtered, gripper_pos, gripper_cmd, path):
     # make 2 x 4 subplots for 7 joints. Figure size should have a height of 480 and width of 1280. Return fig as an np array.
-    # make dir joint_state_plots
 
     fig, axs = plt.subplots(2, 4, figsize=(1280/100, 480/100))
-    vlines = []
     legend_lines = []
+    line_axes = []
     canvas = FigureCanvas(fig)
     for i in range(8):
         ax = axs[i // 4, i % 4]
@@ -424,8 +369,7 @@ def make_joint_state_plots(angles, tau_ext_hat_filtered, gripper_pos, gripper_cm
             # ax.plot(q_d[:, i], antialiased=True)
             ax.set_title(f"Joint {i+1}")
         ax.grid()
-        # draw a vertical red line corresponding to the timestep
-        vlines.append(ax.axvline(idcs[0], color='r'))
+        line_axes.append(ax)
     plt.tight_layout()
     # Convert the plot to a NumPy array
     # make a super legend for the whole figure: ["actual", "commanded"]
@@ -433,29 +377,23 @@ def make_joint_state_plots(angles, tau_ext_hat_filtered, gripper_pos, gripper_cm
     fig.legend(legend_lines, ["pos", "tau"], loc='upper right')
     canvas.draw()
     image = np.asarray(canvas.buffer_rgba())[:, :, :3].copy()
-    plt.imsave(f"{joint_plots_dir}/frame_{idcs[0]:03d}.png", image)
-    # plt.savefig(f"{demo_path}/joint_state_plots/frame_{0:03d}.png")
-    # the eight plot is for gripper state
-    for j in range(1, idcs.shape[0]):
-        for i in range(8):
-            # erase previous red line
-            ax = axs[i // 4, i % 4]
-            # ax.lines.pop(1)
-            vlines[i].remove()
-        vlines = []
-        for i in range(8):
-            # draw a vertical red line corresponding to the timestep
-            ax = axs[i // 4, i % 4]
-            vlines.append(ax.axvline(idcs[j], color='r'))
-            # Draw the canvas to update the figure
-
-        # Convert the plot to a NumPy array
-        canvas.draw()
-        # Convert the plot to a NumPy array using ARGB
-        image = np.asarray(canvas.buffer_rgba())[:, :, :3].copy()
-        plt.imsave(f"{joint_plots_dir}/frame_{idcs[j]:03d}.png", image)
+    h = image.shape[0]
+    line_bounds = []
+    for ax in line_axes:
+        bbox = ax.bbox
+        xmin, xmax = ax.get_xlim()
+        line_bounds.append((
+            int(round(bbox.x0)),
+            int(round(h - bbox.y1)),
+            int(round(bbox.x1)),
+            int(round(h - bbox.y0)),
+            float(xmin),
+            float(xmax),
+        ))
+    plt.imsave(path, image)
 
     plt.close(fig)
+    return image, line_bounds
 
 
 def load_video_to_numpy_array(video_path):

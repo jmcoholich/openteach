@@ -507,6 +507,7 @@ class FrankaArmOperator(Operator):
             @ np.linalg.pinv(controller_origin_to_init[:3, :3])
         )
         teleop_relative_rotation = flip_mat_rot @ controller_relative_rotation.T @ flip_mat_rot.T
+        # teleop_relative_rotation = self._scale_down_rot(teleop_relative_rotation, [0.5, 0.5, 1.0])
         # The current controller frame mapping gets each physical motion onto the
         # correct robot axis, but with the opposite sign. Invert only the relative
         # rotation here so we keep the axis correspondence. Then rotate that
@@ -514,7 +515,9 @@ class FrankaArmOperator(Operator):
         robot_origin_to_current[:3, :3] = (
             robot_origin_to_init[:3, :3] @ teleop_relative_rotation
         )
-        robot_origin_to_current[:3, 3] = robot_origin_to_init[:3, 3] + flip_mat @ (controller_origin_to_current[:3, 3] - controller_origin_to_init[:3, 3])
+        teleop_relative_translation = flip_mat @ (controller_origin_to_current[:3, 3] - controller_origin_to_init[:3, 3])
+        # teleop_relative_translation = teleop_relative_translation * np.array([0.5, 0.5, 0.5])
+        robot_origin_to_current[:3, 3] = robot_origin_to_init[:3, 3] + teleop_relative_translation
         if JUST_GO_STRAIGHT_UP:
             robot_origin_to_current[:3, :3] = (
                 robot_origin_to_init[:3, :3]
@@ -536,15 +539,21 @@ class FrankaArmOperator(Operator):
 
 
     @staticmethod
-    def _scale_down_homo_mat(mat, scale_param):
+    def _scale_down_homo_mat(mat, scale_params):
         scaled_mat = np.array(mat, copy=True)
-        scaled_mat[:3, 3] *= scale_param
+        scaled_mat[:3, 3] *= scale_params[:3]
 
         rotvec = Rotation.from_matrix(mat[:3, :3]).as_rotvec()
-        scaled_mat[:3, :3] = Rotation.from_rotvec(rotvec * scale_param).as_matrix()
+        scaled_mat[:3, :3] = Rotation.from_rotvec(rotvec * scale_params[3:]).as_matrix()
 
         return scaled_mat
 
+
+    @staticmethod
+    def _scale_down_rot(mat, scale_params):
+        rotvec = Rotation.from_matrix(mat).as_rotvec()
+        scaled_mat = Rotation.from_rotvec(rotvec * scale_params).as_matrix()
+        return scaled_mat
 
     def arm_control(self, **kwargs):
         if self.robot_interface.state_buffer_size == 0:

@@ -27,7 +27,9 @@ STATE_FREQ = 60
 ROTATION_VELOCITY_LIMIT = 0.2
 TRANSLATION_VELOCITY_LIMIT = 0.1
 
-TELEOP_SCALE_PARAM = 1.0
+TELEOP_SCALE_TRANSLATION = (0.5, 0.5, 1.0)  # works for plug
+# TELEOP_SCALE_TRANSLATION = (0.5, 0.5, 0.5)  # thread
+TELEOP_SCALE_ROTATION = (0.5, 0.5, 1.0)  # works for plug and thread
 
 FLIP_TELEOP = True  # teleop facing the robot
 
@@ -507,7 +509,7 @@ class FrankaArmOperator(Operator):
             @ np.linalg.pinv(controller_origin_to_init[:3, :3])
         )
         teleop_relative_rotation = flip_mat_rot @ controller_relative_rotation.T @ flip_mat_rot.T
-        # teleop_relative_rotation = self._scale_down_rot(teleop_relative_rotation, [0.5, 0.5, 1.0])
+        teleop_relative_rotation = self._scale_down_rot(teleop_relative_rotation, TELEOP_SCALE_ROTATION)
         # The current controller frame mapping gets each physical motion onto the
         # correct robot axis, but with the opposite sign. Invert only the relative
         # rotation here so we keep the axis correspondence. Then rotate that
@@ -516,7 +518,7 @@ class FrankaArmOperator(Operator):
             robot_origin_to_init[:3, :3] @ teleop_relative_rotation
         )
         teleop_relative_translation = flip_mat @ (controller_origin_to_current[:3, 3] - controller_origin_to_init[:3, 3])
-        # teleop_relative_translation = teleop_relative_translation * np.array([0.5, 0.5, 0.5])
+        teleop_relative_translation = teleop_relative_translation * np.array(TELEOP_SCALE_TRANSLATION)
         robot_origin_to_current[:3, 3] = robot_origin_to_init[:3, 3] + teleop_relative_translation
         if JUST_GO_STRAIGHT_UP:
             robot_origin_to_current[:3, :3] = (

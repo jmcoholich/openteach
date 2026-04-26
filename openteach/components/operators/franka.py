@@ -402,6 +402,7 @@ class FrankaArmOperator(Operator):
         self.hand_init_H = self._turn_frame_to_homo_mat(first_hand_frame)
         self.hand_init_t = copy(self.hand_init_H[:3, 3])
         self.is_first_frame = False
+        self._last_abs_joint_action = None
         return first_hand_frame
 
         # Reset the teleoperation and get the first frame
@@ -414,6 +415,7 @@ class FrankaArmOperator(Operator):
             self.hand_init_H = self._get_remote_message()
             time.sleep(0.1)
         self.is_first_frame = False
+        self._last_abs_joint_action = None
 
     # Apply the retargeted angles
     def _apply_retargeted_angles(self, log=False):

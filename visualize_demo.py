@@ -13,6 +13,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import cv2
 import h5py
+import matplotlib
+
+matplotlib.use("Agg", force=True)
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
@@ -343,7 +346,7 @@ def make_combined_frame(depth_frames, rgb_frames, cartesian_frames, joint_state_
     frame[h*2:, w:] = (joint_state_plot[..., :3]).astype(np.uint8)
 
     # save_combined frames
-    plt.imsave(f"{frames_dir}/frame_{i:03d}.png", frame)
+    save_image(f"{frames_dir}/frame_{i:03d}.png", frame)
 
 
 def make_joint_state_plot(angles, tau_ext_hat_filtered, gripper_pos, gripper_cmd, path):
@@ -390,7 +393,7 @@ def make_joint_state_plot(angles, tau_ext_hat_filtered, gripper_pos, gripper_cmd
             float(xmin),
             float(xmax),
         ))
-    plt.imsave(path, image)
+    save_image(path, image)
 
     plt.close(fig)
     return image, line_bounds
@@ -531,9 +534,7 @@ def make_depth_videos(demo_number):
             os.makedirs(frames_dir)
         with ThreadPoolExecutor(max_workers=8) as executor:
             for i in tqdm(range(x.shape[0]), desc="Saving frames..."):
-                # plt.imshow(x[i])
-                # plt.imsave(f"{frames_dir}/frame_{i:03d}.png", x[i])
-                executor.submit(save_img, f"{frames_dir}/frame_{i:03d}.png", x[i])
+                executor.submit(save_image, f"{frames_dir}/frame_{i:03d}.png", x[i])
 
 
 
@@ -544,8 +545,16 @@ def make_depth_videos(demo_number):
         run_cmd(f"rm -r {frames_dir}")
 
 
-def save_img(path, img):
-    plt.imsave(path, img)
+def save_image(path, image):
+    if image.ndim == 2:
+        output = image
+    elif image.ndim == 3 and image.shape[2] == 3:
+        output = cv2.cvtColor(image[..., :3], cv2.COLOR_RGB2BGR)
+    else:
+        raise ValueError(f"Expected a grayscale or RGB image for {path}, got shape {image.shape}")
+
+    if not cv2.imwrite(path, output):
+        raise IOError(f"Failed to write image to {path}")
 
 
 def run_cmd(command, env=None):

@@ -42,7 +42,8 @@ def main():
     args = parser.parse_args()
 
     if args.demo_number:
-        make_combined_video(None, args.demo_number)
+        for demo_number in args.demo_number.split(","):
+            make_combined_video(None, demo_number.strip())
 
     elif args.demo_folder:
         data_root = f"{os.path.expanduser('~')}/openteach/extracted_data/{args.demo_folder}"
@@ -64,7 +65,11 @@ def main():
 
 def make_combined_video(folder, demo_number):
     root_folder = f"{os.path.expanduser('~')}/openteach/extracted_data"
-    if folder is None:
+    if folder is None and os.path.isabs(demo_number):
+        demo_path = demo_number
+        demo_number = os.path.basename(demo_path)[14:] if os.path.basename(demo_path).startswith("demonstration_") else os.path.basename(demo_path)
+        cmds_path = os.path.join(os.path.dirname(demo_path), f"deoxys_obs_cmd_history_{demo_number}.h5")
+    elif folder is None:
         demo_path = os.path.join(root_folder, f"demonstration_{demo_number}")
         cmds_path = os.path.join(root_folder, f"deoxys_obs_cmd_history_{demo_number}.h5")
     else:

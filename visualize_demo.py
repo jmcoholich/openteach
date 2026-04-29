@@ -171,6 +171,11 @@ def make_combined_video(folder, demo_number):
         if cmd_data['timestamp'][i] < all_cams_started_time or cmd_data['timestamp'][i] > cam_stopped:  # throws away the last frame but thats fine
             # print(f"Frame timestamp {cmd_data['timestamp'][i]:.3f} is outside of camera recording range of {all_cams_started_time:.3f} to {cam_stopped:.3f}. Skipping frame...")
             continue
+
+        if np.isnan(cmd_data['gripper_state'][i]):
+            print(f"Frame {i} has NaN gripper state. Skipping frame...")
+            continue
+
         output_data["cartesian_pose_cmd"].append(cmd_data['cartesian_pose_cmd'][i])
         output_data["arm_action"].append(cmd_data['arm_action'][i])
         output_data["gripper_action"].append(cmd_data['gripper_action'][i])

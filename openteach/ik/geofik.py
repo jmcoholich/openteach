@@ -53,7 +53,14 @@ def solve_geofik_swivel(current_q, target_pose, theta=None, ee_frame="E"):
         theta = franka_swivel(current_q)
 
     nsols, qsols = solve_swivel_from_pose(target_pose, theta=theta, ee_frame=ee_frame)
-    solution = nearest_solution_for_joint(qsols, current_q, joint_idx=0)
+    solution = nearest_solution_for_joint_with_lower_penalty(
+        qsols,
+        current_q,
+        joint_idx=0,
+        penalty_joint_idx=1,
+        lower_limit=-1.5,
+        penalty=10.0,
+    )
     return solution
 
 
@@ -159,6 +166,30 @@ def nearest_solution_for_joint(
 
     joint_distances = np.abs(valid_qsols[:, joint_idx] - reference_q[joint_idx])
     total_distances = np.linalg.norm(valid_qsols - reference_q, axis=1)
+    return valid_qsols[np.lexsort((total_distances, joint_distances))[0]]
+
+
+def nearest_solution_for_joint_with_lower_penalty(
+    qsols: np.ndarray,
+    reference_q: np.ndarray,
+    joint_idx: int,
+    penalty_joint_idx: int,
+    lower_limit: float,
+    penalty: float = 1.0,
+) -> np.ndarray | None:
+    valid_qsols = finite_solutions(qsols)
+    if len(valid_qsols) == 0:
+        return None
+
+    reference_q = np.asarray(reference_q, dtype=np.float64).reshape(7)
+    if not 0 <= joint_idx < reference_q.shape[0]:
+        raise ValueError("joint_idx must be in [0, 6]")
+    if not 0 <= penalty_joint_idx < reference_q.shape[0]:
+        raise ValueError("penalty_joint_idx must be in [0, 6]")
+
+    lower_penalties = np.maximum(lower_limit - valid_qsols[:, penalty_joint_idx], 0.0) * penalty
+    joint_distances = np.abs(valid_qsols[:, joint_idx] - reference_q[joint_idx]) + lower_penalties
+    total_distances = np.linalg.norm(valid_qsols - reference_q, axis=1) + lower_penalties
     return valid_qsols[np.lexsort((total_distances, joint_distances))[0]]
 
 

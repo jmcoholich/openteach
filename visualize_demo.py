@@ -570,10 +570,20 @@ def save_image(path, image):
 def run_cmd(command, env=None):
     print('------------------------------------------')
     print("Running command:", command)
-    if env is None:
-        env = {}
-    completed_process = subprocess.run(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
-    # Print the output and error messages
+
+    full_env = os.environ.copy()
+    if env is not None:
+        full_env.update(env)
+
+    completed_process = subprocess.run(
+        command,
+        shell=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=full_env,
+    )
+
     print("Standard Output:")
     print(completed_process.stdout)
 
@@ -581,7 +591,6 @@ def run_cmd(command, env=None):
         print("Standard Error:")
         print(completed_process.stderr)
 
-    # Print the return code
     print("Return Code:", completed_process.returncode)
     print('------------------------------------------')
     print()
@@ -589,7 +598,7 @@ def run_cmd(command, env=None):
 
 def compile_video(vid_name, frames_dir, results_dir):
     command = f"yes | ffmpeg -framerate 40 -i {frames_dir}/frame_%03d.png -c:v libx264 -crf 18 -preset slow -pix_fmt yuv420p {results_dir}/{vid_name}.mp4"
-    run_cmd(command, env={'LD_PRELOAD': '/usr/lib/x86_64-linux-gnu/libffi.so.7'})
+    run_cmd(command)
 
 
 if __name__ == "__main__":

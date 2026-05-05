@@ -234,7 +234,7 @@ class FrankaArmOperator(Operator):
 
         self.gripper_state = None
         self.gripper_last_msg = False
-        self.gripper_cmd = -1
+        self.gripper_cmd = None
         self.below_thresh = False
 
     @property
@@ -273,13 +273,14 @@ class FrankaArmOperator(Operator):
                 break
         if data is None:
             return None
-        # pose is x, y, z, qx, qy, qz, qw
+        # Unity sends pose as x, y, z, qw, qx, qy, qz.
+        # Deoxys transform utilities expect quaternions as qx, qy, qz, qw.
         # need to transform this to a (4,3) pose matrix
         remote_pose = np.array(data[0])
         # offset_R = np.array(data[1])  # this is the position points offset along the principle axes in the remote frame
 
         t = np.array(remote_pose[:3])
-        R = transform_utils.quat2mat(remote_pose[3:])
+        R = transform_utils.quat2mat(remote_pose[[4, 5, 6, 3]])
 
         # remote_frame = np.vstack([t, R])
         homo_mat = np.zeros((4, 4))
@@ -296,29 +297,18 @@ class FrankaArmOperator(Operator):
         homo_mat = x_rot_90 @ homo_mat
         y_refl_mat = np.eye(3)
         y_refl_mat[1, 1] = -1
-        z_refl_mat = np.eye(3)
-        z_refl_mat[2, 2] = -1
-        homo_mat = homo_mat.copy()
-        # Reflect translation into the robot frame, but leave orientation in the
-        # rotated frame. Reflecting the rotation block as well flips controller
-        # roll in the relative-pose teleop path used by _controller_tracking().
-        homo_mat[:3, :3] = z_refl_mat @ homo_mat[:3, :3] @ z_refl_mat
         homo_mat[:3, 3] = y_refl_mat @ homo_mat[:3, 3]
 
         return homo_mat
 
-    # # Create a coordinate frame for the arm
-    # def _get_dir_frame(self, base, offset):
-    #     X = normalize_vector(offset[0] - base)
-    #     Y = normalize_vector(offset[1] - base)
-    #     Z = normalize_vector(base - offset[2])
-
-    #     return [X, Y, Z]
-
     def _get_gripper_message(self):
         msg = self._gripper_message_subscriber.recv_keypoints()
         if not self.gripper_last_msg and msg:
-            self.gripper_cmd *= -1
+            if self.gripper_cmd is None:
+                is_open = self.robot_interface.last_gripper_q > 0.07
+                self.gripper_cmd = -1 if is_open else 1
+            else:
+                self.gripper_cmd *= -1
             self.gripper_last_msg = msg
         elif self.gripper_last_msg and not msg:
             self.gripper_last_msg = msg
@@ -484,19 +474,11 @@ class FrankaArmOperator(Operator):
             return # It means we are not on the arm mode; return to avoid blocking
 
         flip_mat = np.eye(3)
-        flip_mat_rot = np.eye(3)
         if FLIP_TELEOP:
-            # make a z rotation matrix parameterized by a z rotation angle in degrees
-            z_rot = 135 # degrees
-            z_rot_rot = 180 # degrees
+            z_rot = 90 # degrees
             flip_mat = np.array([
                 [np.cos(np.radians(z_rot)), -np.sin(np.radians(z_rot)), 0],
                 [np.sin(np.radians(z_rot)), np.cos(np.radians(z_rot)), 0],
-                [0, 0, 1]
-            ])
-            flip_mat_rot = np.array([
-                [np.cos(np.radians(z_rot_rot)), -np.sin(np.radians(z_rot_rot)), 0],
-                [np.sin(np.radians(z_rot_rot)), np.cos(np.radians(z_rot_rot)), 0],
                 [0, 0, 1]
             ])
 
@@ -510,15 +492,24 @@ class FrankaArmOperator(Operator):
             controller_origin_to_current[:3, :3]
             @ np.linalg.pinv(controller_origin_to_init[:3, :3])
         )
-        teleop_relative_rotation = flip_mat_rot @ controller_relative_rotation.T @ flip_mat_rot.T
+        teleop_relative_rotation = flip_mat @ controller_relative_rotation @ flip_mat.T
         teleop_relative_rotation = self._scale_down_rot(teleop_relative_rotation, TELEOP_SCALE_ROTATION)
-        # The current controller frame mapping gets each physical motion onto the
-        # correct robot axis, but with the opposite sign. Invert only the relative
-        # rotation here so we keep the axis correspondence. Then rotate that
-        # relative motion into the teleop viewpoint selected by flip_mat.
+
+        # Codex fixing things
+        teleop_rotvec = Rotation.from_matrix(teleop_relative_rotation).as_rotvec()
+        local_x_rotation = Rotation.from_rotvec(
+            [teleop_rotvec[0], 0.0, 0.0]
+        ).as_matrix()
+        global_y_rotation = Rotation.from_rotvec(
+            [0.0, -teleop_rotvec[1], 0.0]
+        ).as_matrix()
+        global_z_rotation = Rotation.from_rotvec(
+            [0.0, 0.0, -teleop_rotvec[2]]
+        ).as_matrix()
         robot_origin_to_current[:3, :3] = (
-            robot_origin_to_init[:3, :3] @ teleop_relative_rotation
+            global_z_rotation @ global_y_rotation @ robot_origin_to_init[:3, :3] @ local_x_rotation
         )
+        # End codex fixing things
         teleop_relative_translation = flip_mat @ (controller_origin_to_current[:3, 3] - controller_origin_to_init[:3, 3])
         teleop_relative_translation = teleop_relative_translation * np.array(TELEOP_SCALE_TRANSLATION)
         robot_origin_to_current[:3, 3] = robot_origin_to_init[:3, 3] + teleop_relative_translation
@@ -593,7 +584,7 @@ class FrankaArmOperator(Operator):
             controller_cfg=self.controller_cfg,
         )
 
-        if "gripper_cmd" in kwargs:
+        if kwargs.get("gripper_cmd") is not None:
             self.robot_interface.gripper_control(kwargs["gripper_cmd"])
 
     def _filter_abs_joint_action(self, action):

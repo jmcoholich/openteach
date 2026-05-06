@@ -273,14 +273,13 @@ class FrankaArmOperator(Operator):
                 break
         if data is None:
             return None
-        # Unity sends pose as x, y, z, qw, qx, qy, qz.
-        # Deoxys transform utilities expect quaternions as qx, qy, qz, qw.
+        # pose is x, y, z, qx, qy, qz, qw
         # need to transform this to a (4,3) pose matrix
         remote_pose = np.array(data[0])
         # offset_R = np.array(data[1])  # this is the position points offset along the principle axes in the remote frame
 
         t = np.array(remote_pose[:3])
-        R = transform_utils.quat2mat(remote_pose[[4, 5, 6, 3]])
+        R = transform_utils.quat2mat(remote_pose[3:])
 
         # remote_frame = np.vstack([t, R])
         homo_mat = np.zeros((4, 4))
@@ -297,6 +296,13 @@ class FrankaArmOperator(Operator):
         homo_mat = x_rot_90 @ homo_mat
         y_refl_mat = np.eye(3)
         y_refl_mat[1, 1] = -1
+        z_refl_mat = np.eye(3)
+        z_refl_mat[2, 2] = -1
+        homo_mat = homo_mat.copy()
+        # Reflect translation into the robot frame, but leave orientation in the
+        # rotated frame. Reflecting the rotation block as well flips controller
+        # roll in the relative-pose teleop path used by _controller_tracking().
+        homo_mat[:3, :3] = z_refl_mat @ homo_mat[:3, :3] @ z_refl_mat
         homo_mat[:3, 3] = y_refl_mat @ homo_mat[:3, 3]
 
         return homo_mat
@@ -474,11 +480,19 @@ class FrankaArmOperator(Operator):
             return # It means we are not on the arm mode; return to avoid blocking
 
         flip_mat = np.eye(3)
+        flip_mat_rot = np.eye(3)
         if FLIP_TELEOP:
+            # make a z rotation matrix parameterized by a z rotation angle in degrees
             z_rot = 90 # degrees
+            z_rot_rot = 180 # degrees
             flip_mat = np.array([
                 [np.cos(np.radians(z_rot)), -np.sin(np.radians(z_rot)), 0],
                 [np.sin(np.radians(z_rot)), np.cos(np.radians(z_rot)), 0],
+                [0, 0, 1]
+            ])
+            flip_mat_rot = np.array([
+                [np.cos(np.radians(z_rot_rot)), -np.sin(np.radians(z_rot_rot)), 0],
+                [np.sin(np.radians(z_rot_rot)), np.cos(np.radians(z_rot_rot)), 0],
                 [0, 0, 1]
             ])
 
@@ -492,10 +506,12 @@ class FrankaArmOperator(Operator):
             controller_origin_to_current[:3, :3]
             @ np.linalg.pinv(controller_origin_to_init[:3, :3])
         )
-        teleop_relative_rotation = flip_mat @ controller_relative_rotation @ flip_mat.T
+        teleop_relative_rotation = flip_mat_rot @ controller_relative_rotation.T @ flip_mat_rot.T
         teleop_relative_rotation = self._scale_down_rot(teleop_relative_rotation, TELEOP_SCALE_ROTATION)
-
-        # Codex fixing things
+        # The current controller frame mapping gets each physical motion onto the
+        # correct robot axis, but with the opposite sign. Invert only the relative
+        # rotation here so we keep the axis correspondence. Then rotate that
+        # relative motion into the teleop viewpoint selected by flip_mat.
         teleop_rotvec = Rotation.from_matrix(teleop_relative_rotation).as_rotvec()
         local_x_rotation = Rotation.from_rotvec(
             [teleop_rotvec[0], 0.0, 0.0]
@@ -509,7 +525,6 @@ class FrankaArmOperator(Operator):
         robot_origin_to_current[:3, :3] = (
             global_z_rotation @ global_y_rotation @ robot_origin_to_init[:3, :3] @ local_x_rotation
         )
-        # End codex fixing things
         teleop_relative_translation = flip_mat @ (controller_origin_to_current[:3, 3] - controller_origin_to_init[:3, 3])
         teleop_relative_translation = teleop_relative_translation * np.array(TELEOP_SCALE_TRANSLATION)
         robot_origin_to_current[:3, 3] = robot_origin_to_init[:3, 3] + teleop_relative_translation
@@ -531,7 +546,6 @@ class FrankaArmOperator(Operator):
             target_pose=final_pose,
             gripper_cmd=gripper_cmd,
             )
-
 
     @staticmethod
     def _scale_down_homo_mat(mat, scale_params):

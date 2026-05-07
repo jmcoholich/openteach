@@ -39,11 +39,12 @@ def main():
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--demo_number", type=str, help="The number of the demonstration to process and visualize")
     group.add_argument("--demo_folder", type=str, help="Process and visualize all demos in folder.")
+    parser.add_argument("--no_video", action="store_true", help="Process and visualize all demos in folder without creating video.")
     args = parser.parse_args()
 
     if args.demo_number:
         for demo_number in args.demo_number.split(","):
-            make_combined_video(None, demo_number.strip())
+            make_combined_video(None, demo_number.strip(), make_video=not args.no_video)
 
     elif args.demo_folder:
         data_root = f"{os.path.expanduser('~')}/openteach/extracted_data/{args.demo_folder}"
@@ -57,13 +58,13 @@ def main():
             if os.path.exists(os.path.join(data_root, file, f"demo_{demo_number}.h5")):
                 print(f"Demo {demo_number} already processed. Skipping...")
                 continue
-            make_combined_video(args.demo_folder, demo_number)
+            make_combined_video(args.demo_folder, demo_number, make_video=not args.no_video)
 
     else:
         raise ValueError("Either --demo_number or --demo_folder must be provided")
 
 
-def make_combined_video(folder, demo_number):
+def make_combined_video(folder, demo_number, make_video=True):
     root_folder = f"{os.path.expanduser('~')}/openteach/extracted_data"
     if folder is None and os.path.isabs(demo_number):
         demo_path = demo_number
@@ -262,6 +263,9 @@ def make_combined_video(folder, demo_number):
             h5f.attrs[attr] = value
 
     # make video
+    if not make_video:
+        print("No video flag passed. Skipping video creation.")
+        return
     joint_plots_dir = f"{demo_path}/joint_state_plots"
     if not os.path.exists(joint_plots_dir):
         os.makedirs(joint_plots_dir)

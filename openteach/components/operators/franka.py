@@ -735,9 +735,12 @@ class FrankaArmOperator(Operator):
         print('Stopping the teleoperator!')
 
     def save_obs_cmd_history(self):
-        path = os.path.join(os.getcwd(), self.storage_location, f'deoxys_obs_cmd_history_{self.record}.h5')
+        demo_folder = f"demonstration_{self.record}"
+        demo_path = os.path.join(os.getcwd(), self.storage_location, demo_folder)
+        os.makedirs(demo_path, exist_ok=True)
+        path = os.path.join(demo_path, f'deoxys_obs_cmd_history_{self.record}.h5')
         print('Saving the deoxys_obs_cmd_history to {}'.format(path))
-        tmp_path = f"{path}.tmp"
+        tmp_path = f"{path}.{os.getpid()}.tmp"
         with h5py.File(tmp_path, 'w') as f:
             for key, value in self.deoxys_obs_cmd_history.items():
                 dataset = self._history_values_to_dataset(key, value)

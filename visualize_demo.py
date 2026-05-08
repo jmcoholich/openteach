@@ -8,6 +8,7 @@ Outputs
 
 import os
 import pickle as pkl
+import shutil
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -69,13 +70,11 @@ def make_combined_video(folder, demo_number, make_video=True):
     if folder is None and os.path.isabs(demo_number):
         demo_path = demo_number
         demo_number = os.path.basename(demo_path)[14:] if os.path.basename(demo_path).startswith("demonstration_") else os.path.basename(demo_path)
-        cmds_path = os.path.join(os.path.dirname(demo_path), f"deoxys_obs_cmd_history_{demo_number}.h5")
     elif folder is None:
         demo_path = os.path.join(root_folder, f"demonstration_{demo_number}")
-        cmds_path = os.path.join(root_folder, f"deoxys_obs_cmd_history_{demo_number}.h5")
     else:
         demo_path = os.path.join(root_folder, f"{folder}/demonstration_{demo_number}")
-        cmds_path = os.path.join(root_folder, folder, f"deoxys_obs_cmd_history_{demo_number}.h5")
+    cmds_path = os.path.join(demo_path, f"deoxys_obs_cmd_history_{demo_number}.h5")
     print(demo_path)
     depth_timestamps = []
     rgb_timestamps = []
@@ -315,7 +314,8 @@ def make_combined_video(folder, demo_number, make_video=True):
             progress_bar.update(1)
 
     # compile video
-    compile_video(f"demo_{demo_number}", frames_dir, demo_path)
+    if compile_video(f"demo_{demo_number}", frames_dir, demo_path).returncode == 0:
+        shutil.rmtree(frames_dir)
 
 
 def make_combined_frame(depth_frames, rgb_frames, cartesian_frames, joint_state_plot, joint_line_bounds, i, max_depth_value, frames_dir):
@@ -598,11 +598,12 @@ def run_cmd(command, env=None):
     print("Return Code:", completed_process.returncode)
     print('------------------------------------------')
     print()
+    return completed_process
 
 
 def compile_video(vid_name, frames_dir, results_dir):
     command = f"yes | ffmpeg -framerate 40 -i {frames_dir}/frame_%03d.png -c:v libx264 -crf 18 -preset slow -pix_fmt yuv420p {results_dir}/{vid_name}.mp4"
-    run_cmd(command)
+    return run_cmd(command)
 
 
 if __name__ == "__main__":

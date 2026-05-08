@@ -101,8 +101,32 @@ for i in "${needs_dagger[@]}"; do
     rollout="$ROOT/demonstration_thread3_rollout_$i/demo_thread3_rollout_$i.h5"
     dagger="$ROOT/demonstration_thread3_dagger_$i/demo_thread3_dagger_$i.h5"
     out="$DEST/demo_thread3_full_rollout_$i.h5"
+    if [ -e "$out" ]; then
+        echo "Skipping spliced rollout $i; output already exists: $out"
+        continue
+    fi
+    if [ "$i" = 59 ] || [ "$i" = 67 ]; then
+        echo "Patching dagger $i gripper_action nulls to -1"
+        python - "$dagger" <<'PY'
+import sys
+
+import h5py
+import numpy as np
+
+path = sys.argv[1]
+with h5py.File(path, "a") as h5f:
+    values = h5f["gripper_action"][:]
+    if np.issubdtype(values.dtype, np.number):
+        print(f"{path} gripper_action is already numeric; leaving it unchanged")
+        raise SystemExit(0)
+    if any(v.decode("utf-8").strip().lower() != "null" for v in values):
+        raise ValueError(f"Unexpected non-null gripper_action values in {path}: {values!r}")
+    del h5f["gripper_action"]
+    h5f.create_dataset("gripper_action", data=np.full(values.shape, -1.0, dtype=np.float64))
+PY
+    fi
     echo "Splicing rollout $i + dagger $i -> $out"
-    python "$SPLICE" "$rollout" "$dagger" "thread3_full_rollout_$i" --data_root "$DEST"
+    python "$SPLICE" "$rollout" "$dagger" "thread3_full_rollout_$i" --data_root "$DEST" --overwrite
     mv "$DEST/demonstration_thread3_full_rollout_$i/demo_thread3_full_rollout_$i.h5" "$out"
     rmdir "$DEST/demonstration_thread3_full_rollout_$i"
 done

@@ -1,82 +1,44 @@
-"""
-Splice two processed OpenTeach demos into one processed demo folder.
-
-Inputs should already have been post-processed with visualize_demo.py, so each
-demo has:
-  extracted_data/demonstration_<name>/demo_<name>.h5
-  extracted_data/demonstration_<name>/demo_<name>.mp4
-
-Example:
-  python splice_demos.py policy_prefix human_finish plug_dagger_01
-
-This writes:
-  ~/openteach/extracted_data/demonstration_plug_dagger_01/demo_plug_dagger_01.h5
-  ~/openteach/extracted_data/demonstration_plug_dagger_01/demo_plug_dagger_01.mp4
-"""
+"""Splice two processed OpenTeach demo H5 files into one output demo."""
 
 import argparse
-import os
-import subprocess
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
 import h5py
 import numpy as np
 
+MISSING_VALUES = {"", "none", "null", "nan"}
+
 
 @dataclass(frozen=True)
 class ProcessedDemo:
     name: str
-    folder: Path
     h5_path: Path
-    video_path: Path
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Concatenate two processed OpenTeach demos into one h5 and one mp4."
-    )
+    parser = argparse.ArgumentParser(description="Concatenate two processed OpenTeach H5 demos.")
     parser.add_argument("first_demo", help="Demo name, demonstration folder, or demo_*.h5 path.")
     parser.add_argument("second_demo", help="Demo name, demonstration folder, or demo_*.h5 path.")
     parser.add_argument("output_name", help="Name for the spliced output demo.")
-    parser.add_argument(
-        "--data_root",
-        default=os.path.join(os.path.expanduser("~"), "openteach", "extracted_data"),
-        help="Folder containing demonstration_<name> folders.",
-    )
-    parser.add_argument(
-        "--trim_second_start_frames",
-        type=int,
-        default=0,
-        help="Drop this many frames from the start of the second processed h5.",
-    )
-    parser.add_argument(
-        "--overwrite",
-        action="store_true",
-        help="Overwrite output h5/mp4 if they already exist.",
-    )
+    parser.add_argument("--data_root", type=Path, default=Path.home() / "openteach" / "extracted_data")
+    parser.add_argument("--trim_second_start_frames", type=int, default=0)
+    parser.add_argument("--trim_first_end_frames", type=int, default=0)
+    parser.add_argument("--overwrite", action="store_true")
     args = parser.parse_args()
 
     data_root = Path(args.data_root).expanduser()
     first = resolve_demo(args.first_demo, data_root)
     second = resolve_demo(args.second_demo, data_root)
+    output_h5 = data_root / f"demonstration_{args.output_name}" / f"demo_{args.output_name}.h5"
+    output_h5.parent.mkdir(parents=True, exist_ok=True)
 
-    output_folder = data_root / f"demonstration_{args.output_name}"
-    output_h5 = output_folder / f"demo_{args.output_name}.h5"
-    output_video = output_folder / f"demo_{args.output_name}.mp4"
-    output_folder.mkdir(parents=True, exist_ok=True)
+    if output_h5.exists() and not args.overwrite:
+        raise FileExistsError(f"{output_h5} already exists. Pass --overwrite to replace it.")
 
-    if not args.overwrite:
-        for path in [output_h5, output_video]:
-            if path.exists():
-                raise FileExistsError(f"{path} already exists. Pass --overwrite to replace it.")
-
-    splice_h5(first, second, output_h5, args.trim_second_start_frames)
-    splice_videos(first.video_path, second.video_path, output_video)
+    splice_h5(first, second, output_h5, args.trim_second_start_frames, args.trim_first_end_frames)
 
     print(f"Saved spliced h5: {output_h5}")
-    print(f"Saved spliced video: {output_video}")
 
 
 def resolve_demo(demo_arg, data_root):
@@ -84,44 +46,21 @@ def resolve_demo(demo_arg, data_root):
 
     if path.suffix == ".h5":
         h5_path = path
-        folder = h5_path.parent
-        name = name_from_processed_h5(h5_path)
-        video_path = folder / f"demo_{name}.mp4"
+        name = path.stem.removeprefix("demo_")
     elif path.exists() and path.is_dir():
-        folder = path
-        name = name_from_demo_folder(folder)
-        h5_path = folder / f"demo_{name}.h5"
-        video_path = folder / f"demo_{name}.mp4"
+        name = path.name.removeprefix("demonstration_")
+        h5_path = path / f"demo_{name}.h5"
     else:
-        name = demo_arg
-        if name.startswith("demonstration_"):
-            name = name[len("demonstration_") :]
-        folder = data_root / f"demonstration_{name}"
-        h5_path = folder / f"demo_{name}.h5"
-        video_path = folder / f"demo_{name}.mp4"
+        name = demo_arg.removeprefix("demonstration_")
+        h5_path = data_root / f"demonstration_{name}" / f"demo_{name}.h5"
 
     if not h5_path.exists():
         raise FileNotFoundError(f"Missing processed h5 for {demo_arg}: {h5_path}")
-    if not video_path.exists():
-        raise FileNotFoundError(f"Missing processed video for {demo_arg}: {video_path}")
 
-    return ProcessedDemo(name=name, folder=folder, h5_path=h5_path, video_path=video_path)
+    return ProcessedDemo(name=name, h5_path=h5_path)
 
 
-def name_from_processed_h5(path):
-    stem = path.stem
-    return stem[len("demo_") :] if stem.startswith("demo_") else stem
-
-
-def name_from_demo_folder(path):
-    name = path.name
-    return name[len("demonstration_") :] if name.startswith("demonstration_") else name
-
-
-def splice_h5(first, second, output_h5, trim_second_start_frames):
-    if trim_second_start_frames < 0:
-        raise ValueError("--trim_second_start_frames must be >= 0")
-
+def splice_h5(first, second, output_h5, trim_second_start_frames, trim_first_end_frames):
     with h5py.File(first.h5_path, "r") as f0, h5py.File(second.h5_path, "r") as f1:
         first_keys = set(f0.keys())
         second_keys = set(f1.keys())
@@ -134,53 +73,96 @@ def splice_h5(first, second, output_h5, trim_second_start_frames):
 
         first_len = first_dataset_length(f0)
         second_len = first_dataset_length(f1)
-        if trim_second_start_frames >= second_len:
-            raise ValueError(
-                f"--trim_second_start_frames={trim_second_start_frames} removes all "
-                f"{second_len} frames from {second.h5_path}"
-            )
+        validate_trim("--trim_first_end_frames", trim_first_end_frames, first_len, first.h5_path)
+        validate_trim("--trim_second_start_frames", trim_second_start_frames, second_len, second.h5_path)
 
         with h5py.File(output_h5, "w") as out:
             copy_attrs(f0.attrs, out.attrs)
-            out.attrs["spliced_from"] = f"{first.h5_path},{second.h5_path}"
-            out.attrs["splice_source_names"] = f"{first.name},{second.name}"
-            out.attrs["splice_source_lengths"] = np.array([first_len, second_len], dtype=np.int64)
-            out.attrs["trim_second_start_frames"] = trim_second_start_frames
+            copy_attrs(
+                {
+                    "spliced_from": f"{first.h5_path},{second.h5_path}",
+                    "splice_source_names": f"{first.name},{second.name}",
+                    "splice_source_lengths": np.array([first_len, second_len], dtype=np.int64),
+                    "trim_first_end_frames": trim_first_end_frames,
+                    "trim_second_start_frames": trim_second_start_frames,
+                },
+                out.attrs,
+            )
 
             for key in f0.keys():
                 d0 = f0[key]
                 d1 = f1[key]
-                validate_dataset_pair(key, d0, d1)
+                output_tail_shape, output_dtype = dataset_output_spec(key, d0, d1)
+                first_frame_count = d0.shape[0] - trim_first_end_frames
 
-                total_len = d0.shape[0] + d1.shape[0] - trim_second_start_frames
                 out_dset = out.create_dataset(
                     key,
-                    shape=(total_len, *d0.shape[1:]),
-                    dtype=d0.dtype,
+                    shape=(first_frame_count + d1.shape[0] - trim_second_start_frames, *output_tail_shape),
+                    dtype=output_dtype,
                 )
                 copy_attrs(d0.attrs, out_dset.attrs)
-                copy_frames(d0, out_dset, dst_start=0)
-                copy_frames(d1, out_dset, dst_start=d0.shape[0], src_start=trim_second_start_frames)
+                copy_frames(key, d0, out_dset, dst_start=0, src_end=first_frame_count)
+                copy_frames(
+                    key,
+                    d1,
+                    out_dset,
+                    dst_start=first_frame_count,
+                    src_start=trim_second_start_frames,
+                )
+
+
+def validate_trim(option, value, length, path):
+    if value < 0:
+        raise ValueError(f"{option} must be >= 0")
+    if value >= length:
+        raise ValueError(f"{option}={value} removes all {length} frames from {path}")
 
 
 def first_dataset_length(h5_file):
-    for key in h5_file.keys():
-        dataset = h5_file[key]
+    for dataset in h5_file.values():
         if not isinstance(dataset, h5py.Dataset) or dataset.ndim == 0:
             continue
         return dataset.shape[0]
     raise ValueError(f"No frame datasets found in {h5_file.filename}")
 
 
-def validate_dataset_pair(key, d0, d1):
+def dataset_output_spec(key, d0, d1):
     if not isinstance(d0, h5py.Dataset) or not isinstance(d1, h5py.Dataset):
         raise ValueError(f"{key} is not a plain dataset in both h5 files.")
     if d0.ndim == 0 or d1.ndim == 0:
         raise ValueError(f"{key} is scalar; expected a frame-major dataset.")
-    if d0.shape[1:] != d1.shape[1:]:
-        raise ValueError(f"{key} shapes differ after frame axis: {d0.shape} vs {d1.shape}")
-    if d0.dtype != d1.dtype:
-        raise ValueError(f"{key} dtypes differ: {d0.dtype} vs {d1.dtype}")
+
+    if d0.shape[1:] == d1.shape[1:]:
+        return d0.shape[1:], shared_dtype(key, d0.dtype, d1.dtype)
+
+    if key == "cartesian_pose_cmd":
+        if is_missing_cartesian_pose_cmd(d0) and d1.shape[1:] == (7,):
+            return (7,), np.result_type(d1.dtype, np.float64)
+        if is_missing_cartesian_pose_cmd(d1) and d0.shape[1:] == (7,):
+            return (7,), np.result_type(d0.dtype, np.float64)
+
+    raise ValueError(f"{key} shapes differ after frame axis: {d0.shape} vs {d1.shape}")
+
+
+def shared_dtype(key, dtype0, dtype1):
+    if dtype0 == dtype1:
+        return dtype0
+    if np.issubdtype(dtype0, np.number) and np.issubdtype(dtype1, np.number):
+        return np.result_type(dtype0, dtype1)
+    raise ValueError(f"{key} dtypes differ: {dtype0} vs {dtype1}")
+
+
+def is_missing_cartesian_pose_cmd(dataset):
+    if dataset.shape[1:] != ():
+        return False
+    if np.issubdtype(dataset.dtype, np.number):
+        values = dataset[()]
+        return bool(values.size == 0 or np.isnan(values).all())
+    return all(normalize_value(value) in MISSING_VALUES for value in dataset[()])
+
+
+def normalize_value(value):
+    return (value.decode("utf-8") if isinstance(value, bytes) else str(value)).strip().lower()
 
 
 def copy_attrs(src_attrs, dst_attrs):
@@ -188,63 +170,16 @@ def copy_attrs(src_attrs, dst_attrs):
         dst_attrs[key] = value
 
 
-def copy_frames(src, dst, dst_start, src_start=0, chunk_size=128):
-    frame_count = src.shape[0] - src_start
+def copy_frames(key, src, dst, dst_start, src_start=0, src_end=None, chunk_size=128):
+    src_end = src.shape[0] if src_end is None else src_end
+    frame_count = src_end - src_start
+    if key == "cartesian_pose_cmd" and src.shape[1:] == () and dst.shape[1:] == (7,):
+        dst[dst_start : dst_start + frame_count] = np.nan
+        return
+
     for start in range(0, frame_count, chunk_size):
         end = min(start + chunk_size, frame_count)
         dst[dst_start + start : dst_start + end] = src[src_start + start : src_start + end]
-
-
-def splice_videos(first_video, second_video, output_video):
-    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as f:
-        list_path = Path(f.name)
-        f.write(f"file '{escape_ffmpeg_concat_path(first_video)}'\n")
-        f.write(f"file '{escape_ffmpeg_concat_path(second_video)}'\n")
-
-    try:
-        copy_cmd = [
-            "ffmpeg",
-            "-y",
-            "-f",
-            "concat",
-            "-safe",
-            "0",
-            "-i",
-            str(list_path),
-            "-c",
-            "copy",
-            str(output_video),
-        ]
-        result = subprocess.run(copy_cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        if result.returncode == 0:
-            return
-
-        reencode_cmd = [
-            "ffmpeg",
-            "-y",
-            "-f",
-            "concat",
-            "-safe",
-            "0",
-            "-i",
-            str(list_path),
-            "-c:v",
-            "libx264",
-            "-crf",
-            "18",
-            "-preset",
-            "slow",
-            "-pix_fmt",
-            "yuv420p",
-            str(output_video),
-        ]
-        subprocess.run(reencode_cmd, check=True)
-    finally:
-        list_path.unlink(missing_ok=True)
-
-
-def escape_ffmpeg_concat_path(path):
-    return str(Path(path).resolve()).replace("'", "'\\''")
 
 
 if __name__ == "__main__":

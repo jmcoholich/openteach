@@ -41,11 +41,12 @@ def main():
     group.add_argument("--demo_number", type=str, help="The number of the demonstration to process and visualize")
     group.add_argument("--demo_folder", type=str, help="Process and visualize all demos in folder.")
     parser.add_argument("--no_video", action="store_true", help="Process and visualize all demos in folder without creating video.")
+    parser.add_argument("--video-only", "--video_only", action="store_true", help="Only generate the video from an existing processed h5.")
     args = parser.parse_args()
 
     if args.demo_number:
         for demo_number in args.demo_number.split(","):
-            make_combined_video(None, demo_number.strip(), make_video=not args.no_video)
+            make_combined_video(None, demo_number.strip(), make_video=not args.no_video, video_only=args.video_only)
 
     elif args.demo_folder:
         data_root = f"{os.path.expanduser('~')}/openteach/extracted_data/{args.demo_folder}"
@@ -56,24 +57,31 @@ def main():
                 # print(f"Skipping {file} as it does not match the expected demo folder format.")
                 continue
             demo_number = file[14:]
-            if os.path.exists(os.path.join(data_root, file, f"demo_{demo_number}.h5")):
+            if os.path.exists(os.path.join(data_root, file, f"demo_{demo_number}.h5")) and not args.video_only:
                 print(f"Demo {demo_number} already processed. Skipping...")
                 continue
-            make_combined_video(args.demo_folder, demo_number, make_video=not args.no_video)
+            make_combined_video(args.demo_folder, demo_number, make_video=not args.no_video, video_only=args.video_only)
 
     else:
         raise ValueError("Either --demo_number or --demo_folder must be provided")
 
 
-def make_combined_video(folder, demo_number, make_video=True):
+def make_combined_video(folder, demo_number, make_video=True, video_only=False):
     root_folder = f"{os.path.expanduser('~')}/openteach/extracted_data"
-    if folder is None and os.path.isabs(demo_number):
+    if folder is None and demo_number.endswith(".h5"):
+        demo_path = os.path.dirname(demo_number) or "."
+        demo_number = os.path.basename(demo_number)[:-3]
+        demo_number = demo_number[5:] if demo_number.startswith("demo_") else demo_number
+    elif folder is None and os.path.isabs(demo_number):
         demo_path = demo_number
         demo_number = os.path.basename(demo_path)[14:] if os.path.basename(demo_path).startswith("demonstration_") else os.path.basename(demo_path)
     elif folder is None:
         demo_path = os.path.join(root_folder, f"demonstration_{demo_number}")
     else:
         demo_path = os.path.join(root_folder, f"{folder}/demonstration_{demo_number}")
+    if video_only:
+        make_video_from_h5(demo_path, demo_number)
+        return
     cmds_path = os.path.join(demo_path, f"deoxys_obs_cmd_history_{demo_number}.h5")
     print(demo_path)
     depth_timestamps = []
@@ -265,6 +273,26 @@ def make_combined_video(folder, demo_number, make_video=True):
     if not make_video:
         print("No video flag passed. Skipping video creation.")
         return
+    make_video_from_data(demo_path, demo_number, output_data, max_depth_value)
+
+
+def make_video_from_h5(demo_path, demo_number):
+    path = f"{demo_path}/demo_{demo_number}.h5"
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Missing processed h5: {path}")
+    print(f"Loading processed data from {path}...")
+    with h5py.File(path, "r") as h5f:
+        output_data = {key: np.array(h5f[key]) for key in h5f.keys()}
+
+    if "depth_frames" in output_data:
+        max_depth_value = np.percentile(output_data["depth_frames"].flatten(), 98)
+    else:
+        output_data["depth_frames"] = None
+        max_depth_value = 1
+    make_video_from_data(demo_path, demo_number, output_data, max_depth_value)
+
+
+def make_video_from_data(demo_path, demo_number, output_data, max_depth_value):
     joint_plots_dir = f"{demo_path}/joint_state_plots"
     if not os.path.exists(joint_plots_dir):
         os.makedirs(joint_plots_dir)
@@ -272,7 +300,7 @@ def make_combined_video(folder, demo_number, make_video=True):
         subprocess.run(f"rm -r {joint_plots_dir}", shell=True)
         os.makedirs(joint_plots_dir)
 
-    num_frames = len(output_data["timestamp"])
+    num_frames = len(output_data["rgb_frames"])
     print(f"Total number of final frames in demo: {num_frames}")
 
     print("\nGenerating joint state plot...\n")
@@ -299,7 +327,7 @@ def make_combined_video(folder, demo_number, make_video=True):
 
             futures.append(executor.submit(
                 make_combined_frame,
-                [output_data["depth_frames"][i, 0], output_data["depth_frames"][i, 1], output_data["depth_frames"][i, 2]],
+                None if output_data["depth_frames"] is None else [output_data["depth_frames"][i, 0], output_data["depth_frames"][i, 1], output_data["depth_frames"][i, 2]],
                 [output_data["rgb_frames"][i, 0], output_data["rgb_frames"][i, 1], output_data["rgb_frames"][i, 2]],
                 None,
                 joint_state_plot,
@@ -333,14 +361,16 @@ def make_combined_frame(depth_frames, rgb_frames, cartesian_frames, joint_state_
     # get shape of rgb frames
     h, w, _ = rgb_frames[0].shape
     # create a new frame
-    frame = np.zeros((h * 2 + 480, w * 3, 3), dtype=np.uint8)
+    plot_start = h * 2 if depth_frames is not None else h
+    frame = np.zeros((plot_start + 480, w * 3, 3), dtype=np.uint8)
 
     # add depth frames. Depth frames are single channel, so need to use a colormap to convert them to rgb
-    for j, x in enumerate(depth_frames):
-        frame[h:h*2, j*w:(j+1)*w] = (plt.cm.viridis(x / max_depth_value)[:, :, :3] * 255).astype(np.uint8)
-        if j == 2:
-            # add a "2x" label to the bottom right corner with cv2
-            cv2.putText(frame, "2x", (w*3 - 50, 720 - 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+    if depth_frames is not None:
+        for j, x in enumerate(depth_frames):
+            frame[h:h*2, j*w:(j+1)*w] = (plt.cm.viridis(x / max_depth_value)[:, :, :3] * 255).astype(np.uint8)
+            if j == 2:
+                # add a "2x" label to the bottom right corner with cv2
+                cv2.putText(frame, "2x", (w*3 - 50, h*2 - 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
 
     # add rgb frames
     for j, x in enumerate(rgb_frames):
@@ -352,12 +382,12 @@ def make_combined_frame(depth_frames, rgb_frames, cartesian_frames, joint_state_
 
     joint_state_plot = np.pad(
     joint_state_plot,
-    ((0, max(0, frame[h*2:, w:].shape[0] - joint_state_plot.shape[0])),
-     (0, max(0, frame[h*2:, w:].shape[1] - joint_state_plot.shape[1])),
+    ((0, max(0, frame[plot_start:, w:].shape[0] - joint_state_plot.shape[0])),
+     (0, max(0, frame[plot_start:, w:].shape[1] - joint_state_plot.shape[1])),
      (0, 0)),
     mode='constant')
     # add joint state_frame
-    frame[h*2:, w:] = (joint_state_plot[..., :3]).astype(np.uint8)
+    frame[plot_start:, w:] = (joint_state_plot[..., :3]).astype(np.uint8)
 
     # save_combined frames
     save_image(f"{frames_dir}/frame_{i:03d}.png", frame)

@@ -27,9 +27,10 @@ STATE_FREQ = 60
 ROTATION_VELOCITY_LIMIT = 0.2
 TRANSLATION_VELOCITY_LIMIT = 0.1
 
-TELEOP_SCALE_TRANSLATION = (0.5, 0.5, 1.0)  # works for plug
+TELEOP_SCALE_TRANSLATION = (0.25, 0.25, 1.0)  # plug
 # TELEOP_SCALE_TRANSLATION = (0.5, 0.5, 0.5)  # thread
-TELEOP_SCALE_ROTATION = (0.5, 0.5, 1.0)  # works for plug and thread
+# TELEOP_SCALE_ROTATION = (0.5, 0.5, 1.0)  # works for plug and thread
+TELEOP_SCALE_ROTATION = (0.25, 0.25, 0.25)  # plug
 
 FLIP_TELEOP = True  # teleop facing the robot
 
@@ -165,7 +166,8 @@ class FrankaArmOperator(Operator):
         self.robot_interface = FrankaInterface(
                 os.path.join(CONFIG_ROOT, 'deoxys.yml'), use_visualizer=False,
                 control_freq=CONTROL_FREQ,
-                state_freq=STATE_FREQ
+                state_freq=STATE_FREQ,
+                automatic_gripper_reset=False
             )
         if controller_cfg is not None:
             self.velocity_controller_cfg = None
@@ -312,7 +314,7 @@ class FrankaArmOperator(Operator):
         if not self.gripper_last_msg and msg:
             if self.gripper_cmd is None:
                 is_open = self.robot_interface.last_gripper_q > 0.07
-                self.gripper_cmd = -1 if is_open else 1
+                self.gripper_cmd = 1 if is_open else -1
             else:
                 self.gripper_cmd *= -1
             self.gripper_last_msg = msg
@@ -409,6 +411,7 @@ class FrankaArmOperator(Operator):
         self.hand_init_H = self._get_remote_message()
         while self.hand_init_H is None:
             self.hand_init_H = self._get_remote_message()
+            print("waiting for remote message...")
             time.sleep(0.1)
         self.is_first_frame = False
         self._last_abs_joint_action = None
@@ -477,6 +480,7 @@ class FrankaArmOperator(Operator):
         self.arm_teleop_state = new_arm_teleop_state
 
         if self.hand_moving_H is None:
+            print("No remote message received. hand_moving_H is None.")
             return # It means we are not on the arm mode; return to avoid blocking
 
         flip_mat = np.eye(3)
@@ -513,7 +517,7 @@ class FrankaArmOperator(Operator):
         # rotation here so we keep the axis correspondence. Then rotate that
         # relative motion into the teleop viewpoint selected by flip_mat.
         teleop_rotvec = Rotation.from_matrix(teleop_relative_rotation).as_rotvec()
-        local_x_rotation = Rotation.from_rotvec(
+        global_x_rotation = Rotation.from_rotvec(
             [teleop_rotvec[0], 0.0, 0.0]
         ).as_matrix()
         global_y_rotation = Rotation.from_rotvec(
@@ -523,7 +527,7 @@ class FrankaArmOperator(Operator):
             [0.0, 0.0, -teleop_rotvec[2]]
         ).as_matrix()
         robot_origin_to_current[:3, :3] = (
-            global_z_rotation @ global_y_rotation @ robot_origin_to_init[:3, :3] @ local_x_rotation
+            global_z_rotation @ global_y_rotation @ global_x_rotation @ robot_origin_to_init[:3, :3]
         )
         teleop_relative_translation = flip_mat @ (controller_origin_to_current[:3, 3] - controller_origin_to_init[:3, 3])
         teleop_relative_translation = teleop_relative_translation * np.array(TELEOP_SCALE_TRANSLATION)
@@ -587,16 +591,20 @@ class FrankaArmOperator(Operator):
         else:
             raise ValueError("Not a valid control mode")
 
-        if action is None or self.controller_cfg is None:
-            return
-
         self.update_logs(kwargs, action)
 
-        self.robot_interface.control(
-            controller_type=self.controller_cfg.controller_type,
-            action=action,
-            controller_cfg=self.controller_cfg,
-        )
+        if action is None or self.controller_cfg is None:
+            if action is None:
+                print("🚨🤖⚠️✨🔥🛑❌🐒🧠💥 action missing")
+            else:
+                print("controller cfg missing 🚨🤖⚠️✨🔥🛑❌🐒🧠💥")
+            return
+        else:
+            self.robot_interface.control(
+                controller_type=self.controller_cfg.controller_type,
+                action=action,
+                controller_cfg=self.controller_cfg,
+            )
 
         if kwargs.get("gripper_cmd") is not None:
             self.robot_interface.gripper_control(kwargs["gripper_cmd"])

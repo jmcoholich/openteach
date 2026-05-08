@@ -61,6 +61,8 @@ def solve_geofik_swivel(current_q, target_pose, theta=None, ee_frame="E"):
         lower_limit=-1.5,
         penalty=10.0,
     )
+    if solution is None:
+        print("solution is None")
     return solution
 
 
@@ -124,7 +126,7 @@ def solve_swivel_from_pose(
     *,
     ee_frame: str = "E",
     q1_sing: float = np.pi / 2,
-    n_points: int = 500,
+    n_points: int = 1000,
     n_fine_search: int = 3,
 ) -> tuple[int, np.ndarray]:
     position, rotation = pose_to_position_rotation(pose, ee_frame=ee_frame)
@@ -179,6 +181,8 @@ def nearest_solution_for_joint_with_lower_penalty(
 ) -> np.ndarray | None:
     valid_qsols = finite_solutions(qsols)
     if len(valid_qsols) == 0:
+        print("No valid IK solutions found. len(valid_qsols) == 0")
+        print("len(qsols):", len(qsols))
         return None
 
     reference_q = np.asarray(reference_q, dtype=np.float64).reshape(7)

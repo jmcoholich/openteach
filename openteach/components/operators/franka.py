@@ -235,7 +235,7 @@ class FrankaArmOperator(Operator):
         self._timer = FrequencyTimer(VR_FREQ)
 
         self.gripper_state = None
-        self.gripper_last_msg = False
+        self.gripper_button_was_pressed = False
         self.gripper_cmd = None
         self.below_thresh = False
 
@@ -310,16 +310,19 @@ class FrankaArmOperator(Operator):
         return homo_mat
 
     def _get_gripper_message(self):
-        msg = self._gripper_message_subscriber.recv_keypoints()
-        if not self.gripper_last_msg and msg:
-            if self.gripper_cmd is None:
-                is_open = self.robot_interface.last_gripper_q > 0.07
-                self.gripper_cmd = 1 if is_open else -1
-            else:
-                self.gripper_cmd *= -1
-            self.gripper_last_msg = msg
-        elif self.gripper_last_msg and not msg:
-            self.gripper_last_msg = msg
+        currently_pressed = self._gripper_message_subscriber.recv_keypoints()
+
+        if self.gripper_cmd is None:
+            is_open = self.robot_interface.last_gripper_q > 0.07
+            self.gripper_cmd = -1 if is_open else 1
+
+        if not self.gripper_button_was_pressed and currently_pressed:
+            self.gripper_cmd *= -1
+            self.gripper_button_was_pressed = currently_pressed
+        elif self.gripper_button_was_pressed and not currently_pressed:
+            self.gripper_button_was_pressed = currently_pressed
+        if self.gripper_cmd is None:
+            raise RuntimeError
         return self.gripper_cmd
 
     # Get the resolution scale mode (High or Low)
@@ -608,6 +611,9 @@ class FrankaArmOperator(Operator):
 
         if kwargs.get("gripper_cmd") is not None:
             self.robot_interface.gripper_control(kwargs["gripper_cmd"])
+        else:
+            if self.record:
+                raise RuntimeError("Gripper command is None but recording is enabled. Gripper command needs to be included in the logs for the recorded data to be useful.")
 
     def _filter_abs_joint_action(self, action):
         if action is None:

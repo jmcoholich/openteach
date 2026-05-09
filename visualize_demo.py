@@ -189,19 +189,15 @@ def make_combined_video(folder, demo_number, make_video=True, video_only=False):
             print(f"Frame {i} has NaN gripper state. Skipping frame...")
             continue
 
-        output_data["cartesian_pose_cmd"].append(cmd_data['cartesian_pose_cmd'][i])
-        output_data["arm_action"].append(cmd_data['arm_action'][i])
-        output_data["gripper_action"].append(cmd_data['gripper_action'][i])
-        output_data["gripper_state"].append(cmd_data['gripper_state'][i])
-        output_data["eef_quat"].append(cmd_data['eef_quat'][i])
-        output_data["eef_pos"].append(cmd_data['eef_pos'][i])
-        output_data["eef_pose"].append(cmd_data['eef_pose'][i])
-        output_data["joint_pos"].append(cmd_data['joint_pos'][i])
-        output_data["last_dtau_J"].append(cmd_data['last_dtau_J'][i])
-        output_data["last_tau_J"].append(cmd_data['last_tau_J'][i])
-        output_data["last_tau_J_d"].append(cmd_data['last_tau_J_d'][i])
-        output_data["last_tau_ext_hat_filtered"].append(cmd_data['last_tau_ext_hat_filtered'][i])
-        output_data["timestamp"].append(cmd_data['timestamp'][i])
+        for key in ("cartesian_pose_cmd", "arm_action", "gripper_action", "gripper_state", "eef_quat", "eef_pos", "eef_pose", "joint_pos", "last_dtau_J", "last_tau_J", "last_tau_J_d", "last_tau_ext_hat_filtered", "timestamp"):
+            value = cmd_data[key][i]
+            try:
+                has_nan = np.isnan(value).any()
+            except (TypeError, ValueError) as e:
+                raise ValueError(f"Frame {i} has None or non-numeric value in {key}.") from e
+            if has_nan:
+                raise ValueError(f"Frame {i} has NaN value in {key}.")
+            output_data[key].append(value)
 
         # pick paired rgb and depth frames. Just pick the frame that comes immediately before the timestamp
         curr_rgb_frames = []

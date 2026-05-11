@@ -583,6 +583,8 @@ class FrankaArmOperator(Operator):
                 action = np.array(action)
         elif self.control_mode == "absolute_joint":
             action = self.get_abs_joint_angle_actions(kwargs["target_pose"])
+            if action is None:
+                action = self._last_abs_joint_action
             action = self._filter_abs_joint_action(action)
         elif self.control_mode == "absolute_eef_pose_to_delta":  # this is the old teleop pipeline
             action = self.get_abs_eef_pose_actions(kwargs["target_pose"])
@@ -594,20 +596,19 @@ class FrankaArmOperator(Operator):
         else:
             raise ValueError("Not a valid control mode")
 
-        self.update_logs(kwargs, action)
-
         if action is None or self.controller_cfg is None:
             if action is None:
                 print("🚨🤖⚠️✨🔥🛑❌🐒🧠💥 action missing")
             else:
                 print("controller cfg missing 🚨🤖⚠️✨🔥🛑❌🐒🧠💥")
             return
-        else:
-            self.robot_interface.control(
-                controller_type=self.controller_cfg.controller_type,
-                action=action,
-                controller_cfg=self.controller_cfg,
-            )
+
+        self.update_logs(kwargs, action)
+        self.robot_interface.control(
+            controller_type=self.controller_cfg.controller_type,
+            action=action,
+            controller_cfg=self.controller_cfg,
+        )
 
         if kwargs.get("gripper_cmd") is not None:
             self.robot_interface.gripper_control(kwargs["gripper_cmd"])

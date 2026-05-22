@@ -32,7 +32,7 @@ from openteach.constants import VR_FREQ
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--reverse", action="store_true", help="Reverse the demonstration playback.")
-parser.add_argument("--demo_num", type=str, help="The demo number to replay.")
+parser.add_argument("--demo_num", type=str, help="The demo number or .h5 path to replay.")
 parser.add_argument("--suffix", type=str, help="Additional suffix after \"playback\".")
 parser.add_argument(
     "--gripper_shift",
@@ -55,7 +55,7 @@ def get_control_mode(controller_cfg):
     if control_mode is not None:
         if control_mode not in CONTROL_MODE_OPTIONS:
             raise ValueError(f"Invalid recorded control mode: {control_mode}")
-        assert control_mode == "absolute_joint"
+        # assert control_mode == "absolute_joint"
         return "absolute_joint_direct"
         return control_mode
 
@@ -64,6 +64,18 @@ def get_arm_control_kwargs(control_mode, arm_action, target_pose, gripper_cmd):
     if control_mode == "eef_delta_actions":
         return {"action": arm_action, "gripper_cmd": gripper_cmd}
     return {"target_pose": target_pose, "gripper_cmd": gripper_cmd}
+
+
+def get_demo_filename(demo_num):
+    if demo_num.endswith(".h5"):
+        return os.path.expanduser(demo_num)
+    return f"/home/jeremiah/openteach/extracted_data/demonstration_{demo_num}/demo_{demo_num}.h5"
+
+
+def get_demo_number(filename):
+    demo_name = os.path.splitext(os.path.basename(filename))[0]
+    return demo_name[5:] if demo_name.startswith("demo_") else demo_name
+
 
 def check_nuc_hash_and_diff():
     """This is to ensure there are no changes on the NUC that would affect playback."""
@@ -109,7 +121,7 @@ def check_nuc_hash_and_diff():
 
 
 def replay_from_h5(args):
-    filename = f"/home/jeremiah/openteach/extracted_data/demonstration_{args.demo_num}/demo_{args.demo_num}.h5"
+    filename = get_demo_filename(args.demo_num)
 
     print()
     print("=" * 50)
@@ -139,7 +151,7 @@ def replay_from_h5(args):
         assert CONTROL_FREQ == h5f.attrs["VR_FREQ"]
         assert STATE_FREQ > CONTROL_FREQ
 
-    demo_number = os.path.basename(filename).split(".")[0][5:]
+    demo_number = get_demo_number(filename)
     recording_name = demo_number + "_playback"
     if args.reverse:
         recording_name += "_reversed"

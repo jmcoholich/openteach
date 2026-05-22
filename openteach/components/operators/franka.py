@@ -604,6 +604,11 @@ class FrankaArmOperator(Operator):
             return
 
         self.update_logs(kwargs, action)
+        if "done" in kwargs and kwargs["done"] > kwargs.get("done_threshold", 0.5):
+            print("🚨🚨🚨 DONE SIGNAL RECEIVED!!! SAVING AND SHUTTING DOWN!!! 🚨🚨🚨")
+            if self.record is not None and self.storage_location is not None:
+                self.save_obs_cmd_history()
+            raise SystemExit
         self.robot_interface.control(
             controller_type=self.controller_cfg.controller_type,
             action=action,

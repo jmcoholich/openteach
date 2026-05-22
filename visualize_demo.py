@@ -189,7 +189,7 @@ def make_combined_video(folder, demo_number, make_video=True, video_only=False):
             print(f"Frame {i} has NaN gripper state. Skipping frame...")
             continue
 
-        for key in ("cartesian_pose_cmd", "arm_action", "gripper_action", "gripper_state", "eef_quat", "eef_pos", "eef_pose", "joint_pos", "last_dtau_J", "last_tau_J", "last_tau_J_d", "last_tau_ext_hat_filtered", "timestamp"):
+        for key in ("arm_action", "gripper_action", "gripper_state", "eef_quat", "eef_pos", "eef_pose", "joint_pos", "last_dtau_J", "last_tau_J", "last_tau_J_d", "last_tau_ext_hat_filtered", "timestamp"):
             value = cmd_data[key][i]
             try:
                 has_nan = np.isnan(value).any()

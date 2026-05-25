@@ -180,12 +180,9 @@ class FrankaArmOperator(Operator):
             self.velocity_controller_cfg = get_velocity_controller_config(
                 config_root = CONFIG_ROOT
             )
-            print("\nvelocity controller config", self.velocity_controller_cfg)
-
             self.position_controller_cfg = get_position_controller_config(
                 config_root = CONFIG_ROOT
             )
-
             self.joint_impedance_controller_cfg = get_joint_impedance_controller(
                 config_root = CONFIG_ROOT
             )
@@ -675,6 +672,7 @@ class FrankaArmOperator(Operator):
             "joint_pos": state_values["last_q"],
             "timestamp": time.time(),
             "index": index,
+            "done": kwargs.get("done", None),
         }
         log_values.update(state_values)
 

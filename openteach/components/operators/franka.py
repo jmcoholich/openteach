@@ -26,6 +26,7 @@ STATE_FREQ = 60
 
 ROTATION_VELOCITY_LIMIT = 0.2
 TRANSLATION_VELOCITY_LIMIT = 0.1
+CONTROLLER_FRAME_TRANSLATION_JUMP_LIMIT = 0.05
 
 TELEOP_SCALE_TRANSLATION = (0.25, 0.25, 1.0)  # plug
 # TELEOP_SCALE_TRANSLATION = (0.5, 0.5, 0.5)  # thread
@@ -223,6 +224,9 @@ class FrankaArmOperator(Operator):
         self.hand_moving_H = None
         self.hand_init_t = None
         self.is_first_frame = True
+        self._last_controller_frame_H = None
+        self._controller_frame_guard_tripped = False
+        self._controller_frame_guard_message = None
 
         self.use_filter = use_filter
         if use_filter:
@@ -415,6 +419,32 @@ class FrankaArmOperator(Operator):
             time.sleep(0.1)
         self.is_first_frame = False
         self._last_abs_joint_action = None
+        self._last_controller_frame_H = copy(self.hand_init_H)
+        self._controller_frame_guard_tripped = False
+        self._controller_frame_guard_message = None
+
+    def _guard_controller_frame_translation(self):
+        if self._controller_frame_guard_tripped:
+            raise RuntimeError(self._controller_frame_guard_message)
+
+        if self._last_controller_frame_H is None:
+            self._last_controller_frame_H = copy(self.hand_moving_H)
+            return
+
+        translation_delta = (
+            self.hand_moving_H[:3, 3]
+            - self._last_controller_frame_H[:3, 3]
+        )
+        jump_distance = np.linalg.norm(translation_delta)
+        if jump_distance > CONTROLLER_FRAME_TRANSLATION_JUMP_LIMIT:
+            self._controller_frame_guard_tripped = True
+            self._controller_frame_guard_message = (
+                "Controller frame translation jump detected: "
+                "Please reset teleop before continuing."
+            )
+            raise RuntimeError(self._controller_frame_guard_message)
+
+        self._last_controller_frame_H = copy(self.hand_moving_H)
 
     # Apply the retargeted angles
     def _apply_retargeted_angles(self, log=False):
@@ -482,6 +512,8 @@ class FrankaArmOperator(Operator):
         if self.hand_moving_H is None:
             print("No remote message received. hand_moving_H is None.")
             return # It means we are not on the arm mode; return to avoid blocking
+
+        self._guard_controller_frame_translation()
 
         flip_mat = np.eye(3)
         flip_mat_rot = np.eye(3)

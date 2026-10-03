@@ -15,7 +15,7 @@ xdotool type "ssh ripl@$NUC_IP"
 sleep 0.25
 xdotool key Return
 sleep 2.0
-xdotool type "cd deoxys_control/deoxys && ./auto_scripts/auto_arm.sh config/charmander.yml"
+xdotool type "cd ~/deoxys_control/deoxys && ./auto_scripts/auto_arm.sh config/charmander.yml --eval"
 sleep 0.25
 xdotool key Return
 sleep 0.25
@@ -26,7 +26,7 @@ xdotool type "ssh ripl@$NUC_IP"
 sleep 0.25
 xdotool key Return
 sleep 2.0
-xdotool type "cd deoxys_control/deoxys && ./auto_scripts/auto_gripper.sh config/charmander.yml"
+xdotool type "cd ~/deoxys_control/deoxys && ./auto_scripts/auto_gripper.sh config/charmander.yml"
 sleep 0.25
 xdotool key Return
 sleep 0.25
@@ -49,7 +49,7 @@ xdotool type 'conda activate openteach'
 sleep 0.25
 xdotool key Return
 sleep 0.25
-xdotool type 'python teleop.py robot=franka record='
+xdotool type 'bash collect_demo.bash asdf'
 sleep 0.25
 xdotool key ctrl+shift+e
 sleep 0.25
@@ -75,19 +75,19 @@ xdotool type 'python robot_camera.py'
 sleep 0.25
 xdotool key Return
 
-xdotool key alt+Down
-xdotool key alt+Left
-sleep 0.25
-xdotool key ctrl+shift+o
-sleep 0.25
-xdotool type 'conda activate openteach && cd ~/openteach'
-sleep 0.25
-xdotool key Return
-sleep 0.25
-xdotool type 'python data_collect.py robot=franka demo_num='
+# xdotool key alt+Down
+# xdotool key alt+Left
+# sleep 0.25
+# xdotool key ctrl+shift+o
+# sleep 0.25
+# xdotool type 'conda activate openteach && cd ~/openteach'
+# sleep 0.25
+# xdotool key Return
+# sleep 0.25
+# xdotool type 'python data_collect.py robot=franka demo_num='
 
 # control shift tab thrice
-xdotool key alt+Right
+xdotool key alt+Down
 sleep 0.25
 xdotool key ctrl+shift+o
 sleep 0.25

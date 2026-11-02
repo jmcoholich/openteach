@@ -98,7 +98,6 @@ class ZMQCameraPublisher(object):
     def _init_publisher(self):
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.PUB)
-        print('tcp://{}:{}'.format(self._host, self._port))
         self.socket.bind('tcp://{}:{}'.format(self._host, self._port))
 
 
@@ -138,7 +137,6 @@ class ZMQCameraSubscriber(threading.Thread):
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.SUB)
         self.socket.setsockopt(zmq.CONFLATE, 1)
-        print('tcp://{}:{}'.format(self._host, self._port))
         self.socket.connect('tcp://{}:{}'.format(self._host, self._port))
 
         if self._topic_type == 'Intrinsics':

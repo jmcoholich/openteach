@@ -74,7 +74,7 @@ LIBERO_FREQ = 20
 # }
 
 # Realsense Camera parameters
-CAM_FPS = 30
+CAM_FPS = 60
 CAM_FPS_SIM = 30
 VISUAL_RESCALE_FACTOR = 2
 VIZ_PORT_OFFSET = 500

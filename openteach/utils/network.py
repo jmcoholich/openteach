@@ -105,7 +105,7 @@ class ZMQCameraPublisher(object):
         self.socket.send(b"intrinsics " + pickle.dumps(array, protocol = -1))
 
     def pub_rgb_image(self, rgb_image, timestamp):
-        success, buffer = cv2.imencode('.png', rgb_image, [int(cv2.IMWRITE_PNG_COMPRESSION), 3])
+        success, buffer = cv2.imencode('.png', rgb_image, [int(cv2.IMWRITE_PNG_COMPRESSION), 0])
         if not success:
             raise ValueError('Failed to encode RGB frame as PNG.')
 

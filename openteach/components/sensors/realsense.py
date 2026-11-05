@@ -1,3 +1,5 @@
+import time
+
 import numpy as np
 import pyrealsense2 as rs
 
@@ -29,12 +31,6 @@ class RealsenseCamera(Component):
                 host = stream_configs['host'],
                 port = stream_configs['port'] + VIZ_PORT_OFFSET
             )
-        if self.cam_configs.depth:
-            self.depth_publisher = ZMQCameraPublisher(
-                host = stream_configs['host'],
-                port = stream_configs['port'] + DEPTH_PORT_OFFSET
-            )
-
         self.timer = FrequencyTimer(CAM_FPS)
 
         # Starting the realsense pipeline
@@ -53,57 +49,33 @@ class RealsenseCamera(Component):
             rs.format.bgr8,
             self.cam_configs.fps
         )
-        if self.cam_configs.depth:
-            config.enable_stream(
-                rs.stream.depth,
-                self.cam_configs.width,
-                self.cam_configs.height,
-                rs.format.z16,
-                self.cam_configs.fps
-            )
-
         # Starting the pipeline
-        cfg = self.pipeline.start(config)
-        device = cfg.get_device()
-
-        if self.cam_configs.depth:
-            # Setting the depth mode to high accuracy mode
-            depth_sensor = device.first_depth_sensor()
-            depth_sensor.set_option(rs.option.visual_preset, self.cam_configs.processing_preset)
+        self.pipeline.start(config)
         self.realsense = self.pipeline
 
-        # Obtaining the color intrinsics matrix for aligning the color and depth images
-        profile = self.pipeline.get_active_profile()
-        color_profile = rs.video_stream_profile(profile.get_stream(rs.stream.color))
-        intrinsics = color_profile.get_intrinsics()
-        self.intrinsics_matrix = np.array([
-            [intrinsics.fx, 0, intrinsics.ppx],
-            [0, intrinsics.fy, intrinsics.ppy],
-            [0, 0, 1]
-        ])
-
-        # Align function - aligns other frames with the color frame
-        self.align = rs.align(rs.stream.color)
-
-    def get_rgb_depth_images(self):
+    def get_rgb_image(self):
         frames = None
 
         while frames is None:
-            # Obtaining and aligning the frames
+            # The pipeline contains only the color stream.
             frames = self.realsense.wait_for_frames()
-            aligned_frames = self.align.process(frames)
+            received_at = time.time()
+            rgb_frame = frames.get_color_frame()
+            self._rgb_frame_timing = {
+                "timestamp_ms": rgb_frame.get_timestamp(),
+                "timestamp_domain": str(rgb_frame.get_frame_timestamp_domain()),
+                "frame_number": rgb_frame.get_frame_number(),
+                "host_frames_received_unix_s": received_at,
+            }
+            # Native device-clock metadata is in microseconds, when supported.
+            for name in ("sensor_timestamp", "frame_timestamp"):
+                key = getattr(rs.frame_metadata_value, name)
+                if rgb_frame.supports_frame_metadata(key):
+                    self._rgb_frame_timing[name + "_us"] = rgb_frame.get_frame_metadata(key)
+            color_image = np.asanyarray(rgb_frame.get_data())
 
-            color_frame = aligned_frames.get_color_frame()
-
-            # Getting the images from the frames
-            color_image = np.asanyarray(color_frame.get_data())
-            if self.cam_configs.depth:
-                depth_frame = aligned_frames.get_depth_frame()
-                depth_image = np.asanyarray(depth_frame.get_data())
-            else:
-                depth_image = None
-
-        return color_image, depth_image, frames.get_timestamp()
+        self._rgb_frame_timing["host_rgb_ready_unix_s"] = time.time()
+        return color_image, self._rgb_frame_timing["timestamp_ms"]
 
     def stream(self):
         # Starting the realsense stream
@@ -117,22 +89,15 @@ class RealsenseCamera(Component):
         while True:
             #try:
                 self.timer.start_loop()
-                color_image, depth_image, timestamp = self.get_rgb_depth_images()
+                color_image, timestamp = self.get_rgb_image()
 
                 color_image = rotate_image(color_image, self.cam_configs.rotation_angle)
-                if self.cam_configs.depth:
-                    depth_image = rotate_image(depth_image, self.cam_configs.rotation_angle)
 
                 # Publishing the rgb images
-                self.rgb_publisher.pub_rgb_image(color_image, timestamp)
+                self.rgb_publisher.pub_rgb_image(color_image, timestamp, frame_timing=self._rgb_frame_timing)
                 # TODO - move the oculus publisher to a separate process - this cycle works at 40 FPS
                 if self._stream_oculus:
                     self.rgb_viz_publisher.send_image(rescale_image(color_image, 2)) # 640 * 360
-
-                if self.cam_configs.depth:
-                    # Publishing the depth images
-                    self.depth_publisher.pub_depth_image(depth_image, timestamp)
-                    self.depth_publisher.pub_intrinsics(self.intrinsics_matrix) # Publishing inrinsics along with the depth publisher
 
                 self.timer.end_loop()
             # except KeyboardInterrupt:
@@ -142,6 +107,4 @@ class RealsenseCamera(Component):
         self.rgb_publisher.stop()
         if self._stream_oculus:
             self.rgb_viz_publisher.stop()
-        if self.cam_configs.depth:
-            self.depth_publisher.stop()
         self.pipeline.stop()

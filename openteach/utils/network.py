@@ -1,5 +1,6 @@
 import pickle
 import threading
+import time
 
 import blosc as bl
 import cv2
@@ -104,7 +105,7 @@ class ZMQCameraPublisher(object):
     def pub_intrinsics(self, array):
         self.socket.send(b"intrinsics " + pickle.dumps(array, protocol = -1))
 
-    def pub_rgb_image(self, rgb_image, timestamp):
+    def pub_rgb_image(self, rgb_image, timestamp, frame_timing=None):
         success, buffer = cv2.imencode('.png', rgb_image, [int(cv2.IMWRITE_PNG_COMPRESSION), 0])
         if not success:
             raise ValueError('Failed to encode RGB frame as PNG.')
@@ -113,6 +114,8 @@ class ZMQCameraPublisher(object):
             timestamp = timestamp,
             rgb_image = buffer.tobytes()
         )
+        if frame_timing is not None:
+            data["frame_timing"] = dict(frame_timing, host_encoded_unix_s=time.time())
         self.socket.send(b"rgb_image " + pickle.dumps(data, protocol = -1))
 
     def pub_depth_image(self, depth_image, timestamp):
@@ -153,9 +156,17 @@ class ZMQCameraSubscriber(threading.Thread):
 
     def recv_rgb_image(self):
         raw_data = self.socket.recv()
+        received_at = time.time()
         data = pickle.loads(raw_data[len(b"rgb_image "):])
         encoded_data = np.frombuffer(data['rgb_image'], np.uint8)
-        return cv2.imdecode(encoded_data, cv2.IMREAD_COLOR), data['timestamp']
+        image = cv2.imdecode(encoded_data, cv2.IMREAD_COLOR)
+        self.last_rgb_timing = dict(
+            data.get("frame_timing", {}),
+            frameset_timestamp_ms=data["timestamp"],
+            host_received_unix_s=received_at,
+            host_decoded_unix_s=time.time(),
+        )
+        return image, data['timestamp']
 
     def recv_depth_image(self):
         raw_data = self.socket.recv()

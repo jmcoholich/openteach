@@ -7,7 +7,7 @@ from omegaconf import open_dict
 
 from openteach.constants import *
 
-from .recorders.image import DepthImageRecorder, FishEyeImageRecorder, RGBImageRecorder
+from .recorders.image import FishEyeImageRecorder, RGBImageRecorder
 from .recorders.robot_state import RobotInformationRecord
 from .recorders.sensors import XelaSensorRecorder
 from .recorders.sim_state import SimInformationRecord
@@ -234,57 +234,14 @@ class Collector(ProcessInstantiator):
         )
         component.stream()
 
-    # Record the depth components
-    def _start_depth_component(self, cam_idx):
-        if self.configs.sim_env is not True:
-            component = DepthImageRecorder(
-                host = self.configs.host_address,
-                image_stream_port = self.configs.cam_port_offset + cam_idx + DEPTH_PORT_OFFSET,
-                storage_path = self._storage_path,
-                filename = 'cam_{}_depth'.format(cam_idx),
-                compression = self._get_recording_config('depth_compression', 'gzip'),
-                compression_opts = self._get_recording_config('depth_compression_opts', 6),
-                shuffle = self._get_recording_config('depth_shuffle', False)
-            )
-        else:
-            component = DepthImageRecorder(
-                host = self.configs.host_address,
-                image_stream_port = self.configs.sim_image_port + cam_idx + DEPTH_PORT_OFFSET,
-                storage_path = self._storage_path,
-                filename = 'cam_{}_depth'.format(cam_idx),
-                compression = self._get_recording_config('depth_compression', 'gzip'),
-                compression_opts = self._get_recording_config('depth_compression_opts', 6),
-                shuffle = self._get_recording_config('depth_shuffle', False)
-            )
-        component.stream()
-
     #Function to start the camera recorders
     def _init_camera_recorders(self):
-        if self.configs.sim_env is not True:
-            print("Camera recorder starting")
-            for cam_idx in range(len(self.configs.robot_cam_serial_numbers)):
-                #print(cam_idx)
-                self.processes.append(Process(
-                    target = self._start_rgb_component,
-                    args = (cam_idx, )
-                ))
-
-                self.processes.append(Process(
-                    target = self._start_depth_component,
-                    args = (cam_idx, )
-                ))
-        else:
-
-            for cam_idx in range(len(self.configs.robot_cam_serial_numbers)):
-                self.processes.append(Process(
-                    target = self._start_rgb_component,
-                    args = (cam_idx, )
-                ))
-
-                self.processes.append(Process(
-                    target = self._start_depth_component,
-                    args = (cam_idx, )
-                ))
+        print("Camera recorder starting")
+        for cam_idx in range(len(self.configs.robot_cam_serial_numbers)):
+            self.processes.append(Process(
+                target = self._start_rgb_component,
+                args = (cam_idx, )
+            ))
 
     #Function to start the sim recorders
     def _init_sim_recorders(self):

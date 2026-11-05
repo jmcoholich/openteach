@@ -24,11 +24,13 @@ CONFIG_ROOT = os.path.join(os.path.expanduser("~"), "openteach/configs")
 CONTROL_FREQ = 20
 STATE_FREQ = 60
 
+Z_ROT = 180
+
 ROTATION_VELOCITY_LIMIT = 0.2
 TRANSLATION_VELOCITY_LIMIT = 0.1
-CONTROLLER_FRAME_TRANSLATION_JUMP_LIMIT = 0.05
+CONTROLLER_FRAME_TRANSLATION_JUMP_LIMIT = 0.1
 
-TELEOP_SCALE_TRANSLATION = (0.25, 0.25, 1.0)  # plug
+TELEOP_SCALE_TRANSLATION = (0.8, 0.2, 0.8)  # plug
 # TELEOP_SCALE_TRANSLATION = (0.5, 0.5, 0.5)  # thread
 # TELEOP_SCALE_ROTATION = (0.5, 0.5, 1.0)  # works for plug and thread
 TELEOP_SCALE_ROTATION = (0.25, 0.25, 0.25)  # plug
@@ -36,7 +38,7 @@ TELEOP_SCALE_ROTATION = (0.25, 0.25, 0.25)  # plug
 FLIP_TELEOP = True  # teleop facing the robot
 
 JUST_GO_STRAIGHT_UP = False # experimental option to slowly lift the arm straight up for unplugging
-ABS_JOINT_LOWPASS_NEW_ACTION_WEIGHT = 0.9
+ABS_JOINT_LOWPASS_NEW_ACTION_WEIGHT = 0.7
 ABS_JOINT_LOWPASS_JOINT_1_NEW_ACTION_WEIGHT = 0.4
 
 CONTROL_MODE_OPTIONS = (
@@ -519,7 +521,7 @@ class FrankaArmOperator(Operator):
         flip_mat_rot = np.eye(3)
         if FLIP_TELEOP:
             # make a z rotation matrix parameterized by a z rotation angle in degrees
-            z_rot = 90 # degrees
+            z_rot = Z_ROT # degrees
             z_rot_rot = 180 # degrees
             flip_mat = np.array([
                 [np.cos(np.radians(z_rot)), -np.sin(np.radians(z_rot)), 0],

@@ -13,9 +13,7 @@ cam_configs:  # if the width and height are changed, they also need to be change
   width: 640
   height: 360
   fps: 30
-  processing_preset: 1 # High accuracy mode
   rotation_angle: 0
-  depth: True
 
 oculus_cam: 99 # This applies compression, so don't specify oculus_cam as a cam we need for observations.
 num_cams: 3

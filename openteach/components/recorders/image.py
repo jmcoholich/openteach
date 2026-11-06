@@ -75,6 +75,8 @@ class RGBImageRecorder(Recorder):
             )
         self.timestamps = []
         self.timestamp_domains = []
+        self.capture_timestamps = []
+        self.capture_timestamp_domains = []
 
 
     def stream(self):
@@ -87,10 +89,14 @@ class RGBImageRecorder(Recorder):
             try:
                 self.timer.start_loop()
                 image, timestamp = self.image_subscriber.recv_rgb_image()
-                self.recorder.write(image)
                 frame_timing = getattr(self.image_subscriber, 'last_rgb_timing', {})
-                self.timestamps.append(frame_timing.get('timestamp_ms', timestamp))
-                self.timestamp_domains.append(frame_timing.get('timestamp_domain'))
+                # Availability at this subscriber, before video encoding/disk I/O (milliseconds).
+                available_ms = frame_timing.get('host_decoded_unix_s', time.time()) * 1000
+                self.recorder.write(image)
+                self.timestamps.append(available_ms)
+                self.timestamp_domains.append('unix')
+                self.capture_timestamps.append(frame_timing.get('timestamp_ms', timestamp))
+                self.capture_timestamp_domains.append(frame_timing.get('timestamp_domain'))
                 self.num_image_frames += 1
                 self.timer.end_loop()
             except KeyboardInterrupt:
@@ -107,6 +113,10 @@ class RGBImageRecorder(Recorder):
         self._add_metadata(self.num_image_frames)
         self.metadata['timestamps'] = self.timestamps
         self.metadata['timestamp_domains'] = self.timestamp_domains
+        self.metadata['timestamp_source'] = 'recorder_receive_decode'
+        self.metadata['timestamp_units'] = 'ms'
+        self.metadata['capture_timestamps'] = self.capture_timestamps
+        self.metadata['capture_timestamp_domains'] = self.capture_timestamp_domains
         self.metadata['recorder_ip_address'] = self._host
         self.metadata['recorder_image_stream_port'] = self._image_stream_port
         self.metadata['video_codec'] = self._video_codec

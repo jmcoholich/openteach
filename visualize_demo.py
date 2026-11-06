@@ -2,7 +2,7 @@
 Combines and cleans data from franka arm and realsense cameras.
 
 Outputs
-- A video of the demonstration including joint angle plots and rgb and depth cams
+- A video of the demonstration including joint angle plots and RGB cameras
 - An .h5 file containing processed data
 """
 
@@ -84,7 +84,6 @@ def make_combined_video(folder, demo_number, make_video=True, video_only=False):
         return
     cmds_path = os.path.join(demo_path, f"deoxys_obs_cmd_history_{demo_number}.h5")
     print(demo_path)
-    depth_timestamps = []
     rgb_timestamps = []
 
     # freq = 15.0
@@ -107,21 +106,6 @@ def make_combined_video(folder, demo_number, make_video=True, video_only=False):
             cmd_attrs[attr] = f.attrs[attr]
     cmd_attrs["openteach current commit"] = current_commit
 
-    # depth frames
-    depth_frames = []
-    for j in [0, 1, 2]:
-        print(f"Loading depth images from cam_{j}...")
-        with h5py.File(f"{demo_path}/cam_{j}_depth.h5", "r") as f:
-            x = np.array(f['depth_images'])
-            for key in f.keys():
-                if key in ["orientations", "positions", "timestamps", "depth_images"]:
-                    continue
-                if DEBUG: print(key.ljust(25), f[key][()])
-            if DEBUG: print()
-            depth_timestamps.append(np.array(f["timestamps"]) / 1000)
-            # assert round(f['record_frequency'][()]) == freq
-        depth_frames.append(x)
-
     # rgb frames
     rgb_frames = []
     for j in [0, 1, 2]:
@@ -140,10 +124,8 @@ def make_combined_video(folder, demo_number, make_video=True, video_only=False):
                 if DEBUG: print(key.ljust(25), metadata[key])
             if DEBUG: print()
             # assert round(metadata['record_frequency']) == freq
+        # Milliseconds: new recordings use recorder receive/decode time; older ones use camera time.
         rgb_timestamps.append(np.array(metadata["timestamps"]) / 1000)
-
-    # max_depth_value = max([np.max(x) for x in depth_frames]) * 0.5
-    max_depth_value = np.percentile(np.concatenate([x.flatten() for x in depth_frames]), 98)  # get rid of outliers
 
     output_data = {
         "cartesian_pose_cmd": [],
@@ -159,11 +141,10 @@ def make_combined_video(folder, demo_number, make_video=True, video_only=False):
         "last_tau_J_d": [],
         "last_tau_ext_hat_filtered": [],
         "rgb_frames": [],
-        "depth_frames": [],
         "timestamp": [],
     }
-    all_cams_started_time = np.max([x[0] for x in rgb_timestamps] + [x[0] for x in depth_timestamps])
-    cam_stopped = np.min([x[-1] for x in rgb_timestamps] + [x[-1] for x in depth_timestamps])
+    all_cams_started_time = np.max([x[0] for x in rgb_timestamps])
+    cam_stopped = np.min([x[-1] for x in rgb_timestamps])
     x = rgb_timestamps[0]
     dt = np.diff(x)
     print(
@@ -199,21 +180,15 @@ def make_combined_video(folder, demo_number, make_video=True, video_only=False):
                 raise ValueError(f"Frame {i} has NaN value in {key}.")
             output_data[key].append(value)
 
-        # pick paired rgb and depth frames. Just pick the frame that comes immediately before the timestamp
+        # Pick the latest RGB frame available by the command time (capture time in older recordings).
         curr_rgb_frames = []
-        curr_depth_frames = []
         for j in range(3):
             # pick the smallest value that is not negative
             temp = cmd_data['timestamp'][i] - rgb_timestamps[j]
             temp[temp < 0] = np.inf
             idx = np.argmin(temp)
             curr_rgb_frames.append(rgb_frames[j][idx])
-            temp = cmd_data['timestamp'][i] - depth_timestamps[j]
-            temp[temp < 0] = np.inf
-            idx = np.argmin(temp)
-            curr_depth_frames.append(depth_frames[j][idx])
         output_data["rgb_frames"].append(curr_rgb_frames)
-        output_data["depth_frames"].append(curr_depth_frames)
 
     # # Debug: save timestamp alignment plot and exit early.
     # timestamp_plot_path = os.path.join(demo_path, f"timestamp_debug_{demo_number}.png")
@@ -222,11 +197,8 @@ def make_combined_video(folder, demo_number, make_video=True, video_only=False):
     # ax.plot(cmd_ts[:10], label="cmd_data.timestamp", linewidth=2.0, color="black")
     # for j in range(3):
     #     rgb_ts = rgb_timestamps[j][:10]
-    #     depth_ts = depth_timestamps[j][:10]
     #     ax.plot(rgb_ts, label=f"cam_{j}_rgb_timestamps", linewidth=1.2, alpha=0.9, linestyle="--")
-    #     ax.plot(depth_ts, label=f"cam_{j}_depth_timestamps", linewidth=1.2, alpha=0.9, linestyle=":")
     #     ax.scatter(len(rgb_ts) - 1, rgb_ts[-1], s=24, marker="o")
-    #     ax.scatter(len(depth_ts) - 1, depth_ts[-1], s=28, marker="x")
     # ax.set_title(f"Timestamp Debug Plot - demo_{demo_number}")
     # ax.set_xlabel("Frame Index")
     # ax.set_ylabel("Timestamp")
@@ -269,7 +241,7 @@ def make_combined_video(folder, demo_number, make_video=True, video_only=False):
     if not make_video:
         print("No video flag passed. Skipping video creation.")
         return
-    make_video_from_data(demo_path, demo_number, output_data, max_depth_value)
+    make_video_from_data(demo_path, demo_number, output_data)
 
 
 def make_video_from_h5(demo_path, demo_number):
@@ -278,17 +250,13 @@ def make_video_from_h5(demo_path, demo_number):
         raise FileNotFoundError(f"Missing processed h5: {path}")
     print(f"Loading processed data from {path}...")
     with h5py.File(path, "r") as h5f:
-        output_data = {key: np.array(h5f[key]) for key in h5f.keys()}
-
-    if "depth_frames" in output_data:
-        max_depth_value = np.percentile(output_data["depth_frames"].flatten(), 98)
-    else:
-        output_data["depth_frames"] = None
-        max_depth_value = 1
-    make_video_from_data(demo_path, demo_number, output_data, max_depth_value)
+        # Load only datasets consumed by the visualization.
+        keys = ("rgb_frames", "joint_pos", "last_tau_ext_hat_filtered", "gripper_state", "gripper_action")
+        output_data = {key: np.array(h5f[key]) for key in keys}
+    make_video_from_data(demo_path, demo_number, output_data)
 
 
-def make_video_from_data(demo_path, demo_number, output_data, max_depth_value):
+def make_video_from_data(demo_path, demo_number, output_data):
     joint_plots_dir = f"{demo_path}/joint_state_plots"
     if not os.path.exists(joint_plots_dir):
         os.makedirs(joint_plots_dir)
@@ -323,13 +291,11 @@ def make_video_from_data(demo_path, demo_number, output_data, max_depth_value):
 
             futures.append(executor.submit(
                 make_combined_frame,
-                None if output_data["depth_frames"] is None else [output_data["depth_frames"][i, 0], output_data["depth_frames"][i, 1], output_data["depth_frames"][i, 2]],
                 [output_data["rgb_frames"][i, 0], output_data["rgb_frames"][i, 1], output_data["rgb_frames"][i, 2]],
                 None,
                 joint_state_plot,
                 joint_line_bounds,
                 i,
-                max_depth_value,
                 frames_dir,
                 ))
 
@@ -342,7 +308,7 @@ def make_video_from_data(demo_path, demo_number, output_data, max_depth_value):
         shutil.rmtree(frames_dir)
 
 
-def make_combined_frame(depth_frames, rgb_frames, cartesian_frames, joint_state_plot, joint_line_bounds, i, max_depth_value, frames_dir):
+def make_combined_frame(rgb_frames, cartesian_frames, joint_state_plot, joint_line_bounds, i, frames_dir):
     if isinstance(joint_state_plot, str):
         joint_state_plot = cv2.imread(joint_state_plot)[:, :, ::-1]
     joint_state_plot = joint_state_plot.copy()
@@ -357,16 +323,8 @@ def make_combined_frame(depth_frames, rgb_frames, cartesian_frames, joint_state_
     # get shape of rgb frames
     h, w, _ = rgb_frames[0].shape
     # create a new frame
-    plot_start = h * 2 if depth_frames is not None else h
+    plot_start = h
     frame = np.zeros((plot_start + 480, w * 3, 3), dtype=np.uint8)
-
-    # add depth frames. Depth frames are single channel, so need to use a colormap to convert them to rgb
-    if depth_frames is not None:
-        for j, x in enumerate(depth_frames):
-            frame[h:h*2, j*w:(j+1)*w] = (plt.cm.viridis(x / max_depth_value)[:, :, :3] * 255).astype(np.uint8)
-            if j == 2:
-                # add a "2x" label to the bottom right corner with cv2
-                cv2.putText(frame, "2x", (w*3 - 50, h*2 - 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
 
     # add rgb frames
     for j, x in enumerate(rgb_frames):
@@ -558,31 +516,6 @@ def qv_mult(q1, v1):
 def q_conjugate(q):
     w, x, y, z = q
     return (w, -x, -y, -z)
-
-
-def make_depth_videos(demo_number):
-    demo_path = os.path.join(os.path.expanduser("~"), f"openteach/extracted_data/demonstration_{demo_number}")
-    frames_dir = f"{demo_path}/frames"
-    for j in [0, 1, 2]:
-        with h5py.File(f"{demo_path}/cam_{j}_depth.h5", "r") as f:
-            x = np.array(f['depth_images'])
-
-        # save frames
-        print("Number of frames:", x.shape[0])
-        print("Shape of each frame:", x.shape[1:])
-        if not os.path.exists(frames_dir):
-            os.makedirs(frames_dir)
-        with ThreadPoolExecutor(max_workers=8) as executor:
-            for i in tqdm(range(x.shape[0]), desc="Saving frames..."):
-                executor.submit(save_image, f"{frames_dir}/frame_{i:03d}.png", x[i])
-
-
-
-        # compile video
-        compile_video(f"cam_{j}_depth" , frames_dir, demo_path)
-
-        # delete frames dir
-        run_cmd(f"rm -r {frames_dir}")
 
 
 def save_image(path, image):

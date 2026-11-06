@@ -7,7 +7,6 @@ from openteach.components import Component
 from openteach.constants import *
 from openteach.utils.images import rescale_image, rotate_image
 from openteach.utils.network import ZMQCameraPublisher, ZMQCompressedImageTransmitter
-from openteach.utils.timer import FrequencyTimer
 
 
 class RealsenseCamera(Component):
@@ -32,7 +31,6 @@ class RealsenseCamera(Component):
                 host = stream_configs['host'],
                 port = stream_configs['port'] + VIZ_PORT_OFFSET
             )
-        self.timer = FrequencyTimer(CAM_FPS)
 
         # Starting the realsense pipeline
         self._start_realsense(self._cam_serial_num)
@@ -89,7 +87,7 @@ class RealsenseCamera(Component):
 
         while True:
             #try:
-                self.timer.start_loop()
+                # wait_for_frames() paces capture at the camera's configured FPS.
                 color_image, timestamp = self.get_rgb_image()
 
                 color_image = rotate_image(color_image, self.cam_configs.rotation_angle)
@@ -100,7 +98,6 @@ class RealsenseCamera(Component):
                 if self._stream_oculus:
                     self.rgb_viz_publisher.send_image(rescale_image(color_image, 2)) # 640 * 360
 
-                self.timer.end_loop()
             # except KeyboardInterrupt:
             #     break
 

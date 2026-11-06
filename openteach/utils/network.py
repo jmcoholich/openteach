@@ -92,8 +92,11 @@ class ZMQKeypointSubscriber(threading.Thread):
 
 # Pub/Sub classes for storing data from Realsense Cameras
 class ZMQCameraPublisher(object):
-    def __init__(self, host, port):
+    def __init__(self, host, port, rgb_encoding='png'):
+        if rgb_encoding not in ('png', 'raw'):
+            raise ValueError('RGB encoding must be png or raw.')
         self._host, self._port = host, port
+        self._rgb_encoding = rgb_encoding
         self._init_publisher()
 
     def _init_publisher(self):
@@ -106,13 +109,19 @@ class ZMQCameraPublisher(object):
         self.socket.send(b"intrinsics " + pickle.dumps(array, protocol = -1))
 
     def pub_rgb_image(self, rgb_image, timestamp, frame_timing=None):
-        success, buffer = cv2.imencode('.png', rgb_image, [int(cv2.IMWRITE_PNG_COMPRESSION), 0])
-        if not success:
-            raise ValueError('Failed to encode RGB frame as PNG.')
+        if self._rgb_encoding == 'raw':
+            # Pickle carries the array's shape/dtype and raw pixels in one ZMQ message.
+            payload = np.ascontiguousarray(rgb_image)
+        else:
+            success, buffer = cv2.imencode('.png', rgb_image, [int(cv2.IMWRITE_PNG_COMPRESSION), 0])
+            if not success:
+                raise ValueError('Failed to encode RGB frame as PNG.')
+            payload = buffer.tobytes()
 
         data = dict(
             timestamp = timestamp,
-            rgb_image = buffer.tobytes()
+            rgb_image = payload,
+            encoding = self._rgb_encoding,
         )
         if frame_timing is not None:
             data["frame_timing"] = dict(frame_timing, host_encoded_unix_s=time.time())
@@ -158,10 +167,17 @@ class ZMQCameraSubscriber(threading.Thread):
         raw_data = self.socket.recv()
         received_at = time.time()
         data = pickle.loads(raw_data[len(b"rgb_image "):])
-        encoded_data = np.frombuffer(data['rgb_image'], np.uint8)
-        image = cv2.imdecode(encoded_data, cv2.IMREAD_COLOR)
+        encoding = data.get('encoding', 'png')  # Existing publishers omit this field.
+        if encoding == 'raw':
+            image = data['rgb_image']
+        elif encoding == 'png':
+            encoded_data = np.frombuffer(data['rgb_image'], np.uint8)
+            image = cv2.imdecode(encoded_data, cv2.IMREAD_COLOR)
+        else:
+            raise ValueError('Unsupported RGB encoding: {}'.format(encoding))
         self.last_rgb_timing = dict(
             data.get("frame_timing", {}),
+            transport_encoding=encoding,
             frameset_timestamp_ms=data["timestamp"],
             host_received_unix_s=received_at,
             host_decoded_unix_s=time.time(),

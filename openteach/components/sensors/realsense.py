@@ -23,7 +23,8 @@ class RealsenseCamera(Component):
         # Different publishers to avoid overload
         self.rgb_publisher = ZMQCameraPublisher(
             host = stream_configs['host'],
-            port = stream_configs['port']
+            port = stream_configs['port'],
+            rgb_encoding = cam_configs.get('rgb_encoding', 'png'),
         )
 
         if self._stream_oculus:

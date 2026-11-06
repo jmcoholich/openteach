@@ -14,6 +14,7 @@ cam_configs:  # if the width and height are changed, they also need to be change
   height: 360
   fps: 60
   rotation_angle: 0
+  rgb_encoding: raw # Use png to restore the previous camera transport.
 
 oculus_cam: 99 # This applies compression, so don't specify oculus_cam as a cam we need for observations.
 num_cams: 3

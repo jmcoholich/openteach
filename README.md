@@ -145,17 +145,36 @@ cd ~/openteach
 python reset_gripper.py
 ```
 ## Data files
-After stopping the `teleop.py` script, a file named `deoxys_obs_cmd_history_<demo name>.pkl` will be saved in `openteach/extracted_data`. This pkl file will contain all robot states and observations (no camera inputs) and actions recorded by `openteach/openteach/components/operators/franka.py`.
 
-After stopping the `data_collect.py` script, a folder named `demonstration_<demo name>` will be saved in the same folder. This folder contains the RGBD camera recordings.
+Recordings live in `extracted_data/demonstration_<demo name>/`: robot states/actions in `deoxys_obs_cmd_history_<demo name>.h5`, plus three RGB AVI files and their timestamp metadata.
 
-To post-process the data, run:
+After stopping recording, combine them into `demo_<demo name>.h5` and a preview MP4:
 
 ```bash
 python visualize_demo.py --demo_number <demo name>
 ```
 
-This script will combine the camera observations and robot actions/proprioception into a single .pkl file at `openteach/extracted_data/demonstration_<demo name>/demo_<demo name>.pkl`. Additionally, the script will save a video of the demo at `openteach/extracted_data/demonstration_<demo name>/demo_<demo name>.mp4`, like the one seen at the top of this README.
+Use `--no_video` to skip the preview or `--video-only` to generate it later from HDF5. Use `--demo_folder <folder>` instead of `--demo_number` to process a folder.
+
+To also delete source files after validating the HDF5:
+
+```bash
+python visualize_demo.py --demo_number <demo name> --no_video --delete-source-files
+```
+
+Cleanup removes only the command-history HDF5 and three RGB AVI/metadata pairs after full read-back validation, atomic publication, and a check that sources have not changed. It preserves processed data, but discards filtered-out frames, unused robot fields, and original metadata. Existing outputs are rebuilt from sources before cleanup; `--video-only` cannot be combined with cleanup. Sources are retained by default.
+
+**Compression defaults to lossless gzip level 1.** Override with `--h5-compression lzf` for faster compression or `--h5-compression none` to disable it. Existing readers work unchanged; skipped HDF5 files are not repacked.
+
+Sample results for 60 frames from `demo_thread3_0.h5`, across all three cameras:
+
+| Compression | Space saved | Write | Read + compare |
+| --- | ---: | ---: | ---: |
+| None | 0% | 0.07 s | 0.05 s |
+| LZF | 28% | 0.65 s | 0.33 s |
+| Gzip level 1 (default) | 45% | 2.05 s | 0.54 s |
+
+These single-run RGB timings may benefit from cached reads and exclude disk syncing and the rest of the pipeline. Compression can slow HDF5 validation, visualization, and LeRobot conversion; reduced I/O may offset decompression on slower storage. Subsequent LeRobot training is unaffected. See `write_processed_h5()` in `visualize_demo.py` for benchmark details.
 
 
 <!-- ### Policy Learning

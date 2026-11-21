@@ -9,7 +9,9 @@ Outputs
 import os
 import pickle as pkl
 import shutil
+import stat
 import subprocess
+import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import cv2
@@ -33,6 +35,131 @@ import warnings
 warnings.filterwarnings( "ignore")
 DEBUG = False
 
+H5_KEYS = (
+    "rgb_frames", "eef_pos", "eef_quat", "arm_action", "gripper_action",
+    "gripper_state", "eef_pose", "joint_pos", "last_dtau_J", "last_tau_J",
+    "last_tau_J_d", "last_tau_ext_hat_filtered", "cartesian_pose_cmd",
+)
+
+
+def source_file_paths(demo_path, demo_number):
+    """Only inputs consumed by this converter; never glob or delete directories."""
+    return [os.path.join(demo_path, f"deoxys_obs_cmd_history_{demo_number}.h5")] + [
+        os.path.join(demo_path, f"cam_{camera}_rgb_video.{extension}")
+        for camera in range(3) for extension in ("avi", "metadata")
+    ]
+
+
+def snapshot_sources(paths):
+    snapshot = {}
+    for path in paths:
+        info = os.stat(path, follow_symlinks=False)
+        if not stat.S_ISREG(info.st_mode):
+            raise ValueError(f"Source cleanup requires a regular file, not a symlink: {path}")
+        snapshot[path] = (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+    return snapshot
+
+
+def delete_validated_sources(snapshot):
+    # Check the entire set before deleting anything. Run only on stopped recordings.
+    if snapshot_sources(snapshot) != snapshot:
+        raise RuntimeError("Source files changed during conversion; keeping all source files.")
+    for path in snapshot:
+        os.unlink(path)
+        print(f"Deleted source: {path}")
+    print(f"Removed {sum(info[2] for info in snapshot.values()) / 2**30:.3f} GiB of source files.")
+
+
+def validate_processed_h5(path, output_data, attrs):
+    """Read every saved value back, in bounded batches, before publishing/deleting."""
+    with h5py.File(path, "r") as h5f:
+        if set(h5f) != set(H5_KEYS):
+            raise ValueError("Processed HDF5 has unexpected or missing datasets.")
+        for key in H5_KEYS:
+            expected = output_data[key]
+            dataset = h5f[key]
+            if dataset.shape != expected.shape or dataset.dtype != expected.dtype:
+                raise ValueError(f"Processed HDF5 shape/dtype mismatch: {key}")
+            row_bytes = max(1, int(np.prod(expected.shape[1:])) * expected.dtype.itemsize)
+            batch_size = max(1, (16 * 1024**2) // row_bytes)
+            for start in range(0, len(expected), batch_size):
+                if not np.array_equal(dataset[start:start + batch_size], expected[start:start + batch_size]):
+                    raise ValueError(f"Processed HDF5 read-back mismatch: {key}, frame {start}")
+        for key, value in attrs.items():
+            np.testing.assert_equal(h5f.attrs[key], value, err_msg=f"Attribute mismatch: {key}")
+
+
+def write_processed_h5(path, output_data, attrs, compression="none"):
+    """Write, fully validate, and atomically publish a processed demonstration.
+
+    Compression is lossless and transparent to existing h5py readers. A local
+    benchmark (2026-11-21) using the first 60 frames of demo_thread3_0.h5,
+    including all three 360x640 cameras, measured:
+
+        mode       size (MiB)    savings    write (s)    read + compare (s)
+        none          118.65         0%         0.07                  0.05
+        lzf            85.03        28%         0.65                  0.33
+        gzip level 1   64.96        45%         2.05                  0.54
+
+    These are single-run RGB-only measurements, using the chunk/checksum
+    settings below. Reads immediately followed writes and may hit the OS cache;
+    write times exclude fsync, validation, source decoding, and video generation.
+    They illustrate the tradeoff, not guaranteed full-demo throughput or savings.
+
+    LZF favors speed; gzip level 1 saved more space but used more CPU here.
+    Reading compressed HDF5 requires decompression, including during this
+    function's validation, later visualization, and HDF5-to-LeRobot conversion.
+    Reads were slower in this sample, although reduced disk/network I/O can
+    offset decompression on slower storage. Decoded arrays use the same RAM.
+    Once converted, LeRobot training reads its own videos/parquet, so this HDF5
+    compression choice does not add decompression work to that training path.
+    """
+    if compression not in ("none", "lzf", "gzip"):
+        raise ValueError(f"Unknown HDF5 compression: {compression}")
+    rgb = output_data["rgb_frames"]
+    if rgb.ndim != 5 or rgb.shape[0] == 0 or rgb.shape[1] != 3 or rgb.shape[-1] != 3 or rgb.dtype != np.uint8:
+        raise ValueError(f"Expected nonempty uint8 RGB frames (N, 3, H, W, 3), got {rgb.shape}, {rgb.dtype}")
+    for key in H5_KEYS:
+        values = output_data[key]
+        # The current converter leaves this legacy field empty.
+        if key == "cartesian_pose_cmd" and values.size == 0:
+            continue
+        if len(values) != len(rgb) or (key != "rgb_frames" and not np.isfinite(values).all()):
+            raise ValueError(f"Invalid values or frame count in {key}")
+    directory = os.path.dirname(os.path.abspath(path))
+    fd, temporary_path = tempfile.mkstemp(prefix=f".{os.path.basename(path)}.", suffix=".tmp", dir=directory)
+    os.close(fd)
+    try:
+        with h5py.File(temporary_path, "w") as h5f:
+            for key in H5_KEYS:
+                options = {}
+                if compression != "none" and output_data[key].size:
+                    options = {"compression": compression, "fletcher32": True}
+                    if compression == "gzip":
+                        options["compression_opts"] = 1
+                    if key == "rgb_frames":
+                        # Compress each camera/frame independently so reading one
+                        # image does not require decompressing neighboring frames.
+                        options["chunks"] = (1, 1, *rgb.shape[2:])
+                    else:
+                        options["shuffle"] = True
+                h5f.create_dataset(key, data=output_data[key], **options)
+            for key, value in attrs.items():
+                h5f.attrs[key] = value
+        print("Validating all processed HDF5 datasets and attributes...")
+        validate_processed_h5(temporary_path, output_data, attrs)
+        with open(temporary_path, "rb") as saved:
+            os.fsync(saved.fileno())
+        os.replace(temporary_path, path)
+        directory_fd = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
+    finally:
+        if os.path.exists(temporary_path):
+            os.unlink(temporary_path)
+
 # demo numer is the first argument
 def main():
     parser = argparse.ArgumentParser()
@@ -42,11 +169,18 @@ def main():
     group.add_argument("--demo_folder", type=str, help="Process and visualize all demos in folder.")
     parser.add_argument("--no_video", action="store_true", help="Process and visualize all demos in folder without creating video.")
     parser.add_argument("--video-only", "--video_only", action="store_true", help="Only generate the video from an existing processed h5.")
+    parser.add_argument("--delete-source-files", "--delete_source_files", action="store_true",
+                        help="After full HDF5 read-back validation, delete the command history and three RGB AVI/metadata pairs. Use only on stopped recordings. Discards unselected frames and raw metadata; keeps unrelated files. Existing demos are reprocessed from sources before cleanup.")
+    parser.add_argument("--h5-compression", "--h5_compression", choices=("none", "lzf", "gzip"), default="gzip",
+                        help="Lossless HDF5 compression: none, fast lzf, or gzip level 1 (default). No reader changes needed.")
     args = parser.parse_args()
+    if args.video_only and args.delete_source_files:
+        parser.error("--delete-source-files cannot be used with --video-only")
 
     if args.demo_number:
         for demo_number in args.demo_number.split(","):
-            make_combined_video(None, demo_number.strip(), make_video=not args.no_video, video_only=args.video_only)
+            make_combined_video(None, demo_number.strip(), make_video=not args.no_video, video_only=args.video_only,
+                                delete_source_files=args.delete_source_files, h5_compression=args.h5_compression)
 
     elif args.demo_folder:
         data_root = f"{os.path.expanduser('~')}/openteach/extracted_data/{args.demo_folder}"
@@ -57,16 +191,20 @@ def main():
                 # print(f"Skipping {file} as it does not match the expected demo folder format.")
                 continue
             demo_number = file[14:]
-            if os.path.exists(os.path.join(data_root, file, f"demo_{demo_number}.h5")) and not args.video_only:
+            if os.path.exists(os.path.join(data_root, file, f"demo_{demo_number}.h5")) and not args.video_only and not args.delete_source_files:
                 print(f"Demo {demo_number} already processed. Skipping...")
                 continue
-            make_combined_video(args.demo_folder, demo_number, make_video=not args.no_video, video_only=args.video_only)
+            make_combined_video(args.demo_folder, demo_number, make_video=not args.no_video, video_only=args.video_only,
+                                delete_source_files=args.delete_source_files, h5_compression=args.h5_compression)
 
     else:
         raise ValueError("Either --demo_number or --demo_folder must be provided")
 
 
-def make_combined_video(folder, demo_number, make_video=True, video_only=False):
+def make_combined_video(folder, demo_number, make_video=True, video_only=False,
+                        delete_source_files=False, h5_compression="gzip"):
+    if video_only and delete_source_files:
+        raise ValueError("Source cleanup requires conversion, not --video-only.")
     root_folder = f"{os.path.expanduser('~')}/openteach/extracted_data"
     if folder is None and demo_number.endswith(".h5"):
         demo_path = os.path.dirname(demo_number) or "."
@@ -82,6 +220,12 @@ def make_combined_video(folder, demo_number, make_video=True, video_only=False):
     if video_only:
         make_video_from_h5(demo_path, demo_number)
         return
+    sources = source_file_paths(demo_path, demo_number)
+    if delete_source_files and not any(os.path.lexists(path) for path in sources):
+        if os.path.isfile(os.path.join(demo_path, f"demo_{demo_number}.h5")):
+            print(f"Demo {demo_number}: no source files remain; skipping conversion and cleanup.")
+            return
+    source_snapshot = snapshot_sources(sources) if delete_source_files else None
     cmds_path = os.path.join(demo_path, f"deoxys_obs_cmd_history_{demo_number}.h5")
     print(demo_path)
     rgb_timestamps = []
@@ -126,6 +270,11 @@ def make_combined_video(folder, demo_number, make_video=True, video_only=False):
             # assert round(metadata['record_frequency']) == freq
         # Milliseconds: new recordings use recorder receive/decode time; older ones use camera time.
         rgb_timestamps.append(np.array(metadata["timestamps"]) / 1000)
+        timestamps = rgb_timestamps[-1]
+        if (timestamps.ndim != 1 or len(timestamps) < 2
+                or len(timestamps) != len(rgb_frames[-1])
+                or not np.isfinite(timestamps).all() or np.any(np.diff(timestamps) < 0)):
+            raise ValueError(f"cam_{j}: invalid timestamps or decoded frame count does not match metadata.")
 
     output_data = {
         "cartesian_pose_cmd": [],
@@ -215,27 +364,9 @@ def make_combined_video(folder, demo_number, make_video=True, video_only=False):
         output_data[k] = np.array(v)
     path = f"{demo_path}/demo_{demo_number}.h5"
     print(f"Saving processed data to {path}...")
-    h5_keys = [
-        "rgb_frames",
-        "eef_pos",
-        "eef_quat",
-        "arm_action",
-        "gripper_action",
-        "gripper_state",
-        "eef_pose",
-        "joint_pos",
-        "last_dtau_J",
-        "last_tau_J",
-        "last_tau_J_d",
-        "last_tau_ext_hat_filtered",
-        "cartesian_pose_cmd",
-    ]
-    with h5py.File(path, "w") as h5f:
-        for key in h5_keys:
-            h5f.create_dataset(key, data=output_data[key])
-        # copy attrs from the cmd_data h5
-        for attr, value in cmd_attrs.items():
-            h5f.attrs[attr] = value
+    write_processed_h5(path, output_data, cmd_attrs, compression=h5_compression)
+    if source_snapshot is not None:
+        delete_validated_sources(source_snapshot)
 
     # make video
     if not make_video:

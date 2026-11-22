@@ -8,11 +8,13 @@ Outputs
 
 import os
 import pickle as pkl
+import re
 import shutil
 import stat
 import subprocess
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 
 import cv2
 import h5py
@@ -60,14 +62,81 @@ def snapshot_sources(paths):
     return snapshot
 
 
-def delete_validated_sources(snapshot):
-    # Check the entire set before deleting anything. Run only on stopped recordings.
-    if snapshot_sources(snapshot) != snapshot:
+def cleanup_entries(demo_path, demo_number):
+    """Allow only this demo's inputs, outputs, and generated preview images."""
+    directory = Path(demo_path)
+    if directory.is_symlink() or directory.name != f"demonstration_{demo_number}":
+        raise ValueError("Cleanup requires a real demonstration_<name> directory.")
+    allowed = {Path(path).name for path in source_file_paths(demo_path, demo_number)}
+    allowed.update((f"demo_{demo_number}.h5", f"demo_{demo_number}.mp4"))
+    files, directories = [], []
+    for entry in directory.iterdir():
+        if not entry.is_symlink() and entry.is_file() and entry.name in allowed:
+            files.append(entry)
+        elif not entry.is_symlink() and entry.is_dir() and entry.name in ("joint_state_plots", "combined_frames"):
+            for child in entry.iterdir():
+                expected = (child.name == "joint_state_plot.png" if entry.name == "joint_state_plots"
+                            else re.fullmatch(r"frame_\d+\.png", child.name))
+                if child.is_symlink() or not child.is_file() or not expected:
+                    raise ValueError(f"Unexpected file; refusing directory cleanup: {child}")
+                files.append(child)
+            directories.append(entry)
+        else:
+            raise ValueError(f"Unexpected file; refusing directory cleanup: {entry}")
+    return files, directories
+
+
+def check_cleanup_destinations(demo_path, demo_number):
+    for extension in ("h5", "mp4"):
+        destination = Path(demo_path).parent / f"demo_{demo_number}.{extension}"
+        if os.path.lexists(destination):
+            raise FileExistsError(f"Refusing to overwrite existing output: {destination}")
+
+
+def finish_demo_cleanup(demo_path, demo_number, source_snapshot):
+    """Publish outputs in the parent without copying/overwriting, then remove inputs.
+
+    Hard links publish each complete file atomically without allocating another
+    HDF5-sized copy. Both outputs are synced before any local files are removed.
+    Publication failure rolls back new links and leaves the demo folder intact.
+    """
+    files, directories = cleanup_entries(demo_path, demo_number)
+    sources = source_file_paths(demo_path, demo_number)
+    present_sources = [path for path in sources if os.path.lexists(path)]
+    if snapshot_sources(present_sources) != source_snapshot:
         raise RuntimeError("Source files changed during conversion; keeping all source files.")
-    for path in snapshot:
-        os.unlink(path)
-        print(f"Deleted source: {path}")
-    print(f"Removed {sum(info[2] for info in snapshot.values()) / 2**30:.3f} GiB of source files.")
+    check_cleanup_destinations(demo_path, demo_number)
+    directory = Path(demo_path)
+    outputs = [directory / f"demo_{demo_number}.h5"]
+    video = directory / f"demo_{demo_number}.mp4"
+    if video.exists():
+        outputs.append(video)
+    published = []
+    try:
+        for output in outputs:
+            if not output.is_file() or output.stat().st_size == 0:
+                raise ValueError(f"Missing or empty output: {output}")
+            with output.open("rb") as saved:
+                os.fsync(saved.fileno())
+            destination = directory.parent / output.name
+            os.link(output, destination)  # Fails if destination exists, including a race.
+            published.append(destination)
+        parent_fd = os.open(directory.parent, os.O_RDONLY | os.O_DIRECTORY)
+        try:
+            os.fsync(parent_fd)
+        finally:
+            os.close(parent_fd)
+    except BaseException:
+        for destination in published:
+            destination.unlink()
+        raise
+    # Remove only the inspected files. An unexpected new entry prevents rmdir.
+    for path in files:
+        path.unlink()
+    for path in directories:
+        path.rmdir()
+    directory.rmdir()
+    print(f"Saved outputs in {directory.parent}; removed {directory.name}.")
 
 
 def validate_processed_h5(path, output_data, attrs):
@@ -87,6 +156,19 @@ def validate_processed_h5(path, output_data, attrs):
                     raise ValueError(f"Processed HDF5 read-back mismatch: {key}, frame {start}")
         for key, value in attrs.items():
             np.testing.assert_equal(h5f.attrs[key], value, err_msg=f"Attribute mismatch: {key}")
+
+
+def validate_processed_arrays(output_data):
+    rgb = output_data["rgb_frames"]
+    if rgb.ndim != 5 or rgb.shape[0] == 0 or rgb.shape[1] != 3 or rgb.shape[-1] != 3 or rgb.dtype != np.uint8:
+        raise ValueError(f"Expected nonempty uint8 RGB frames (N, 3, H, W, 3), got {rgb.shape}, {rgb.dtype}")
+    for key in H5_KEYS:
+        values = output_data[key]
+        # The current converter leaves this legacy field empty.
+        if key == "cartesian_pose_cmd" and values.size == 0:
+            continue
+        if len(values) != len(rgb) or (key != "rgb_frames" and not np.isfinite(values).all()):
+            raise ValueError(f"Invalid values or frame count in {key}")
 
 
 def write_processed_h5(path, output_data, attrs, compression="none"):
@@ -116,16 +198,8 @@ def write_processed_h5(path, output_data, attrs, compression="none"):
     """
     if compression not in ("none", "lzf", "gzip"):
         raise ValueError(f"Unknown HDF5 compression: {compression}")
+    validate_processed_arrays(output_data)
     rgb = output_data["rgb_frames"]
-    if rgb.ndim != 5 or rgb.shape[0] == 0 or rgb.shape[1] != 3 or rgb.shape[-1] != 3 or rgb.dtype != np.uint8:
-        raise ValueError(f"Expected nonempty uint8 RGB frames (N, 3, H, W, 3), got {rgb.shape}, {rgb.dtype}")
-    for key in H5_KEYS:
-        values = output_data[key]
-        # The current converter leaves this legacy field empty.
-        if key == "cartesian_pose_cmd" and values.size == 0:
-            continue
-        if len(values) != len(rgb) or (key != "rgb_frames" and not np.isfinite(values).all()):
-            raise ValueError(f"Invalid values or frame count in {key}")
     directory = os.path.dirname(os.path.abspath(path))
     fd, temporary_path = tempfile.mkstemp(prefix=f".{os.path.basename(path)}.", suffix=".tmp", dir=directory)
     os.close(fd)
@@ -170,9 +244,11 @@ def main():
     parser.add_argument("--no_video", action="store_true", help="Process and visualize all demos in folder without creating video.")
     parser.add_argument("--video-only", "--video_only", action="store_true", help="Only generate the video from an existing processed h5.")
     parser.add_argument("--delete-source-files", "--delete_source_files", action="store_true",
-                        help="After full HDF5 read-back validation, delete the command history and three RGB AVI/metadata pairs. Use only on stopped recordings. Discards unselected frames and raw metadata; keeps unrelated files. Existing demos are reprocessed from sources before cleanup.")
+                        help="Validate HDF5, save it and any preview MP4 in the parent folder, then remove the demonstration folder and sources. Use only on stopped recordings. Refuses output collisions or unexpected files.")
     parser.add_argument("--h5-compression", "--h5_compression", choices=("none", "lzf", "gzip"), default="gzip",
                         help="Lossless HDF5 compression: none, fast lzf, or gzip level 1 (default). No reader changes needed.")
+    parser.add_argument("--camera-workers", "--camera_workers", type=int, choices=(1, 2, 3), default=3,
+                        help="RGB cameras to decode concurrently (default: 3). Use 1 for sequential loading and lower peak RAM.")
     args = parser.parse_args()
     if args.video_only and args.delete_source_files:
         parser.error("--delete-source-files cannot be used with --video-only")
@@ -180,7 +256,8 @@ def main():
     if args.demo_number:
         for demo_number in args.demo_number.split(","):
             make_combined_video(None, demo_number.strip(), make_video=not args.no_video, video_only=args.video_only,
-                                delete_source_files=args.delete_source_files, h5_compression=args.h5_compression)
+                                delete_source_files=args.delete_source_files, h5_compression=args.h5_compression,
+                                camera_workers=args.camera_workers)
 
     elif args.demo_folder:
         data_root = f"{os.path.expanduser('~')}/openteach/extracted_data/{args.demo_folder}"
@@ -195,14 +272,15 @@ def main():
                 print(f"Demo {demo_number} already processed. Skipping...")
                 continue
             make_combined_video(args.demo_folder, demo_number, make_video=not args.no_video, video_only=args.video_only,
-                                delete_source_files=args.delete_source_files, h5_compression=args.h5_compression)
+                                delete_source_files=args.delete_source_files, h5_compression=args.h5_compression,
+                                camera_workers=args.camera_workers)
 
     else:
         raise ValueError("Either --demo_number or --demo_folder must be provided")
 
 
 def make_combined_video(folder, demo_number, make_video=True, video_only=False,
-                        delete_source_files=False, h5_compression="gzip"):
+                        delete_source_files=False, h5_compression="gzip", camera_workers=3):
     if video_only and delete_source_files:
         raise ValueError("Source cleanup requires conversion, not --video-only.")
     root_folder = f"{os.path.expanduser('~')}/openteach/extracted_data"
@@ -217,19 +295,33 @@ def make_combined_video(folder, demo_number, make_video=True, video_only=False,
         demo_path = os.path.join(root_folder, f"demonstration_{demo_number}")
     else:
         demo_path = os.path.join(root_folder, f"{folder}/demonstration_{demo_number}")
+    demo_path = os.path.abspath(demo_path)
     if video_only:
         make_video_from_h5(demo_path, demo_number)
         return
     sources = source_file_paths(demo_path, demo_number)
-    if delete_source_files and not any(os.path.lexists(path) for path in sources):
-        if os.path.isfile(os.path.join(demo_path, f"demo_{demo_number}.h5")):
-            print(f"Demo {demo_number}: no source files remain; skipping conversion and cleanup.")
+    if delete_source_files:
+        if not os.path.exists(demo_path) and os.path.isfile(os.path.join(os.path.dirname(demo_path), f"demo_{demo_number}.h5")):
+            print(f"Demo {demo_number}: already saved in parent folder; skipping.")
             return
+        cleanup_entries(demo_path, demo_number)
+        check_cleanup_destinations(demo_path, demo_number)
+    if delete_source_files and not any(os.path.lexists(path) for path in sources):
+        # Support folders already cleaned by earlier versions. With no raw inputs
+        # left, validate the existing file's structure and read all its values.
+        path = os.path.join(demo_path, f"demo_{demo_number}.h5")
+        with h5py.File(path, "r") as h5f:
+            if set(h5f) != set(H5_KEYS):
+                raise ValueError(f"Unexpected or missing datasets in {path}")
+            output_data = {key: h5f[key][:] for key in H5_KEYS}
+        validate_processed_arrays(output_data)
+        if make_video:
+            make_video_from_data(demo_path, demo_number, output_data)
+        finish_demo_cleanup(demo_path, demo_number, {})
+        return
     source_snapshot = snapshot_sources(sources) if delete_source_files else None
     cmds_path = os.path.join(demo_path, f"deoxys_obs_cmd_history_{demo_number}.h5")
     print(demo_path)
-    rgb_timestamps = []
-
     # freq = 15.0
 
     print('loading observations and commands ...')
@@ -250,31 +342,7 @@ def make_combined_video(folder, demo_number, make_video=True, video_only=False,
             cmd_attrs[attr] = f.attrs[attr]
     cmd_attrs["openteach current commit"] = current_commit
 
-    # rgb frames
-    rgb_frames = []
-    for j in [0, 1, 2]:
-        print(f"Loading rgb images from cam_{j}...")
-        fname = f"cam_{j}_rgb_video.avi"
-        if not os.path.exists(f"{demo_path}/{fname}"):
-            raise FileNotFoundError(f"File {fname} does not exist in {demo_path}.")
-        rgb_frames.append(load_video_to_numpy_array(f"{demo_path}/{fname}"))
-        # load the metadata file (pkl file)
-        # f"cam_{j}_rgb_video.metadata"
-        with open(f"{demo_path}/cam_{j}_rgb_video.metadata", "rb") as f:
-            metadata = pkl.load(f)
-            for key in metadata.keys():
-                if key in ["timestamps"]:
-                    continue
-                if DEBUG: print(key.ljust(25), metadata[key])
-            if DEBUG: print()
-            # assert round(metadata['record_frequency']) == freq
-        # Milliseconds: new recordings use recorder receive/decode time; older ones use camera time.
-        rgb_timestamps.append(np.array(metadata["timestamps"]) / 1000)
-        timestamps = rgb_timestamps[-1]
-        if (timestamps.ndim != 1 or len(timestamps) < 2
-                or len(timestamps) != len(rgb_frames[-1])
-                or not np.isfinite(timestamps).all() or np.any(np.diff(timestamps) < 0)):
-            raise ValueError(f"cam_{j}: invalid timestamps or decoded frame count does not match metadata.")
+    rgb_frames, rgb_timestamps = load_rgb_cameras(demo_path, camera_workers)
 
     output_data = {
         "cartesian_pose_cmd": [],
@@ -365,14 +433,13 @@ def make_combined_video(folder, demo_number, make_video=True, video_only=False,
     path = f"{demo_path}/demo_{demo_number}.h5"
     print(f"Saving processed data to {path}...")
     write_processed_h5(path, output_data, cmd_attrs, compression=h5_compression)
-    if source_snapshot is not None:
-        delete_validated_sources(source_snapshot)
-
     # make video
-    if not make_video:
+    if make_video:
+        make_video_from_data(demo_path, demo_number, output_data)
+    else:
         print("No video flag passed. Skipping video creation.")
-        return
-    make_video_from_data(demo_path, demo_number, output_data)
+    if source_snapshot is not None:
+        finish_demo_cleanup(demo_path, demo_number, source_snapshot)
 
 
 def make_video_from_h5(demo_path, demo_number):
@@ -435,8 +502,9 @@ def make_video_from_data(demo_path, demo_number, output_data):
             progress_bar.update(1)
 
     # compile video
-    if compile_video(f"demo_{demo_number}", frames_dir, demo_path).returncode == 0:
-        shutil.rmtree(frames_dir)
+    if compile_video(f"demo_{demo_number}", frames_dir, demo_path).returncode != 0:
+        raise RuntimeError(f"Preview encoding failed for demo_{demo_number}; keeping source files.")
+    shutil.rmtree(frames_dir)
 
 
 def make_combined_frame(rgb_frames, cartesian_frames, joint_state_plot, joint_line_bounds, i, frames_dir):
@@ -528,28 +596,65 @@ def make_joint_state_plot(angles, tau_ext_hat_filtered, gripper_pos, gripper_cmd
     return image, line_bounds
 
 
+def load_rgb_camera(demo_path, camera):
+    """Decode and validate one camera using its own VideoCapture instance."""
+    print(f"Loading rgb images from cam_{camera}...")
+    video_path = os.path.join(demo_path, f"cam_{camera}_rgb_video.avi")
+    if not os.path.exists(video_path):
+        raise FileNotFoundError(f"Missing camera video: {video_path}")
+    frames = load_video_to_numpy_array(video_path)
+    with open(os.path.join(demo_path, f"cam_{camera}_rgb_video.metadata"), "rb") as f:
+        metadata = pkl.load(f)
+    if DEBUG:
+        for key, value in metadata.items():
+            if key != "timestamps":
+                print(key.ljust(25), value)
+    # Milliseconds: recorder receive/decode time, or camera time in old recordings.
+    timestamps = np.array(metadata["timestamps"]) / 1000
+    # Ctrl+C can land after the final video write but before its timestamp append.
+    if timestamps.ndim == 1 and len(frames) == len(timestamps) + 1:
+        frames = frames[:-1]
+    if (timestamps.ndim != 1 or len(timestamps) < 2
+            or len(timestamps) != len(frames)
+            or not np.isfinite(timestamps).all() or np.any(np.diff(timestamps) < 0)):
+        raise ValueError(f"cam_{camera}: invalid timestamps or decoded frame count does not match metadata.")
+    return frames, timestamps
+
+
+def load_rgb_cameras(demo_path, camera_workers=3):
+    """Load cameras concurrently, preserving camera 0/1/2 order and validation.
+
+    Threads share the decoded arrays without process-transfer copies. Each
+    decoder retains OpenCV's default internal threading. Concurrent decoding can
+    increase peak RAM while frame lists are converted to arrays; use one worker
+    for the original sequential behavior on memory-constrained machines.
+    """
+    if camera_workers not in (1, 2, 3):
+        raise ValueError("camera_workers must be 1, 2, or 3")
+    if camera_workers == 1:
+        cameras = [load_rgb_camera(demo_path, camera) for camera in range(3)]
+    else:
+        with ThreadPoolExecutor(max_workers=camera_workers) as executor:
+            # map returns results in input order, regardless of completion order.
+            cameras = list(executor.map(lambda camera: load_rgb_camera(demo_path, camera), range(3)))
+    frames, timestamps = zip(*cameras, strict=True)
+    return list(frames), list(timestamps)
+
+
 def load_video_to_numpy_array(video_path):
-    # Open the video file
     cap = cv2.VideoCapture(video_path)
-
-    # Initialize a list to hold the frames
     frames = []
-
-    # Loop until the end of the video
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
-        # Append the frame to the list
-        frames.append(frame)
-
-    # Release the video capture object
-    cap.release()
-
-    # Convert the list of frames to a NumPy array
-    frames_np = np.array(frames)
-
-    return frames_np
+    try:
+        if not cap.isOpened():
+            raise OSError(f"Could not open camera video: {video_path}")
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+            frames.append(frame)
+    finally:
+        cap.release()
+    return np.array(frames)
 
 
 def make_cartesian_frame(pos, quats):

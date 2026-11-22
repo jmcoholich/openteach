@@ -156,13 +156,17 @@ python visualize_demo.py --demo_number <demo name>
 
 Use `--no_video` to skip the preview or `--video-only` to generate it later from HDF5. Use `--demo_folder <folder>` instead of `--demo_number` to process a folder.
 
-To also delete source files after validating the HDF5:
+The three RGB cameras load in parallel by default. Use `--camera-workers 1` for sequential loading with lower peak RAM (or `2` for a middle ground). On `nutegunray_plug4_chunk_40_10`, two loading trials took 15.5–18.9 s sequentially versus 6.3–7.6 s in parallel. A full conversion with gzip and `--no_video` fell from 34.0 to 25.7 s, with identical HDF5 datasets and attributes. These local measurements may benefit from cached reads; gains depend on CPU, storage, and recording size.
+
+To save outputs in the parent folder and remove each demonstration folder after validation:
 
 ```bash
 python visualize_demo.py --demo_number <demo name> --no_video --delete-source-files
 ```
 
-Cleanup removes only the command-history HDF5 and three RGB AVI/metadata pairs after full read-back validation, atomic publication, and a check that sources have not changed. It preserves processed data, but discards filtered-out frames, unused robot fields, and original metadata. Existing outputs are rebuilt from sources before cleanup; `--video-only` cannot be combined with cleanup. Sources are retained by default.
+With `--delete-source-files`, `demo_<name>.h5` and any preview MP4 are saved directly in the parent folder, then `demonstration_<name>/` is removed, including its sources and generated preview images. `--no_video` still preserves an existing MP4. For example, `--demo_folder unstackFour_100_w_Yusuf` puts outputs directly in `extracted_data/unstackFour_100_w_Yusuf/`; point dataset converters there. Without cleanup, outputs and sources stay in each demonstration folder.
+
+Cleanup follows full HDF5 read-back validation, successful preview creation (if requested), and a check that sources have not changed. It refuses to overwrite parent-folder outputs or delete unexpected files. Existing HDF5 files are rebuilt when sources remain; folders already cleaned by earlier versions are relocated after checking HDF5 structure and readability. Raw frames excluded from processing and original metadata are discarded. `--video-only` cannot be combined with cleanup; to make a preview later, pass the relocated `.h5` path using `--demo_number`.
 
 **Compression defaults to lossless gzip level 1.** Override with `--h5-compression lzf` for faster compression or `--h5-compression none` to disable it. Existing readers work unchanged; skipped HDF5 files are not repacked.
 
